@@ -266,6 +266,9 @@ importers:
       '@knownpath/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@knownpath/canonicalization':
+        specifier: workspace:*
+        version: link:../../packages/canonicalization
       '@knownpath/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -275,6 +278,9 @@ importers:
       '@knownpath/github-ingestion':
         specifier: workspace:*
         version: link:../../packages/github-ingestion
+      '@knownpath/search':
+        specifier: workspace:*
+        version: link:../../packages/search
       '@knownpath/source-ingestion':
         specifier: workspace:*
         version: link:../../packages/source-ingestion
@@ -359,6 +365,31 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.23.12
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/canonicalization:
+    dependencies:
+      '@knownpath/database':
+        specifier: workspace:*
+        version: link:../database
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@knownpath/search':
+        specifier: workspace:*
+        version: link:../search
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
+    devDependencies:
+      '@knownpath/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -455,6 +486,13 @@ importers:
         version: 6.0.3
 
   packages/search:
+    dependencies:
+      '@google/genai':
+        specifier: 'catalog:'
+        version: 2.18.0
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*

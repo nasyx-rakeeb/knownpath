@@ -34,6 +34,13 @@ export const extractionAttemptIdSchema = brandedIdSchema<"ExtractionAttemptId">(
 export const candidateExperienceIdSchema = brandedIdSchema<"CandidateExperienceId">();
 export const candidateAssessmentIdSchema = brandedIdSchema<"CandidateAssessmentId">();
 export const knownPathIdSchema = brandedIdSchema<"KnownPathId">();
+export const similarityProfileIdSchema = brandedIdSchema<"SimilarityProfileId">();
+export const candidateEmbeddingIdSchema = brandedIdSchema<"CandidateEmbeddingId">();
+export const candidatePairAssessmentIdSchema = brandedIdSchema<"CandidatePairAssessmentId">();
+export const canonicalMembershipIdSchema = brandedIdSchema<"CanonicalMembershipId">();
+export const canonicalizationEventIdSchema = brandedIdSchema<"CanonicalizationEventId">();
+export const knownPathRevisionIdSchema = brandedIdSchema<"KnownPathRevisionId">();
+export const canonicalizationOperationIdSchema = brandedIdSchema<"CanonicalizationOperationId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
 
@@ -48,6 +55,13 @@ export type ExtractionAttemptId = z.infer<typeof extractionAttemptIdSchema>;
 export type CandidateExperienceId = z.infer<typeof candidateExperienceIdSchema>;
 export type CandidateAssessmentId = z.infer<typeof candidateAssessmentIdSchema>;
 export type KnownPathId = z.infer<typeof knownPathIdSchema>;
+export type SimilarityProfileId = z.infer<typeof similarityProfileIdSchema>;
+export type CandidateEmbeddingId = z.infer<typeof candidateEmbeddingIdSchema>;
+export type CandidatePairAssessmentId = z.infer<typeof candidatePairAssessmentIdSchema>;
+export type CanonicalMembershipId = z.infer<typeof canonicalMembershipIdSchema>;
+export type CanonicalizationEventId = z.infer<typeof canonicalizationEventIdSchema>;
+export type KnownPathRevisionId = z.infer<typeof knownPathRevisionIdSchema>;
+export type CanonicalizationOperationId = z.infer<typeof canonicalizationOperationIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
 
@@ -93,6 +107,34 @@ export function createCandidateAssessmentId(): CandidateAssessmentId {
 
 export function createKnownPathId(): KnownPathId {
   return knownPathIdSchema.parse(randomUUID());
+}
+
+export function createSimilarityProfileId(): SimilarityProfileId {
+  return similarityProfileIdSchema.parse(randomUUID());
+}
+
+export function createCandidateEmbeddingId(): CandidateEmbeddingId {
+  return candidateEmbeddingIdSchema.parse(randomUUID());
+}
+
+export function createCandidatePairAssessmentId(): CandidatePairAssessmentId {
+  return candidatePairAssessmentIdSchema.parse(randomUUID());
+}
+
+export function createCanonicalMembershipId(): CanonicalMembershipId {
+  return canonicalMembershipIdSchema.parse(randomUUID());
+}
+
+export function createCanonicalizationEventId(): CanonicalizationEventId {
+  return canonicalizationEventIdSchema.parse(randomUUID());
+}
+
+export function createKnownPathRevisionId(): KnownPathRevisionId {
+  return knownPathRevisionIdSchema.parse(randomUUID());
+}
+
+export function createCanonicalizationOperationId(): CanonicalizationOperationId {
+  return canonicalizationOperationIdSchema.parse(randomUUID());
 }
 
 export function createAgentContributionId(): AgentContributionId {

@@ -123,6 +123,19 @@ const aiExtractionEnvironmentSchema = z.object({
   GEMINI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
 });
 
+const embeddingEnvironmentSchema = z.object({
+  AI_DATA_HANDLING: z.literal("public_only").default("public_only"),
+  EMBEDDING_MAX_PROVIDER_CALLS: z.coerce.number().int().min(1).max(10_000).default(20),
+  EMBEDDING_MIN_REQUEST_SPACING_MS: z.coerce.number().int().min(0).max(60_000).default(1_000),
+  EMBEDDING_PROVIDER: z.literal("gemini").default("gemini"),
+  GEMINI_API_KEY: optionalSecretEnvironmentSchema,
+  GEMINI_EMBEDDING_DIMENSIONS: z.coerce.number().int().min(128).max(3_072).default(768),
+  GEMINI_EMBEDDING_MODEL: z.string().trim().min(1).max(256).default("gemini-embedding-2"),
+  GEMINI_EMBEDDING_MODEL_VERSION: z.string().trim().min(1).max(256).default("gemini-embedding-2"),
+  GEMINI_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
+  GEMINI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -153,6 +166,19 @@ export interface MongoConfig {
   readonly minPoolSize: number;
   readonly serverSelectionTimeoutMs: number;
   readonly uri: string;
+}
+
+export interface EmbeddingConfig {
+  readonly dataHandling: "public_only";
+  readonly dimensions: number;
+  readonly geminiApiKey?: string;
+  readonly maxProviderCalls: number;
+  readonly maxRetries: number;
+  readonly minRequestSpacingMs: number;
+  readonly model: string;
+  readonly modelVersion: string;
+  readonly provider: "gemini";
+  readonly requestTimeoutMs: number;
 }
 
 export interface GitHubConfig {
@@ -290,6 +316,22 @@ export function loadAiExtractionConfig(
     minRequestSpacingMs: parsed.GEMINI_MIN_REQUEST_SPACING_MS,
     model: parsed.GEMINI_MODEL,
     provider: parsed.AI_PROVIDER,
+    requestTimeoutMs: parsed.GEMINI_REQUEST_TIMEOUT_MS,
+  };
+}
+
+export function loadEmbeddingConfig(environment: NodeJS.ProcessEnv = process.env): EmbeddingConfig {
+  const parsed = parseEnvironment(embeddingEnvironmentSchema, environment);
+  return {
+    dataHandling: parsed.AI_DATA_HANDLING,
+    dimensions: parsed.GEMINI_EMBEDDING_DIMENSIONS,
+    ...(parsed.GEMINI_API_KEY === undefined ? {} : { geminiApiKey: parsed.GEMINI_API_KEY }),
+    maxProviderCalls: parsed.EMBEDDING_MAX_PROVIDER_CALLS,
+    maxRetries: parsed.GEMINI_MAX_RETRIES,
+    minRequestSpacingMs: parsed.EMBEDDING_MIN_REQUEST_SPACING_MS,
+    model: parsed.GEMINI_EMBEDDING_MODEL,
+    modelVersion: parsed.GEMINI_EMBEDDING_MODEL_VERSION,
+    provider: parsed.EMBEDDING_PROVIDER,
     requestTimeoutMs: parsed.GEMINI_REQUEST_TIMEOUT_MS,
   };
 }

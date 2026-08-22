@@ -3,10 +3,22 @@ import { fileURLToPath } from "node:url";
 import {
   loadAiExtractionConfig,
   loadGitHubConfig,
+  loadEmbeddingConfig,
   loadMongoConfig,
   loadSourceIngestionConfig,
   type LogLevel,
 } from "@knownpath/config";
+import {
+  CandidateDiscoveryService,
+  CandidateEmbeddingService,
+  CandidatePairService,
+  CanonicalRecordService,
+  SimilarityProfileService,
+  canonicalizationUsage,
+  inspectCanonicalizationHistory,
+  inspectPair,
+  parseCanonicalizationArgs,
+} from "@knownpath/canonicalization";
 import { connectToMongo } from "@knownpath/database";
 import {
   ExtractionBatchRunner,
@@ -37,6 +49,7 @@ import {
   runAssessmentBatch,
   scoringUsage,
 } from "@knownpath/verification";
+import { GeminiEmbeddingProvider } from "@knownpath/search";
 
 const command = process.argv[2];
 
@@ -45,9 +58,173 @@ async function main(): Promise<void> {
   if (command === "sources") return runOfficialSources();
   if (command === "extract") return runExtraction();
   if (command === "score") return runScoring();
+  if (command === "canonicalize") return runCanonicalization();
   console.info(
-    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}`,
+    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}`,
   );
+}
+
+async function runCanonicalization(): Promise<void> {
+  const request = parseCanonicalizationArgs(process.argv.slice(3));
+  const database = await connectToMongo(loadMongoConfig());
+  try {
+    const profiles = new SimilarityProfileService(database);
+    const records = new CanonicalRecordService(database);
+    if (request.action === "history") {
+      console.info(await inspectCanonicalizationHistory(database, request.operationId));
+      return;
+    }
+    if (request.action === "review") {
+      if (request.pairAssessmentId !== undefined) {
+        console.info(await inspectPair(database, request.pairAssessmentId));
+      } else {
+        const pairs = await database.repositories.candidatePairAssessments.listForReview(
+          request.limit,
+        );
+        console.info(JSON.stringify({ pairs }, null, 2));
+      }
+      return;
+    }
+    if (request.action === "profile") {
+      const candidates =
+        request.candidateId === undefined
+          ? await database.repositories.candidateExperiences.listForCanonicalization(request.limit)
+          : [await database.repositories.candidateExperiences.findById(request.candidateId)].filter(
+              (candidate) => candidate !== null,
+            );
+      if (candidates.length === 0) throw new Error("No candidate experiences matched");
+      const results = [];
+      for (const candidate of candidates) results.push(await profiles.ensure(candidate));
+      console.info(
+        JSON.stringify(
+          {
+            profiles: results.map((entry) => ({
+              profileId: entry.profile._id,
+              candidateExperienceId: entry.profile.candidateExperienceId,
+              blockingKeys: entry.profile.blockingKeys.length,
+              reused: entry.reused,
+            })),
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (request.action === "merge") {
+      for (const candidateId of request.candidateIds) {
+        const candidate = await database.repositories.candidateExperiences.findById(candidateId);
+        if (candidate === null) throw new Error(`Candidate ${candidateId} does not exist`);
+        await profiles.ensure(candidate);
+      }
+      const result = await records.mergeCandidates(request);
+      console.info(
+        JSON.stringify({
+          knownPathId: result.knownPath._id,
+          latestRevisionId: result.knownPath.latestRevisionId,
+          operationId: result.operationId,
+        }),
+      );
+      return;
+    }
+    if (request.action === "split") {
+      const result = await records.splitCandidate(request);
+      console.info(
+        JSON.stringify({ knownPathId: result.knownPath._id, operationId: result.operationId }),
+      );
+      return;
+    }
+    if (request.action === "reassign") {
+      const result = await records.reassignCandidate(request);
+      console.info(
+        JSON.stringify({ knownPathId: result.knownPath._id, operationId: result.operationId }),
+      );
+      return;
+    }
+    if (request.action === "rebuild") {
+      const knownPath = await records.rebuild(
+        request.knownPathId,
+        request.operationId,
+        request.reason,
+      );
+      console.info(
+        JSON.stringify({
+          knownPathId: knownPath._id,
+          latestRevisionId: knownPath.latestRevisionId,
+        }),
+      );
+      return;
+    }
+    const embeddingConfig = loadEmbeddingConfig();
+    const embeddings = request.useEmbeddings
+      ? new CandidateEmbeddingService(database, {
+          dimensions: embeddingConfig.dimensions,
+          maxProviderCalls: embeddingConfig.maxProviderCalls,
+          maxRetries: embeddingConfig.maxRetries,
+          minRequestSpacingMs: embeddingConfig.minRequestSpacingMs,
+          providerCapability: "public_only",
+          providerIdentifier: embeddingConfig.provider,
+          providerModel: embeddingConfig.model,
+          providerModelVersion: embeddingConfig.modelVersion,
+          providerFactory: () =>
+            new GeminiEmbeddingProvider({
+              apiKey: embeddingConfig.geminiApiKey ?? "",
+              modelIdentifier: embeddingConfig.model,
+              modelVersion: embeddingConfig.modelVersion,
+              requestTimeoutMs: embeddingConfig.requestTimeoutMs,
+            }),
+        })
+      : undefined;
+    const pairs = new CandidatePairService(database, embeddings);
+    const discovery = new CandidateDiscoveryService(database, profiles, pairs);
+    const summary = await discovery.discover(request.limit, request.useEmbeddings);
+    const output: Record<string, unknown> = {
+      candidates: summary.candidates,
+      profilesCreated: summary.profilesCreated,
+      profilesReused: summary.profilesReused,
+      pairAssessmentsCreated: summary.pairAssessmentsCreated,
+      pairAssessmentsReused: summary.pairAssessmentsReused,
+      decisions: summary.pairs.map((pair) => ({
+        id: pair._id,
+        candidateIds: pair.candidateIds,
+        decision: pair.decision,
+        semanticSimilarity: pair.semantic.cosineSimilarity ?? null,
+      })),
+    };
+    if (request.action === "auto-merge") {
+      const eligible = summary.pairs.filter((pair) => pair.decision === "auto_merge");
+      output["dryRun"] = !request.apply;
+      output["eligibleAutomaticMerges"] = eligible.length;
+      if (request.apply) {
+        const merged = [];
+        const skipped = [];
+        for (const pair of eligible) {
+          try {
+            const result = await records.mergeCandidates({
+              candidateIds: pair.candidateIds,
+              reason: "phase8_deterministic_auto_merge",
+              pairAssessmentId: pair._id,
+            });
+            merged.push({
+              pairAssessmentId: pair._id,
+              knownPathId: result.knownPath._id,
+              operationId: result.operationId,
+            });
+          } catch (error) {
+            skipped.push({
+              pairAssessmentId: pair._id,
+              reason: error instanceof Error ? error.message : "merge failed",
+            });
+          }
+        }
+        output["merged"] = merged;
+        output["skipped"] = skipped;
+      }
+    }
+    console.info(JSON.stringify(output, null, 2));
+  } finally {
+    await database.close();
+  }
 }
 
 async function runScoring(): Promise<void> {

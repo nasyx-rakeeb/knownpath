@@ -1,2 +1,3 @@
-// Search contracts are intentionally deferred to a later phase.
-export {};
+export * from "./gemini.js";
+export * from "./provider.js";
+export * from "./similarity.js";

@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 7. A boundary appearing here does not mean its future product behavior is
+established through Phase 8. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -48,8 +48,10 @@ database.
 - `@knownpath/verification` owns deterministic provenance checks, objective evidence signals,
   versioned scoring policy, freshness/version-fit calculation, immutable assessment history, and
   human-readable score explanations.
-- `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
-  implementations.
+- `@knownpath/canonicalization` owns technical normalization, deterministic profiles/blocking, pair
+  decisions, membership operations, audit history, and canonical rebuilds.
+- `@knownpath/search` owns the provider-neutral embedding contract, public-only Gemini adapter, and
+  vector similarity utility. Vector indexing and retrieval remain Phase 9 work.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
@@ -82,6 +84,10 @@ apps/worker --> packages/ai --> packages/domain
 
 apps/worker --> packages/verification --> packages/domain
                              +----------> packages/database
+
+apps/worker --> packages/canonicalization --> packages/domain
+                              |          --> packages/database
+                              +----------> packages/search --> official Gemini SDK
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -130,7 +136,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 16 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 22 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -148,7 +154,13 @@ indexes, and feedback aggregation before implementing this complete flow.
 9. The worker can resolve a candidate back to immutable source snapshots, verify objective metadata,
    and append an immutable deterministic assessment. The candidate's latest pointer is updated only
    after the assessment exists; prior assessments remain unchanged.
-10. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+10. The worker can create immutable technical-similarity profiles, find plausible pairs through
+    indexed deterministic blocking, optionally embed only public candidates/sources, and persist an
+    explainable pair decision. Strong deterministic gates alone authorize automatic merging.
+11. Canonical membership operations append audit events, rebuild immutable KnownPath revisions, and
+    update a stable current projection. Split/reassign operations never delete candidates or
+    history.
+12. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
     OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
     deferred.
 
@@ -288,6 +300,25 @@ model can overtake seed evidence without rewriting it.
 Assessments are append-only and include exact inputs, signals, versions, policy digest, score
 breakdown, reason codes, and explanations. A candidate's `latestAssessmentId` is only a fast
 pointer. See [`docs/SCORING.md`](SCORING.md).
+
+## Phase 8 canonicalization boundary
+
+Canonicalization starts only from candidates with immutable Phase 7 assessments. A versioned
+normalizer preserves technical identifiers while replacing recognized transient paths, UUIDs,
+timestamps, stack locations, and build IDs. Immutable profiles expose multiple indexed blocking
+keys; ordinary processing never compares the full Cartesian product.
+
+Blocked pairs receive deterministic ecosystem/package/platform/version/error/root-cause checks and
+separate lexical problem/solution similarities. Hard incompatibilities remain separate. Ambiguous
+pairs enter review. The public Gemini embedding provider is constructed only after candidate and
+every referenced source are verified public; semantic similarity can strengthen or prioritize but
+cannot authorize an automatic merge. No vector index or retrieval API exists.
+
+Current candidate relationships live in `canonical_memberships`. Append-only events make create,
+merge, split, reassign, and rebuild operations resumable on standalone local MongoDB. Every rebuild
+first creates/reuses an immutable `known_path_revisions` snapshot and then updates the stable
+`known_paths` projection. Multiple solution variants, all evidence excerpts, contributing assessment
+IDs, and conflicts remain inspectable. See [`docs/CANONICALIZATION.md`](CANONICALIZATION.md).
 
 ## Technology fit
 

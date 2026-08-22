@@ -1,8 +1,8 @@
 {
-  "name": "@knownpath/search",
+  "name": "@knownpath/canonicalization",
   "version": "0.0.0",
   "private": true,
-  "description": "Search and retrieval boundary for KnownPath.",
+  "description": "Deterministic candidate deduplication and canonical KnownPath lifecycle.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -20,13 +20,15 @@
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@knownpath/database": "workspace:*",
+    "@knownpath/domain": "workspace:*",
+    "@knownpath/search": "workspace:*",
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
-  },
-  "dependencies": {
-    "@google/genai": "catalog:",
-    "@knownpath/domain": "workspace:*"
   }
 }

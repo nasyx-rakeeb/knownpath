@@ -985,3 +985,138 @@ No automated tests were created or run, as required for this phase.
 provenance, and promote eligible groups into versioned canonical KnownPaths.** Do not begin public
 search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution workflows, or
 dashboards until their designated later phases.
+
+## Phase 8 — Canonicalization and deterministic deduplication
+
+### Phase goal
+
+Convert overlapping scored candidate experiences into stable, auditable KnownPath projections while
+preserving every candidate and evidence relationship. Use deterministic blocking and merge gates
+first; use public-only embeddings only to support plausible comparisons, never as an automatic merge
+authority.
+
+### Research performed
+
+Current primary and official references were checked on 2026-08-22 before implementation:
+
+- [Fellegi-Sunter record linkage](https://www.cs.cornell.edu/~shmat/courses/cs6434/fellegi-sunter.pdf)
+  for explainable comparison fields and bounded candidate-pair blocking.
+- [Broder resemblance and containment](https://www.cs.princeton.edu/courses/archive/spring13/cos598C/broder97resemblance.pdf)
+  and [Sentence-BERT](https://arxiv.org/abs/1908.10084) for shingle/semantic similarity tradeoffs.
+- [Sentry issue grouping](https://docs.sentry.io/concepts/data-management/event-grouping/) and
+  [OpenTelemetry exception attributes](https://opentelemetry.io/docs/specs/semconv/exceptions/exceptions-spans/)
+  for conservative technical-error identity and preserved exception identifiers.
+- [MongoDB unique/partial indexes](https://www.mongodb.com/docs/manual/core/index-unique/),
+  [transactions](https://www.mongodb.com/docs/manual/core/transactions/), and the
+  [document versioning pattern](https://www.mongodb.com/blog/post/building-with-patterns-the-document-versioning-pattern)
+  for current membership constraints, resumable operations, and immutable revisions.
+- Official [Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings),
+  [`gemini-embedding-2` model details](https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2),
+  and [pricing/data-use terms](https://ai.google.dev/gemini-api/docs/pricing) for current model,
+  dimensions, token limits, and the public-only unpaid-data boundary.
+
+### Architecture and technology decisions
+
+- Immutable normalizer/profile version 1 preserves error codes and exception classes while replacing
+  narrowly recognized user/temp paths, UUIDs, timestamps, transient build segments, and stack
+  locations. Multiple indexed blocking keys avoid all-pairs comparison.
+- Versioned deterministic policy checks ecosystem, package, platform, version, error, root-cause,
+  lexical problem, and lexical solution compatibility. Only strong deterministic evidence can
+  produce `auto_merge`; hard incompatibilities separate and ambiguity enters review.
+- `@knownpath/search` now provides only a provider-neutral embedding boundary and cosine utility.
+  The real configurable Gemini adapter stores public candidate embeddings as ordinary documents;
+  there is no vector index or retrieval feature.
+- Candidate and every evidence source must be public before a `public_only` provider is constructed.
+  Private/team data fails clearly and cannot fall back or force its way through unpaid Gemini.
+- Stable KnownPaths use current memberships and a latest-revision pointer. Pair assessments, events,
+  and complete revisions are immutable; merge/split/reassign/rebuild operations are idempotent and
+  reversible. Different valid solution keys remain separate solution variants.
+- Canonical trust is an inspectable projection of immutable Phase 7 assessments. Phase 8 does not
+  invent or let Gemini assign another confidence score.
+
+The detailed design is in
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-8-canonicalization-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-8-canonicalization-design.md),
+with operating behavior in [`docs/CANONICALIZATION.md`](docs/CANONICALIZATION.md).
+
+### Collections, schemas, indexes, and commands added
+
+- Added versioned schemas and repositories for `candidate_similarity_profiles`,
+  `candidate_embeddings`, `candidate_pair_assessments`, `canonical_memberships`,
+  `canonicalization_events`, and `known_path_revisions`; evolved `known_paths` into the stable
+  current canonical projection. MongoDB now has 22 declared collections and 88 named non-primary
+  indexes.
+- Added `@knownpath/canonicalization` with technical normalization, profile/block construction,
+  bounded embedding input, pair assessment, discovery, conservative auto-merge, manual merge/split/
+  reassign, canonical rebuild, history, and inspection services.
+- Added provider/model/version/dimension/time-aware embeddings to `@knownpath/search`, corresponding
+  typed configuration, `.env.example` placeholders, worker composition, and root `pnpm canonicalize`
+  commands.
+- Updated architecture, data-model, decision, package, canonicalization, root README, environment,
+  and progress documentation.
+
+### Commands successfully verified
+
+- `pnpm install` completed for all 18 workspace projects with the pinned lockfile.
+- `pnpm typecheck` completed all 26 tasks successfully.
+- `pnpm lint`, `pnpm format:check`, and `pnpm build` completed successfully.
+- `pnpm db:init` completed twice; the repeat reported no collection creation, confirming idempotent
+  collection/validator/index reconciliation. Direct MongoDB inspection found 22 collections and 88
+  declared named non-`_id_` indexes.
+- Similarity profiling of both retained real candidates was idempotent. Discovery left the distinct
+  Expo official-document and GitHub candidates unpaired instead of forcing a match.
+- Two real duplicated Expo issue reports were collected and extracted, but Gemini correctly marked
+  both `insufficient_evidence`; they did not become fake reusable candidates.
+- A temporary development clone of the real scored official Expo candidate varied paths, line
+  numbers, and timestamps. Normalization converged without removing `ERR_MODULE_NOT_FOUND`,
+  `TS2307`, `TypeError`, or `java.net.ConnectException`. The blocked pair had strong deterministic
+  agreement and public Gemini cosine similarity `0.9923935`; an unchanged repeat reused profiles,
+  embeddings, and pair assessment without another provider call.
+- The safe automatic merge created a two-member, one-solution KnownPath. Manual split, remerge,
+  reassign to another temporary KnownPath, split again, rebuild, and history inspection preserved
+  ordered events, inactive memberships, all four distinct evidence references, stable identity, and
+  immutable revisions. A repeated unchanged rebuild reused the same latest revision.
+- A temporary public candidate referencing a private source was rejected with
+  `embedding_provider_visibility_forbidden` before provider access and created no embedding.
+- All temporary candidates, source, assessments, canonical records, memberships, events, revisions,
+  pair result, and clone embedding were explicitly removed after inspection. The two real candidates
+  and their prior statuses remain; legitimate immutable profiles and the public original embedding
+  remain available for regeneration/audit.
+- A tracked-file secret scan found no Gemini key or credential value. No tests were added or run, as
+  required.
+
+### Environment and manual setup still required
+
+- Use Node.js 24.18.0/pnpm 11, configure the ignored `.env`, start MongoDB, and run `pnpm db:init`.
+- Public embeddings require `GEMINI_API_KEY`. Review the configured model/version/dimensions and
+  provider-call budget before a batch. A private/team-capable provider is intentionally unavailable.
+- Run `canonicalize auto-merge` in dry-run mode first. Human review remains required for every
+  `review` pair and all judgment-based manual merge/split/reassign operations.
+- Docker Desktop was not running during final Phase 8 verification; the already-running local
+  MongoDB instance was used and inspected directly.
+
+### Known limitations intentionally left for later phases
+
+- The retained development corpus currently has only two reusable scored candidates and no two
+  independently sourced solved candidates suitable for a permanent real canonical merge. The
+  complete merge lifecycle was therefore verified with a temporary, provenance-preserving variant of
+  real official-source candidate data and cleaned afterward; no fabricated production knowledge
+  remains.
+- GitHub's unauthenticated paginated issue API returned a provider `422` before a narrow older
+  client-side `until` backfill could reach additional solved examples. Authenticated, cursor-bounded
+  source expansion is operational follow-up, not a Phase 8 canonicalization shortcut.
+- Semantic similarity is pair-local only. There is no vector index, vector/lexical retrieval, search
+  API, clustering over unblocked candidates, or semantic-only auto merge.
+- Private/team embeddings remain hard-blocked until an explicitly approved private-data provider or
+  account is configured. No paid or self-hosted provider was added speculatively.
+- Automatic canonical summary regeneration is deterministic selection/aggregation, not LLM
+  rewriting. Human adjudication UI, production role enforcement for append-only collections,
+  distributed operation leases, and replica-set transactions remain future operational work.
+- No MCP knowledge tools, Agent Skill/installer, contribution workflow, agent-outcome calibration,
+  public registration, or dashboard was added. No automated tests were added by explicit Phase 8
+  requirement.
+
+### Exact next phase
+
+**Phase 9: build visibility-aware semantic/hybrid retrieval and production search indexing over
+canonical KnownPaths, including the vector-index lifecycle and explainable ranking, without starting
+MCP, Agent Skill/installer, contribution, or dashboard phases early.**

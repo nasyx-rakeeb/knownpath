@@ -37,8 +37,8 @@ Phase 8 must:
   yet represent memberships, alternatives, revisions, or merge history.
 - `@knownpath/search` is an intentionally empty Phase 1 boundary. It is the appropriate home for a
   provider-neutral embedding contract that Phase 9 retrieval can reuse.
-- The local MongoDB Compose service is a standalone MongoDB 8.0 server. Multi-document
-  transactions cannot be assumed in local development.
+- The local MongoDB Compose service is a standalone MongoDB 8.0 server. Multi-document transactions
+  cannot be assumed in local development.
 - The current Gemini extraction path is capability-labelled `public_only`. It already rejects
   private/team records before constructing the unpaid provider or making a network call.
 
@@ -53,8 +53,7 @@ Research was performed on 2026-08-22 using primary papers and current official d
   supporting cheap lexical near-duplicate comparison:
   <https://www.cs.princeton.edu/courses/archive/spring13/cos598C/broder97resemblance.pdf>
 - Sentence-BERT demonstrates sentence embeddings suitable for efficient semantic similarity
-  comparison rather than repeated pairwise cross-encoding:
-  <https://arxiv.org/abs/1908.10084>
+  comparison rather than repeated pairwise cross-encoding: <https://arxiv.org/abs/1908.10084>
 - DBSCAN establishes density-based clustering with explicit noise rather than forcing every point
   into a cluster. Phase 8 borrows the principle that unmatched/ambiguous records may remain noise;
   it does not directly adopt DBSCAN for the small blocked pair graph:
@@ -69,18 +68,17 @@ Research was performed on 2026-08-22 using primary papers and current official d
   <https://opentelemetry.io/docs/specs/semconv/registry/attributes/exception/>
 - MongoDB documents unique and partial unique indexes, single-document atomicity, the cost and
   deployment requirements of multi-document transactions, and the Document Versioning Pattern for
-  separate current and historical records:
-  <https://www.mongodb.com/docs/manual/core/index-unique/>,
+  separate current and historical records: <https://www.mongodb.com/docs/manual/core/index-unique/>,
   <https://www.mongodb.com/docs/manual/core/transactions/>, and
   <https://www.mongodb.com/docs/manual/data-modeling/design-patterns/data-versioning/document-versioning/>
 - Google's current Gemini documentation identifies `gemini-embedding-2` as stable, with an 8,192
-  token input limit and configurable 128-3072 dimensions. The embeddings guide recommends 768,
-  1536, or 3072 dimensions and documents automatic normalization for reduced dimensions:
+  token input limit and configurable 128-3072 dimensions. The embeddings guide recommends 768, 1536,
+  or 3072 dimensions and documents automatic normalization for reduced dimensions:
   <https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2> and
   <https://ai.google.dev/gemini-api/docs/embeddings>
-- Gemini's pricing documentation says free-tier inputs may be used to improve Google products,
-  while paid-tier inputs are not. This makes the existing public-only capability boundary a hard
-  privacy requirement: <https://ai.google.dev/gemini-api/docs/pricing>
+- Gemini's pricing documentation says free-tier inputs may be used to improve Google products, while
+  paid-tier inputs are not. This makes the existing public-only capability boundary a hard privacy
+  requirement: <https://ai.google.dev/gemini-api/docs/pricing>
 
 ## Alternatives considered
 
@@ -99,9 +97,9 @@ rejected because an embedding score is not objective merge evidence.
 
 ### A vector database or MongoDB vector index now
 
-This would prematurely introduce Phase 9 retrieval infrastructure and obscure the deliberately
-small set of plausible comparisons. It is rejected. Phase 8 stores provider-neutral vectors in
-ordinary MongoDB documents and computes cosine similarity in application code only after blocking.
+This would prematurely introduce Phase 9 retrieval infrastructure and obscure the deliberately small
+set of plausible comparisons. It is rejected. Phase 8 stores provider-neutral vectors in ordinary
+MongoDB documents and computes cosine similarity in application code only after blocking.
 
 ### Chosen layered approach
 
@@ -172,9 +170,9 @@ changes. Old profiles remain available for audit and comparison.
 
 ## Conservative error normalization
 
-Normalization begins with Unicode NFKC, stable casing where appropriate, line-ending conversion,
-and whitespace normalization. Ordered recognizers then classify technical tokens before replacing
-noise so meaningful identifiers cannot be accidentally erased.
+Normalization begins with Unicode NFKC, stable casing where appropriate, line-ending conversion, and
+whitespace normalization. Ordered recognizers then classify technical tokens before replacing noise
+so meaningful identifiers cannot be accidentally erased.
 
 Preserve:
 
@@ -231,8 +229,8 @@ are classified `separate` without embeddings.
 
 ## Embedding boundary and privacy
 
-The provider contract exposes capability, provider identifier, model identifier/version,
-dimensions, and `embed()` without leaking Gemini-specific response types into canonicalization.
+The provider contract exposes capability, provider identifier, model identifier/version, dimensions,
+and `embed()` without leaking Gemini-specific response types into canonicalization.
 
 The initial adapter uses the official `@google/genai` SDK and configurable defaults:
 
@@ -302,9 +300,9 @@ code/exception plus strong lexical solution agreement, or an exact versioned pro
 composite fingerprint. Semantic similarity can add an explanation and review priority but cannot
 satisfy any required automatic-merge predicate.
 
-A plausible pair lacking the complete deterministic gate is `review`, even when cosine similarity
-is high. A semantic mismatch may lower review priority or support `separate`, but automatic
-separation still records the deterministic reasons.
+A plausible pair lacking the complete deterministic gate is `review`, even when cosine similarity is
+high. A semantic mismatch may lower review priority or support `separate`, but automatic separation
+still records the deterministic reasons.
 
 Transitive closure is not blindly applied. If A safely matches B and B safely matches C, the service
 must still validate C against the proposed canonical cluster's required identifiers and
@@ -457,8 +455,8 @@ that evolution inspectable and reversible.
 
 ## Failure handling
 
-- Invalid profile, embedding, pair, membership, event, or revision documents fail runtime
-  validation and are not persisted.
+- Invalid profile, embedding, pair, membership, event, or revision documents fail runtime validation
+  and are not persisted.
 - Provider authentication, quota, timeout, and transient errors use explicit typed failures and
   bounded retry/backoff. They do not convert a pair into an automatic merge.
 - Private/team embedding attempts fail before any provider call with remediation explaining that an

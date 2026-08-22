@@ -4,10 +4,16 @@ import {
   apiKeySchema,
   auditEventSchema,
   candidateAssessmentSchema,
+  candidateEmbeddingSchema,
   candidateExperienceSchema,
+  candidatePairAssessmentSchema,
+  candidateSimilarityProfileSchema,
+  canonicalMembershipSchema,
+  canonicalizationEventSchema,
   extractionAttemptSchema,
   ingestionRunSchema,
   knownPathSchema,
+  knownPathRevisionSchema,
   sourceItemSchema,
   sourceItemStateSchema,
   sourceRegistrySchema,
@@ -22,14 +28,27 @@ import {
   type AuditEventId,
   type CandidateAssessment,
   type CandidateAssessmentId,
+  type CandidateEmbedding,
+  type CandidateEmbeddingId,
   type CandidateExperience,
   type CandidateExperienceId,
+  type CandidatePairAssessment,
+  type CandidatePairAssessmentId,
+  type CandidateSimilarityProfile,
+  type CanonicalMembership,
+  type CanonicalMembershipId,
+  type CanonicalizationEvent,
+  type CanonicalizationEventId,
+  type CanonicalizationOperationId,
   type ExtractionAttempt,
   type ExtractionAttemptId,
   type IngestionRun,
   type IngestionRunId,
   type KnownPath,
   type KnownPathId,
+  type KnownPathRevision,
+  type KnownPathRevisionId,
+  type SimilarityProfileId,
   type SourceItem,
   type SourceItemId,
   type SourceItemState,
@@ -571,6 +590,23 @@ export class CandidateExperienceRepository
     return documents.map((document) => candidateExperienceSchema.parse(document));
   }
 
+  public async listForCanonicalization(limit: number): Promise<CandidateExperience[]> {
+    const documents = await this.collection
+      .find({ status: { $in: ["pending", "accepted"] }, latestAssessmentId: { $exists: true } })
+      .sort({ "audit.createdAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidateExperienceSchema.parse(document));
+  }
+
+  public async findManyByIds(
+    ids: readonly CandidateExperienceId[],
+  ): Promise<CandidateExperience[]> {
+    if (ids.length === 0) return [];
+    const documents = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return documents.map((document) => candidateExperienceSchema.parse(document));
+  }
+
   public async setLatestAssessment(
     id: CandidateExperienceId,
     assessmentId: CandidateAssessmentId,
@@ -625,6 +661,219 @@ export class CandidateAssessmentRepository
   }
 }
 
+export class CandidateSimilarityProfileRepository
+  extends MongoEntityRepository<CandidateSimilarityProfile, SimilarityProfileId>
+  implements EntityRepository<CandidateSimilarityProfile, SimilarityProfileId>
+{
+  public constructor(collection: Collection<CandidateSimilarityProfile>) {
+    super(collection, candidateSimilarityProfileSchema);
+  }
+
+  public async createIfAbsent(
+    entity: CandidateSimilarityProfile,
+  ): Promise<CandidateSimilarityProfile | null> {
+    const parsed = candidateSimilarityProfileSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<CandidateSimilarityProfile | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async findLatestByCandidate(
+    candidateExperienceId: CandidateExperienceId,
+  ): Promise<CandidateSimilarityProfile | null> {
+    const result = await this.collection.findOne(
+      { candidateExperienceId },
+      { sort: { generatedAt: -1, _id: -1 } },
+    );
+    return result === null ? null : candidateSimilarityProfileSchema.parse(result);
+  }
+
+  public async listByBlockingValues(
+    values: readonly string[],
+    normalizerVersion: number,
+    excludeCandidateId: CandidateExperienceId,
+    limit = 500,
+  ): Promise<CandidateSimilarityProfile[]> {
+    const documents = await this.collection
+      .find({
+        candidateExperienceId: { $ne: excludeCandidateId },
+        "normalizer.version": normalizerVersion,
+        "blockingKeys.value": { $in: [...values] },
+      })
+      .sort({ generatedAt: -1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidateSimilarityProfileSchema.parse(document));
+  }
+}
+
+export class CandidateEmbeddingRepository
+  extends MongoEntityRepository<CandidateEmbedding, CandidateEmbeddingId>
+  implements EntityRepository<CandidateEmbedding, CandidateEmbeddingId>
+{
+  public constructor(collection: Collection<CandidateEmbedding>) {
+    super(collection, candidateEmbeddingSchema);
+  }
+
+  public async createIfAbsent(entity: CandidateEmbedding): Promise<CandidateEmbedding | null> {
+    const parsed = candidateEmbeddingSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<CandidateEmbedding | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+}
+
+export class CandidatePairAssessmentRepository
+  extends MongoEntityRepository<CandidatePairAssessment, CandidatePairAssessmentId>
+  implements EntityRepository<CandidatePairAssessment, CandidatePairAssessmentId>
+{
+  public constructor(collection: Collection<CandidatePairAssessment>) {
+    super(collection, candidatePairAssessmentSchema);
+  }
+
+  public async createIfAbsent(
+    entity: CandidatePairAssessment,
+  ): Promise<CandidatePairAssessment | null> {
+    const parsed = candidatePairAssessmentSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<CandidatePairAssessment | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async listForReview(limit = 100): Promise<CandidatePairAssessment[]> {
+    const documents = await this.collection
+      .find({ decision: "review" })
+      .sort({ "semantic.cosineSimilarity": -1, evaluatedAt: -1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidatePairAssessmentSchema.parse(document));
+  }
+}
+
+export class CanonicalMembershipRepository
+  extends MongoEntityRepository<CanonicalMembership, CanonicalMembershipId>
+  implements EntityRepository<CanonicalMembership, CanonicalMembershipId>
+{
+  public constructor(collection: Collection<CanonicalMembership>) {
+    super(collection, canonicalMembershipSchema);
+  }
+
+  public async createIfAbsent(entity: CanonicalMembership): Promise<CanonicalMembership | null> {
+    const parsed = canonicalMembershipSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async listActiveByKnownPath(knownPathId: KnownPathId): Promise<CanonicalMembership[]> {
+    const documents = await this.collection
+      .find({ knownPathId, active: true })
+      .sort({ disposition: 1, assignedAt: 1, _id: 1 })
+      .toArray();
+    return documents.map((document) => canonicalMembershipSchema.parse(document));
+  }
+
+  public async findActiveSupportingByCandidate(
+    candidateExperienceId: CandidateExperienceId,
+  ): Promise<CanonicalMembership | null> {
+    return this.findOne({ candidateExperienceId, disposition: "supporting", active: true });
+  }
+
+  public async deactivate(
+    id: CanonicalMembershipId,
+    operationId: CanonicalizationOperationId,
+    endedAt = new Date(),
+  ): Promise<CanonicalMembership | null> {
+    return this.updateOne({ _id: id, active: true }, { active: false, endedAt, operationId });
+  }
+}
+
+export class CanonicalizationEventRepository
+  extends MongoEntityRepository<CanonicalizationEvent, CanonicalizationEventId>
+  implements EntityRepository<CanonicalizationEvent, CanonicalizationEventId>
+{
+  public constructor(collection: Collection<CanonicalizationEvent>) {
+    super(collection, canonicalizationEventSchema);
+  }
+
+  public async createIfAbsent(
+    entity: CanonicalizationEvent,
+  ): Promise<CanonicalizationEvent | null> {
+    const parsed = canonicalizationEventSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async listByOperation(
+    operationId: CanonicalizationOperationId,
+  ): Promise<CanonicalizationEvent[]> {
+    const documents = await this.collection.find({ operationId }).sort({ sequence: 1 }).toArray();
+    return documents.map((document) => canonicalizationEventSchema.parse(document));
+  }
+}
+
+export class KnownPathRevisionRepository
+  extends MongoEntityRepository<KnownPathRevision, KnownPathRevisionId>
+  implements EntityRepository<KnownPathRevision, KnownPathRevisionId>
+{
+  public constructor(collection: Collection<KnownPathRevision>) {
+    super(collection, knownPathRevisionSchema);
+  }
+
+  public async createIfAbsent(entity: KnownPathRevision): Promise<KnownPathRevision | null> {
+    const parsed = knownPathRevisionSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<KnownPathRevision | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async nextRevisionNumber(knownPathId: KnownPathId): Promise<number> {
+    const latest = await this.collection.findOne({ knownPathId }, { sort: { revisionNumber: -1 } });
+    return (latest?.revisionNumber ?? 0) + 1;
+  }
+}
+
 export class KnownPathRepository
   extends MongoEntityRepository<KnownPath, KnownPathId>
   implements EntityRepository<KnownPath, KnownPathId>
@@ -642,6 +891,13 @@ export class KnownPathRepository
     status: KnownPath["status"],
   ): Promise<KnownPath | null> {
     return this.updateOne({ _id: id }, { status });
+  }
+
+  public async updateProjection(
+    id: KnownPathId,
+    projection: Omit<KnownPath, "_id" | "schemaVersion" | "canonicalKey" | "audit">,
+  ): Promise<KnownPath | null> {
+    return this.updateOne({ _id: id }, projection);
   }
 }
 
@@ -684,10 +940,16 @@ export interface KnownPathRepositories {
   readonly apiKeys: ApiKeyRepository;
   readonly auditEvents: AuditEventRepository;
   readonly candidateAssessments: CandidateAssessmentRepository;
+  readonly candidateEmbeddings: CandidateEmbeddingRepository;
   readonly candidateExperiences: CandidateExperienceRepository;
+  readonly candidatePairAssessments: CandidatePairAssessmentRepository;
+  readonly candidateSimilarityProfiles: CandidateSimilarityProfileRepository;
+  readonly canonicalMemberships: CanonicalMembershipRepository;
+  readonly canonicalizationEvents: CanonicalizationEventRepository;
   readonly extractionAttempts: ExtractionAttemptRepository;
   readonly ingestionRuns: IngestionRunRepository;
   readonly knownPaths: KnownPathRepository;
+  readonly knownPathRevisions: KnownPathRevisionRepository;
   readonly sourceItems: SourceItemRepository;
   readonly sourceItemStates: SourceItemStateRepository;
   readonly sourceRegistries: SourceRegistryRepository;
@@ -701,10 +963,20 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     apiKeys: new ApiKeyRepository(collections.apiKeys),
     auditEvents: new AuditEventRepository(collections.auditEvents),
     candidateAssessments: new CandidateAssessmentRepository(collections.candidateAssessments),
+    candidateEmbeddings: new CandidateEmbeddingRepository(collections.candidateEmbeddings),
     candidateExperiences: new CandidateExperienceRepository(collections.candidateExperiences),
+    candidatePairAssessments: new CandidatePairAssessmentRepository(
+      collections.candidatePairAssessments,
+    ),
+    candidateSimilarityProfiles: new CandidateSimilarityProfileRepository(
+      collections.candidateSimilarityProfiles,
+    ),
+    canonicalMemberships: new CanonicalMembershipRepository(collections.canonicalMemberships),
+    canonicalizationEvents: new CanonicalizationEventRepository(collections.canonicalizationEvents),
     extractionAttempts: new ExtractionAttemptRepository(collections.extractionAttempts),
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),
     knownPaths: new KnownPathRepository(collections.knownPaths),
+    knownPathRevisions: new KnownPathRevisionRepository(collections.knownPathRevisions),
     sourceItems: new SourceItemRepository(collections.sourceItems),
     sourceItemStates: new SourceItemStateRepository(collections.sourceItemStates),
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),

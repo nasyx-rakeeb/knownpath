@@ -4,10 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 7 adds deterministic, explainable
-> candidate evidence scoring with immutable assessment history on top of public-source collection
-> and Gemini extraction. Canonical promotion, knowledge search, MCP tools, dashboards, Agent Skill
-> installation, public signup, and contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 8 adds deterministic-first
+> candidate deduplication, public-only Gemini similarity support, and reversible canonical KnownPath
+> projections. Knowledge search, vector indexes, MCP tools, dashboards, Agent Skill installation,
+> public signup, and contribution workflows are not implemented yet.
 
 ## Prerequisites
 
@@ -101,6 +101,22 @@ pnpm score history --candidate <uuid>
 Scores are explainable ranking signals, not truth probabilities. Read
 [the scoring guide](docs/SCORING.md) before changing the versioned policy.
 
+Build immutable similarity profiles, discover blocked pairs, inspect reviews, and apply only
+deterministically safe canonical merges:
+
+```sh
+pnpm canonicalize profile --limit 10
+pnpm canonicalize discover --limit 10
+pnpm canonicalize review --limit 20
+pnpm canonicalize auto-merge --limit 10       # dry-run
+pnpm canonicalize auto-merge --limit 10 --apply
+pnpm canonicalize history --known-path <uuid>
+```
+
+Gemini embeddings are generated only after both candidates and all referenced sources are verified
+public. They support plausible blocked comparisons but never decide an automatic merge. Read
+[the canonicalization guide](docs/CANONICALIZATION.md) before applying merges or manual operations.
+
 Start all application and package development processes:
 
 ```sh
@@ -139,6 +155,7 @@ pnpm dev:infra:down
 | `pnpm ingest:sources`   | Discover or sync configured official documentation and release feeds       |
 | `pnpm extract`          | Extract or inspect bounded public-source candidate experiences             |
 | `pnpm score`            | Verify evidence and create/inspect immutable candidate assessments         |
+| `pnpm canonicalize`     | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
 
 ## Structure
 
@@ -156,10 +173,11 @@ packages/
   config/          Typed environment parsing
   database/        MongoDB lifecycle, repositories, validators, and indexes
   domain/          Versioned domain schemas and canonicalization helpers
+  canonicalization/ Deterministic blocking, optional embeddings, and canonical projections
   github-ingestion/ GitHub API collection and source normalization
   source-ingestion/ Official documentation/feed discovery and normalization
   verification/    Deterministic evidence verification and immutable seed scoring
-  search/          Future retrieval boundary
+  search/          Provider-neutral embedding boundary; retrieval remains deferred
   typescript-config/ Shared strict compiler configurations
 ```
 

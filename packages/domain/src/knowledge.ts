@@ -6,6 +6,7 @@ import {
   candidateExperienceIdSchema,
   extractionAttemptIdSchema,
   knownPathIdSchema,
+  knownPathRevisionIdSchema,
   moderationStateSchema,
   nonEmptyStringSchema,
   schemaVersionSchema,
@@ -149,7 +150,7 @@ const knowledgeContentShape = {
   solutionSummary: nonEmptyStringSchema,
   solutionSteps: z.array(solutionStepSchema).min(1).max(64),
   metadata: knowledgeMetadataSchema,
-  evidence: z.array(evidenceReferenceSchema).min(1).max(128),
+  evidence: z.array(evidenceReferenceSchema).min(1).max(2_048),
   visibility: visibilitySchema,
   moderation: moderationStateSchema,
   audit: auditMetadataSchema,
@@ -187,11 +188,39 @@ export const candidateExperienceSchema = z
 
 export const knownPathStatusSchema = z.enum([
   "draft",
+  "review",
   "published",
   "deprecated",
   "superseded",
   "archived",
 ]);
+
+export const canonicalTrustProjectionSchema = z.strictObject({
+  representativeAssessmentId: candidateAssessmentIdSchema,
+  assessmentIds: z.array(candidateAssessmentIdSchema).min(1).max(512),
+  score: z.int().min(0).max(100),
+  grade: z.enum(["very_low", "low", "moderate", "high", "very_high"]),
+  scoreVersion: z.int().positive(),
+  projectedAt: timestampSchema,
+});
+
+export const canonicalSolutionVariantSchema = z.strictObject({
+  key: versionedKeySchema,
+  summary: nonEmptyStringSchema,
+  steps: z.array(solutionStepSchema).min(1).max(64),
+  caveats: z.array(nonEmptyStringSchema).max(64).default([]),
+  applicability: knowledgeMetadataSchema,
+  supportingCandidateIds: z.array(candidateExperienceIdSchema).min(1).max(512),
+  conflictingCandidateIds: z.array(candidateExperienceIdSchema).max(512).default([]),
+  evidence: z.array(evidenceReferenceSchema).min(1).max(512),
+  trust: canonicalTrustProjectionSchema,
+});
+
+export const canonicalMembershipSummarySchema = z.strictObject({
+  supporting: z.int().nonnegative(),
+  conflicting: z.int().nonnegative(),
+  rejected: z.int().nonnegative(),
+});
 
 export const knownPathSchema = z
   .strictObject({
@@ -202,8 +231,12 @@ export const knownPathSchema = z
     title: shortStringSchema,
     ...knowledgeContentShape,
     confidence: confidenceSchema,
+    trust: canonicalTrustProjectionSchema,
     freshness: freshnessSchema,
     search: searchMetadataSchema,
+    solutionVariants: z.array(canonicalSolutionVariantSchema).min(1).max(32),
+    membershipSummary: canonicalMembershipSummarySchema,
+    latestRevisionId: knownPathRevisionIdSchema.optional(),
     supersededByKnownPathId: knownPathIdSchema.optional(),
   })
   .superRefine(validateErrorFingerprintProjection);
@@ -234,5 +267,8 @@ function validateErrorFingerprintProjection(
 
 export type PackageCoordinate = z.infer<typeof packageCoordinateSchema>;
 export type KnowledgeMetadata = z.infer<typeof knowledgeMetadataSchema>;
+export type EvidenceReference = z.infer<typeof evidenceReferenceSchema>;
 export type CandidateExperience = z.infer<typeof candidateExperienceSchema>;
 export type KnownPath = z.infer<typeof knownPathSchema>;
+export type CanonicalSolutionVariant = z.infer<typeof canonicalSolutionVariantSchema>;
+export type CanonicalTrustProjection = z.infer<typeof canonicalTrustProjectionSchema>;

@@ -489,3 +489,71 @@ Naive success proportions become overconfident with tiny outcome samples.
 [GitHub reactions](https://docs.github.com/en/rest/reactions/reactions),
 [NIST binomial confidence intervals](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/binotest.htm),
 [Semantic Versioning](https://semver.org/), [OpenSSF Scorecard](https://scorecard.dev/)
+
+## 2026-08-22 — Use deterministic blocking before bounded semantic comparison
+
+**Decision:** Build immutable versioned similarity profiles from normalized errors, identifiers,
+packages, platforms, versions, problem text, and solution text. Query shared indexed blocking keys
+before comparing pairs. Automatic merges require strong deterministic agreement and no hard
+incompatibility; semantic similarity can strengthen or prioritize only an already plausible pair.
+Ambiguous pairs remain separate with a `review` decision.
+
+**Why:** Blocking avoids an all-pairs workload, while layered identifiers, shingles, and lexical
+agreement provide reproducible evidence. Technical errors contain meaningful codes and exception
+classes that must survive normalization. Semantic representations help with paraphrases but are not
+safe identity proofs and cannot establish that two solutions are materially equivalent.
+
+**Rejected:** Exact hashes alone miss paraphrases. Embedding every pair is expensive and obscures
+why a match exists. Semantic-only clustering or LLM-only adjudication can merge distinct failures
+that use similar language.
+
+**References:**
+[Fellegi-Sunter record linkage](https://www.cs.cornell.edu/~shmat/courses/cs6434/fellegi-sunter.pdf),
+[Broder resemblance and containment](https://www.cs.princeton.edu/courses/archive/spring13/cos598C/broder97resemblance.pdf),
+[Sentence-BERT](https://arxiv.org/abs/1908.10084),
+[Sentry issue grouping](https://docs.sentry.io/concepts/data-management/event-grouping/)
+
+## 2026-08-22 — Store public Gemini embeddings behind a capability boundary
+
+**Decision:** Add a provider-neutral embedding interface and a real configurable Gemini
+implementation using `gemini-embedding-2`. Persist immutable vectors with provider, model,
+model-version, dimensions, input digest, visibility capability, and generation time. Before provider
+construction or network access, verify that both candidates and every referenced source are public.
+The unpaid provider remains `public_only`; private/team input fails with an actionable error.
+
+**Why:** Provider metadata makes vectors safely regenerable when models or dimensions change. The
+privacy gate prevents silent free-tier disclosure and lets a future explicitly approved paid,
+self-hosted, or alternative provider plug into the same orchestration. Ordinary document storage is
+sufficient for bounded pair comparison in this phase.
+
+**Rejected:** Storing only vectors loses reproducibility. A fallback from private/team processing to
+the public free path violates the data boundary. Creating a MongoDB vector index now would implement
+Phase 9 retrieval prematurely.
+
+**References:** [Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings),
+[Gemini model reference](https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2),
+[Gemini pricing and data use](https://ai.google.dev/gemini-api/docs/pricing)
+
+## 2026-08-22 — Preserve canonical history beside a stable current projection
+
+**Decision:** Keep candidates intact and relate them through current supporting, conflicting, or
+rejected memberships. Store pair assessments, canonicalization events, and complete KnownPath
+revisions immutably. `known_paths` retains a stable ID and `latestRevisionId` current projection.
+Merge, split, reassign, and rebuild use idempotent operation/event keys and support multiple
+solution variants. Canonical trust projects existing immutable candidate assessments instead of
+recomputing a new opaque score.
+
+**Why:** Canonical identity must remain stable as evidence improves, while every merge decision and
+prior projection remains debuggable and reversible. An append-only resumable operation journal works
+on the standalone local MongoDB topology and can later be wrapped in transactions where a replica
+set is operationally justified.
+
+**Rejected:** Deleting merged candidates destroys provenance. Overwriting canonical summaries loses
+history. Requiring local replica-set transactions in this phase adds operational complexity and does
+not replace idempotent recovery. Forcing all alternatives into one solution erases legitimate
+environment-specific fixes.
+
+**References:**
+[MongoDB document versioning pattern](https://www.mongodb.com/blog/post/building-with-patterns-the-document-versioning-pattern),
+[MongoDB unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/),
+[MongoDB transactions](https://www.mongodb.com/docs/manual/core/transactions/)

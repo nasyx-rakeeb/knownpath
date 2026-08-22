@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 7 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 8 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -27,24 +27,30 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 
 ## Collections and relationships
 
-| Collection              | Lifecycle and relationship                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `users`                 | Independent account identity referenced by API keys and optional audit/ownership fields.       |
-| `api_keys`              | Independent credential lifecycle; references one user and stores a hash, never the raw key.    |
-| `auth_sessions`         | Better Auth server-side sessions; independently revocable and expiring.                        |
-| `auth_accounts`         | Better Auth provider credentials; Phase 3 stores only scrypt password accounts.                |
-| `auth_verifications`    | Better Auth verification primitives reserved for deliberately enabled future flows.            |
-| `audit_events`          | Append-only sensitive-action history without credential material.                              |
-| `source_registries`     | Independently managed source identity/configuration and ingestion cursor.                      |
-| `source_items`          | Immutable captured snapshot; references one source registry.                                   |
-| `source_item_states`    | Mutable latest/fetch projection; one per registry and source-native identity.                  |
-| `ingestion_runs`        | Mutable operational attempt history; references one source registry.                           |
-| `extraction_attempts`   | Independent AI lifecycle keyed by source/context/prompt/provider versions.                     |
-| `candidate_experiences` | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.    |
-| `candidate_assessments` | Immutable verification/score history; references one candidate and exact source inputs.        |
-| `known_paths`           | Canonical reusable knowledge record with embedded solution, evidence, score, and search state. |
-| `agent_contributions`   | Independent proposed lesson/correction; may reference a KnownPath and source items.            |
-| `agent_outcomes`        | Independent usefulness report referencing one KnownPath.                                       |
+| Collection                      | Lifecycle and relationship                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `users`                         | Independent account identity referenced by API keys and optional audit/ownership fields.          |
+| `api_keys`                      | Independent credential lifecycle; references one user and stores a hash, never the raw key.       |
+| `auth_sessions`                 | Better Auth server-side sessions; independently revocable and expiring.                           |
+| `auth_accounts`                 | Better Auth provider credentials; Phase 3 stores only scrypt password accounts.                   |
+| `auth_verifications`            | Better Auth verification primitives reserved for deliberately enabled future flows.               |
+| `audit_events`                  | Append-only sensitive-action history without credential material.                                 |
+| `source_registries`             | Independently managed source identity/configuration and ingestion cursor.                         |
+| `source_items`                  | Immutable captured snapshot; references one source registry.                                      |
+| `source_item_states`            | Mutable latest/fetch projection; one per registry and source-native identity.                     |
+| `ingestion_runs`                | Mutable operational attempt history; references one source registry.                              |
+| `extraction_attempts`           | Independent AI lifecycle keyed by source/context/prompt/provider versions.                        |
+| `candidate_experiences`         | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.       |
+| `candidate_assessments`         | Immutable verification/score history; references one candidate and exact source inputs.           |
+| `candidate_similarity_profiles` | Immutable normalized identifiers, shingles, fingerprints, and blocking keys.                      |
+| `candidate_embeddings`          | Immutable provider/model/versioned vectors for public blocked candidates; no vector index.        |
+| `candidate_pair_assessments`    | Immutable deterministic/semantic comparison and merge/review/separate decision.                   |
+| `canonical_memberships`         | Current supporting/conflicting/rejected candidate relationships to stable KnownPaths.             |
+| `canonicalization_events`       | Append-only requested/completed merge, split, reassign, and rebuild audit history.                |
+| `known_path_revisions`          | Immutable complete canonical snapshots keyed by membership/assessment/builder inputs.             |
+| `known_paths`                   | Stable current canonical projection with solution variants, evidence, trust, and latest revision. |
+| `agent_contributions`           | Independent proposed lesson/correction; may reference a KnownPath and source items.               |
+| `agent_outcomes`                | Independent usefulness report referencing one KnownPath.                                          |
 
 Source registries, immutable source snapshots, processing runs, candidates, canonical records,
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
@@ -136,7 +142,7 @@ the item supports the problem, supports the solution, verifies an outcome, confl
 context. It may include a locator, bounded excerpt, URL, and content digest; it does not duplicate
 the source document.
 
-### Candidate assessments, confidence, freshness, and search state
+### Candidate assessments, canonicalization, confidence, freshness, and search state
 
 Each Phase 7 `candidate_assessments` document is immutable and records candidate/source digests,
 algorithm/policy/verifier versions, evaluation time, verified evidence signals, independent
@@ -146,13 +152,24 @@ pointer; rescoring never overwrites history. `ineligible` records preserve integ
 score 0. Agent outcome confidence is explicitly `unobserved` in Phase 7; its future observed shape
 requires successes/failures/sample size and Wilson interval metadata.
 
-Canonical KnownPath confidence retains its existing aggregate projection for later promotion work.
-Phase 8 must deliberately map immutable candidate assessments into the canonical representation;
-Phase 7 does not promote candidates.
+Phase 8 maps immutable candidate assessments into canonical trust without inventing another score.
+Each solution variant and KnownPath stores its representative assessment ID, every contributing
+assessment ID, score/grade/version, and deterministic projection time. Multiple valid solutions
+remain separate variants with their own steps, caveats, applicability, evidence, and membership.
+
+Similarity profiles and embeddings are immutable and idempotent over their complete versioned
+inputs. Pair assessments store deterministic agreement/incompatibility metrics separately from the
+optional semantic cosine value. Semantic similarity cannot produce an automatic merge without all
+deterministic gates.
+
+Current membership rows are independently mutable because candidates may be split or reassigned.
+Append-only canonicalization events and immutable KnownPath revisions preserve the complete audit
+trail. `known_paths.latestRevisionId` is a fast projection pointer, not historical truth.
 
 Freshness records last verification, next review, and stale-after timestamps. Search metadata is
-provider-neutral and records lexical/embedding processing status, model identifier, dimensions,
-content digest, and generation time. No vectors or vector indexes exist in Phase 2.
+provider-neutral and records lexical/embedding processing status. Phase 8 stores candidate vectors
+in ordinary MongoDB documents with provider/model/version/dimensions/digest/time metadata. There is
+no vector index or retrieval implementation.
 
 ## Lifecycle values
 
@@ -164,7 +181,9 @@ content digest, and generation time. No vectors or vector indexes exist in Phase
 | Extraction attempt   | `queued`, `running`, `succeeded`, `irrelevant`, `insufficient_evidence`, `conflicting_evidence`, `quarantined`, `blocked`, `failed` |
 | Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`                                                                           |
 | Candidate assessment | `completed`, `ineligible`                                                                                                           |
-| KnownPath            | `draft`, `published`, `deprecated`, `superseded`, `archived`                                                                        |
+| Pair assessment      | `auto_merge`, `review`, `separate`                                                                                                  |
+| Canonical membership | `supporting`, `conflicting`, `rejected` plus active/inactive projection                                                             |
+| KnownPath            | `draft`, `review`, `published`, `deprecated`, `superseded`, `archived`                                                              |
 | Contribution         | `pending`, `accepted`, `rejected`, `superseded`                                                                                     |
 | Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`                                                                                     |
 | Agent outcome        | `helpful`, `not_helpful`, `partially_helpful`, `unknown`                                                                            |
@@ -275,6 +294,62 @@ and is omitted below.
 - `ix_candidate_assessments_status_score`: review ineligible/completed records by seed score.
 - `ix_candidate_assessments_source_item_evaluated_at`: find assessments affected by a source item.
 
+### `candidate_similarity_profiles`
+
+- `uq_candidate_similarity_profiles_idempotency_key`: one immutable result for identical candidate
+  content and normalizer/profile versions.
+- `ix_candidate_similarity_profiles_candidate_normalizer_generated_at`: profile history by candidate
+  and normalizer.
+- `ix_candidate_similarity_profiles_blocking_normalizer`: multikey lookup for plausible pairs
+  sharing a versioned deterministic blocking key.
+- `ix_candidate_similarity_profiles_error_ecosystem`: exact normalized error/ecosystem lookup.
+
+### `candidate_embeddings`
+
+- `uq_candidate_embeddings_idempotency_key`: one immutable vector for identical public input and
+  provider/model/version/dimension configuration.
+- `ix_candidate_embeddings_candidate_profile_model_generated_at`: vector history and regeneration
+  lookup.
+- `ix_candidate_embeddings_input_model`: reuse/audit lookup by input digest and model.
+
+These are ordinary MongoDB indexes. Phase 8 creates no vector index.
+
+### `candidate_pair_assessments`
+
+- `uq_candidate_pair_assessments_idempotency_key`: immutable comparison reuse for identical pair,
+  profiles, policy, and optional embeddings.
+- `ix_candidate_pair_assessments_pair_policy_evaluated_at`: pair history across policy versions.
+- `ix_candidate_pair_assessments_decision_semantic_evaluated_at`: review/merge queue with semantic
+  availability.
+- `ix_candidate_pair_assessments_candidates`: multikey candidate impact lookup.
+
+### `canonical_memberships`
+
+- `ix_canonical_memberships_relationship`: relationship history for a candidate and KnownPath.
+- `uq_canonical_memberships_active_supporting_candidate`: at most one active supporting KnownPath
+  per candidate.
+- `ix_canonical_memberships_known_path_active_disposition_solution`: current canonical rebuild input
+  ordered by relationship and solution key.
+- `ix_canonical_memberships_candidate_active_disposition`: candidate assignment lookup.
+- `ix_canonical_memberships_operation`: all membership changes made by an operation.
+
+### `canonicalization_events`
+
+- `uq_canonicalization_events_idempotency_key`: idempotent append-only event creation.
+- `uq_canonicalization_events_operation_sequence`: deterministic ordered operation journal.
+- `ix_canonicalization_events_known_path_time`: KnownPath history.
+- `ix_canonicalization_events_candidate_time`: candidate history.
+- `ix_canonicalization_events_type_time`: operational/audit filtering.
+
+### `known_path_revisions`
+
+- `uq_known_path_revisions_idempotency_key`: immutable snapshot reuse for identical canonical
+  inputs.
+- `uq_known_path_revisions_number`: monotonic revision identity within a KnownPath.
+- `ix_known_path_revisions_known_path_created_at`: chronological revision history.
+- `ix_known_path_revisions_candidates`: candidate impact lookup.
+- `ix_known_path_revisions_assessments`: assessment impact lookup.
+
 ### `extraction_attempts`
 
 - `uq_extraction_attempts_idempotency_key`: prevents duplicate charged work for identical inputs and
@@ -294,6 +369,7 @@ and is omitted below.
 - `ix_known_paths_version_strings`: version filtering.
 - `ix_known_paths_error_fingerprints`: normalized error lookup.
 - `ix_known_paths_freshness_status`: stale-record review.
+- `ix_known_paths_latest_revision`: current-projection pointer lookup.
 
 ### `agent_contributions`
 
@@ -309,7 +385,7 @@ and is omitted below.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
 parallel-array multikey restriction. No text, TTL, wildcard, geospatial, or vector indexes are
-created through Phase 6. Source ingestion/extraction adds no text or vector index.
+created through Phase 8.
 
 ## Initialization and inspection
 
@@ -351,10 +427,13 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Extraction attempts, candidates, and immutable candidate assessments are retained for
   reproducibility, audit, and score-version comparison until measured volume and privacy
   requirements justify an explicit archive/purge policy.
+- Similarity profiles, public embeddings, pair assessments, canonical events, and KnownPath
+  revisions are retained to reproduce deduplication decisions. Memberships may become inactive but
+  remain as assignment history; canonical projections are not historical truth.
 
 ## Deferred model behavior
 
-The schemas do not imply that canonical promotion, search, MCP, contribution promotion, public
-registration, recovery, OAuth, team membership, or dashboards are implemented. Team IDs remain
-opaque until the team/workspace model exists. Semantic deduplication and vector storage/indexing
-belong to later phases.
+The schemas do not imply that search, MCP, contribution promotion, public registration, recovery,
+OAuth, team membership, or dashboards are implemented. Team IDs remain opaque until the
+team/workspace model exists. Candidate embeddings support only blocked pair comparison; vector
+indexing and retrieval belong to Phase 9.
