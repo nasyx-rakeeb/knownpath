@@ -1,0 +1,18 @@
+services:
+  mongodb:
+    image: mongo:8.0
+    container_name: knownpath-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    volumes:
+      - knownpath-mongodb-data:/data/db
+
+volumes:
+  knownpath-mongodb-data:

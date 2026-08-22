@@ -1,0 +1,14 @@
+{
+  "extends": "@knownpath/typescript-config/nextjs.json",
+  "compilerOptions": {
+    "outDir": ".next/types"
+  },
+  "include": [
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

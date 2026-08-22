@@ -1,0 +1,24 @@
+{
+  "name": "@knownpath/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Future KnownPath Agent Skill installer CLI.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "knownpath": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts",
+    "lint": "eslint src",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@knownpath/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@knownpath/worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "KnownPath background processing runtime.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "lint": "eslint src",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@knownpath/config": "workspace:*"
+  },
+  "devDependencies": {
+    "@knownpath/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

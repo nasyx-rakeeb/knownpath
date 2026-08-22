@@ -1,0 +1,24 @@
+{
+  "name": "@knownpath/mcp-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "KnownPath Model Context Protocol server.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "catalog:"
+  },
+  "devDependencies": {
+    "@knownpath/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}
