@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 4. A boundary appearing here does not mean its future product behavior is
+established through Phase 5. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -18,8 +18,8 @@ database.
   network security policy, and API process lifecycle. Phase 3 exposes operational health,
   closed-registration session routes, account inspection, and API-key lifecycle routes under
   `/api/v1`.
-- `@knownpath/worker` owns ingestion and background-process lifecycle. Phase 4 exposes a bounded
-  GitHub collection command; it is not yet a scheduler or queue consumer.
+- `@knownpath/worker` owns ingestion and background-process lifecycle. It exposes bounded GitHub and
+  official-document source commands; it is not yet a scheduler or queue consumer.
 - `@knownpath/mcp-server` owns MCP protocol and transport adaptation. It uses the official SDK but
   registers no tools, prompts, or resources in Phase 1.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
@@ -40,6 +40,8 @@ database.
   rate-limit policy contracts. It does not depend on Fastify.
 - `@knownpath/github-ingestion` owns configured GitHub API collection, runtime response validation,
   provider-neutral normalization, incremental cursors, and ingestion-run orchestration.
+- `@knownpath/source-ingestion` owns the shared source manifest plus safe official documentation and
+  release-feed discovery, conditional fetching, normalization, and synchronization orchestration.
 - `@knownpath/ai` will hold provider-neutral extraction contracts and provider implementations.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
@@ -62,6 +64,12 @@ apps/web ---------+              +-------------> packages/config
 apps/worker --> packages/github-ingestion --> packages/domain
                        |                    --> packages/config
                        +---------------------> packages/database
+
+apps/worker --> packages/source-ingestion --> packages/domain
+                       |                    --> packages/config
+                       +---------------------> packages/database
+
+packages/github-ingestion --> packages/source-ingestion (shared manifest contracts only)
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -110,23 +118,24 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 13 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 14 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
 6. The API constructs Better Auth and KnownPath auth services over that same database boundary,
    resolves either HttpOnly cookie sessions or bearer API keys into reusable principals, and applies
    route-specific authorization.
-7. The worker composes `@knownpath/github-ingestion`, the source manifest, configuration, and the
-   repository registry. It collects bounded issue/discussion graphs into immutable source items and
-   advances a cursor only after a failure-free run.
+7. The worker composes provider adapters with one source manifest, configuration, and the repository
+   registry. GitHub graphs and curated official documents become immutable source items. Mutable
+   source-item state holds fetch validators and the latest snapshot pointer without rewriting
+   provenance history.
 8. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
    OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
    deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 4. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 5. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -180,10 +189,10 @@ UI is configuration-controlled at `/docs`.
 
 ## Phase 4 GitHub ingestion boundary
 
-The versioned manifest at `config/sources/github.json` identifies the initial Expo and React Native
-repositories and supported source types. The worker verifies repository identity/capabilities and
-uses Octokit against GitHub's official REST and GraphQL APIs. Requests are serial, paginated, time
-bounded, retried with bounded backoff, and expose only safe rate telemetry to logs.
+The versioned manifest at `config/sources/registry.json` identifies the initial Expo and React
+Native repositories and supported source types. The worker verifies repository identity/capabilities
+and uses Octokit against GitHub's official REST and GraphQL APIs. Requests are serial, paginated,
+time bounded, retried with bounded backoff, and expose only safe rate telemetry to logs.
 
 Issue threads use REST for issues, comments, labels, and reactions, with GraphQL enrichment for
 closing pull requests when authenticated. Discussions use authenticated GraphQL for discussions,
@@ -196,6 +205,28 @@ labels, reactions, state, and timestamps. Content hashes and unique deduplicatio
 and reruns safe. Source-registry cursors track each source type independently; a default overlap
 window catches late edits. Cursors advance only after all discovered objects persist successfully.
 See [`docs/GITHUB_INGESTION.md`](GITHUB_INGESTION.md).
+
+## Phase 5 official source ingestion boundary
+
+The same versioned registry now uses discriminated `github_repository`, `documentation_site`, and
+`release_feed` definitions. Expo and React Native documentation adapters discover their complete
+official `llms.txt` indexes, enrich canonical URLs from sitemaps where available, and normally fetch
+only configurable high-signal upgrade, migration, troubleshooting, compatibility, deprecation, and
+breaking-change pages. Any indexed page remains available through an explicit targeted command;
+bounded full-catalog synchronization is opt-in.
+
+Official release material comes from Expo and React Native RSS feeds. Expo stores only metadata and
+the summary supplied by its feed; React Native stores feed-supplied article content normalized to
+plain text. General website HTML crawling is absent. Every request is HTTPS/origin allowlisted,
+robots-aware, redirect validated, size/time bounded, serial, and conditionally fetched where the
+source supplies ETag or Last-Modified.
+
+`source_items` remains immutable. `source_item_states` is the mutable synchronization projection for
+latest snapshot pointers, lifecycle, content hashes, validators, and fetch/change timestamps. A
+`304` or stable normalized digest updates fetch state without creating a new snapshot. Deterministic
+registry metadata classifies official documents as first-party evidence; GitHub author association
+classifies maintainer versus community evidence without LLM inference. See
+[`docs/OFFICIAL_SOURCE_INGESTION.md`](OFFICIAL_SOURCE_INGESTION.md).
 
 ## Technology fit
 

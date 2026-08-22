@@ -1,8 +1,8 @@
 {
-  "name": "@knownpath/github-ingestion",
+  "name": "@knownpath/source-ingestion",
   "version": "0.0.0",
   "private": true,
-  "description": "GitHub source collection and normalization for KnownPath.",
+  "description": "Official documentation and release-feed collection for KnownPath.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -24,12 +24,15 @@
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
-    "@knownpath/source-ingestion": "workspace:*",
-    "octokit": "catalog:",
+    "fast-xml-parser": "catalog:",
+    "html-to-text": "catalog:",
+    "marked": "catalog:",
+    "robots-parser": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
+    "@types/html-to-text": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

@@ -22,6 +22,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "ingest:github": "pnpm --filter @knownpath/worker ingest:github",
+    "ingest:sources": "pnpm --filter @knownpath/worker ingest:sources",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck"
   },

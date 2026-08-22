@@ -7,6 +7,7 @@ import type {
   IngestionRun,
   KnownPath,
   SourceItem,
+  SourceItemState,
   SourceRegistry,
   User,
 } from "@knownpath/domain";
@@ -24,6 +25,7 @@ export const collectionNames = {
   ingestionRuns: "ingestion_runs",
   knownPaths: "known_paths",
   sourceItems: "source_items",
+  sourceItemStates: "source_item_states",
   sourceRegistries: "source_registries",
   users: "users",
 } as const;
@@ -37,6 +39,7 @@ export interface KnownPathCollections {
   readonly ingestionRuns: Collection<IngestionRun>;
   readonly knownPaths: Collection<KnownPath>;
   readonly sourceItems: Collection<SourceItem>;
+  readonly sourceItemStates: Collection<SourceItemState>;
   readonly sourceRegistries: Collection<SourceRegistry>;
   readonly users: Collection<User>;
 }
@@ -53,6 +56,7 @@ export function getCollections(database: Db): KnownPathCollections {
     ingestionRuns: database.collection<IngestionRun>(collectionNames.ingestionRuns),
     knownPaths: database.collection<KnownPath>(collectionNames.knownPaths),
     sourceItems: database.collection<SourceItem>(collectionNames.sourceItems),
+    sourceItemStates: database.collection<SourceItemState>(collectionNames.sourceItemStates),
     sourceRegistries: database.collection<SourceRegistry>(collectionNames.sourceRegistries),
     users: database.collection<User>(collectionNames.users),
   };

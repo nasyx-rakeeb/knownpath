@@ -180,7 +180,7 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   {
     name: collectionNames.sourceRegistries,
     validator: envelopeValidator(["kind", "identityKey", "enabled", "visibility"], {
-      kind: { enum: ["github_repository", "documentation"] },
+      kind: { enum: ["github_repository", "documentation_site", "release_feed"] },
       identityKey: { bsonType: "object", required: ["value", "version"] },
       enabled: { bsonType: "bool" },
       visibility: { bsonType: "object", required: ["scope"] },
@@ -235,6 +235,63 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
           "provenance.observedAt": -1,
         },
         name: "ix_source_items_registry_type_observed_at",
+      },
+      {
+        key: {
+          "sourceQuality.authority": 1,
+          "documentMetadata.ecosystem": 1,
+          "documentMetadata.documentType": 1,
+          capturedAt: -1,
+        },
+        name: "ix_source_items_authority_ecosystem_document_type_captured_at",
+        partialFilterExpression: { documentMetadata: { $exists: true } },
+      },
+      {
+        key: { "documentMetadata.framework": 1, "documentMetadata.versions": 1, capturedAt: -1 },
+        name: "ix_source_items_framework_versions_captured_at",
+        partialFilterExpression: { documentMetadata: { $exists: true } },
+      },
+    ],
+  },
+  {
+    name: collectionNames.sourceItemStates,
+    validator: envelopeValidator(
+      [
+        "sourceRegistryId",
+        "sourceItemIdentity",
+        "canonicalUrl",
+        "itemType",
+        "lifecycleStatus",
+        "lastFetchedAt",
+        "lastObservedAt",
+      ],
+      {
+        sourceRegistryId: { bsonType: "string" },
+        sourceItemIdentity: { bsonType: "string" },
+        canonicalUrl: { bsonType: "string" },
+        itemType: { bsonType: "string" },
+        lifecycleStatus: { enum: ["active", "deprecated", "deleted"] },
+        lastFetchedAt: { bsonType: "date" },
+        lastObservedAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      {
+        key: { sourceRegistryId: 1, sourceItemIdentity: 1 },
+        name: "uq_source_item_states_registry_identity",
+        unique: true,
+      },
+      {
+        key: { sourceRegistryId: 1, lifecycleStatus: 1, lastFetchedAt: 1 },
+        name: "ix_source_item_states_registry_lifecycle_fetched_at",
+      },
+      {
+        key: {
+          sourceRegistryId: 1,
+          "documentMetadata.documentType": 1,
+          "documentMetadata.versions": 1,
+        },
+        name: "ix_source_item_states_registry_document_type_versions",
       },
     ],
   },

@@ -305,3 +305,74 @@ move the source cursor past work that needs retrying.
 **Rejected:** Overwriting one mutable document loses edit history. Embedding whole threads creates
 large, frequently rewritten documents. Cursor-only collection without overlap risks boundary misses.
 Semantic deduplication and inferred fixes belong to later processing phases.
+
+## 2026-08-22 — Resequence authoritative source ingestion as Phase 5
+
+**Decision:** Treat the explicit Phase 5 instruction as authoritative and ingest first-party Expo
+and React Native documentation/release material before AI extraction. The AI-extraction phase named
+at Phase 4 completion moves to the exact next phase.
+
+**Why:** Official guidance can strengthen or contradict community evidence and should exist before
+the extractor and scoring design are fixed. `progress.md` preserves Phase 4's historical expectation
+and appends this deliberate sequencing change rather than rewriting history.
+
+## 2026-08-22 — Prefer official structured catalogs with configurable curated synchronization
+
+**Decision:** Generalize one versioned source registry across `github_repository`,
+`documentation_site`, and `release_feed` adapters. Discover complete official `llms.txt` catalogs,
+fetch official Markdown representations, enrich with sitemaps, and consume official RSS/Atom feeds.
+Normal synchronization is a data-configured high-signal subset; any indexed page and bounded
+full-catalog mode remain explicit commands. Expo changelog entries use only feed-supplied summaries;
+the adapter does not scrape article HTML.
+
+**Why:** Official indexes and representations are more stable, attributable, and focused than a
+generic crawler. Separating discovery from curated fetching preserves future full-catalog ability
+without continuously processing hundreds of low-signal reference pages. Feed-only Expo changelog
+handling respects the difference between open documentation source and broader site content terms.
+
+**Rejected:** Generic HTML crawling adds navigation chrome, brittle selectors, and avoidable reuse
+risk. Repository cloning exposes MDX/build implementation details as the primary ingestion contract.
+Hardcoded adapter paths would make curation changes architectural changes.
+
+**References:** [Expo LLM index](https://docs.expo.dev/llms.txt),
+[Expo sitemap](https://docs.expo.dev/sitemap.xml),
+[Expo changelog RSS](https://expo.dev/changelog/rss.xml),
+[React Native LLM index](https://reactnative.dev/llms.txt),
+[React Native RSS](https://reactnative.dev/blog/rss.xml),
+[React Native documentation license](https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs)
+
+## 2026-08-22 — Separate immutable source revisions from mutable fetch state
+
+**Decision:** Continue storing every changed normalized source revision in immutable `source_items`
+and add one mutable `source_item_states` row per registry/native identity. State owns the latest
+snapshot pointer, lifecycle, normalized digest, ETag, Last-Modified, observed revision, and
+fetch/change timestamps. `304` and equal-digest observations update state without another snapshot.
+
+**Why:** Last-fetched and validator values must change even when source content does not, while
+KnownPath must not rewrite historical evidence. A small queryable projection also supports targeted
+refresh and authoritative deletion comparison without scanning all snapshot revisions.
+
+**Rejected:** Mutating snapshots loses provenance. Creating a snapshot for every successful fetch
+causes unnecessary downstream reprocessing. Storing validators only in one registry cursor does not
+scale to independently changing pages.
+
+## 2026-08-22 — Normalize untrusted Markdown, XML, and feed HTML without rendering it
+
+**Decision:** Use current maintained MIT packages at the verified versions: `fast-xml-parser` 5.11
+for bounded XML/feed parsing, Marked 18 for Markdown tokenization without serving rendered HTML,
+`html-to-text` 10 for feed-supplied HTML-to-plain-text conversion, and stable zero-dependency
+`robots-parser` 3 for robots policy evaluation. Network requests remain in a KnownPath allowlisted,
+bounded, conditional HTTP client.
+
+**Why:** Mature parsers avoid fragile custom XML/Markdown grammars. Parsing produces bounded
+provider-neutral text/blocks and never executes source scripts or MDX components. The network
+boundary, not parser defaults, owns origin, redirect, media-type, size, timeout, and retry policy.
+
+**Rejected:** Regex-only XML/HTML parsing is incorrect and unsafe. Rendering Markdown/HTML into a
+user interface is outside ingestion scope. A generic crawling framework would be disproportionate
+and broaden the allowed source surface.
+
+**References:** [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser),
+[Marked lexer documentation](https://marked.js.org/using_pro#lexer),
+[html-to-text](https://github.com/html-to-text/node-html-to-text),
+[robots-parser](https://github.com/samclarke/robots-parser)

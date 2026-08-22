@@ -6,7 +6,7 @@ stored as source evidence, never executed or treated as an instruction.
 
 ## Initial source registry
 
-The versioned manifest at `config/sources/github.json` is the configuration source of truth. It
+The versioned manifest at `config/sources/registry.json` is the configuration source of truth. It
 currently enables:
 
 | Key                             | Repository                                         | Types               |
@@ -20,6 +20,9 @@ currently enables:
 The worker validates the manifest at startup and verifies each repository's canonical API identity
 and enabled capabilities before collecting it. Adding an ecosystem source is a data change when the
 existing GitHub object types are sufficient.
+
+The manifest is shared with Phase 5 documentation/feed adapters. GitHub entries use the
+`github_repository` discriminator; other adapter kinds are ignored by the GitHub selector.
 
 ## API and authentication
 
@@ -58,6 +61,7 @@ The normalized envelope contains:
 - labels, reactions and reaction actors, discussion category/answer state, and reliably exposed
   closing pull requests;
 - root and parent identities for thread reconstruction;
+- deterministic maintainer/community source quality derived from GitHub author association;
 - a content digest, captured timestamp, provider metadata format version, and deterministic snapshot
   deduplication key.
 

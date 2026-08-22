@@ -1,6 +1,11 @@
 import { fileURLToPath } from "node:url";
 
-import { loadGitHubConfig, loadMongoConfig, type LogLevel } from "@knownpath/config";
+import {
+  loadGitHubConfig,
+  loadMongoConfig,
+  loadSourceIngestionConfig,
+  type LogLevel,
+} from "@knownpath/config";
 import { connectToMongo } from "@knownpath/database";
 import {
   GitHubIngestionService,
@@ -8,21 +13,27 @@ import {
   parseGitHubIngestionArgs,
   type GitHubIngestionLogger,
 } from "@knownpath/github-ingestion";
+import {
+  OfficialSourceIngestionService,
+  parseSourceIngestionArgs,
+  sourceIngestionUsage,
+} from "@knownpath/source-ingestion";
 
 const command = process.argv[2];
 
 async function main(): Promise<void> {
-  if (command !== "github") {
-    console.info(githubIngestionUsage());
-    return;
-  }
+  if (command === "github") return runGitHub();
+  if (command === "sources") return runOfficialSources();
+  console.info(`${githubIngestionUsage()}\n\n${sourceIngestionUsage()}`);
+}
 
+async function runGitHub(): Promise<void> {
   const request = parseGitHubIngestionArgs(process.argv.slice(3));
   const githubConfig = loadGitHubConfig({
     ...process.env,
-    GITHUB_SOURCE_REGISTRY_PATH:
-      process.env["GITHUB_SOURCE_REGISTRY_PATH"] ??
-      fileURLToPath(new URL("../../../config/sources/github.json", import.meta.url)),
+    SOURCE_REGISTRY_PATH:
+      process.env["SOURCE_REGISTRY_PATH"] ??
+      fileURLToPath(new URL("../../../config/sources/registry.json", import.meta.url)),
   });
   const logger = createLogger(githubConfig.logLevel);
   const mongoConfig = loadMongoConfig();
@@ -43,6 +54,46 @@ async function main(): Promise<void> {
       sources: results.map((result) => ({
         source: result.source.key,
         repository: result.source.repository,
+        counters: result.counters,
+      })),
+    });
+  } finally {
+    await database.close();
+  }
+}
+
+async function runOfficialSources(): Promise<void> {
+  const request = parseSourceIngestionArgs(process.argv.slice(3));
+  const sourceConfig = loadSourceIngestionConfig({
+    ...process.env,
+    SOURCE_REGISTRY_PATH:
+      process.env["SOURCE_REGISTRY_PATH"] ??
+      fileURLToPath(new URL("../../../config/sources/registry.json", import.meta.url)),
+  });
+  const logger = createLogger(sourceConfig.logLevel);
+  const database = await connectToMongo(loadMongoConfig());
+  const controller = new AbortController();
+  const abort = (signal: NodeJS.Signals): void => {
+    logger.warn("KnownPath official source ingestion stopping", { signal });
+    controller.abort(new Error(`Interrupted by ${signal}`));
+  };
+  process.once("SIGINT", () => abort("SIGINT"));
+  process.once("SIGTERM", () => abort("SIGTERM"));
+
+  try {
+    const service = new OfficialSourceIngestionService(
+      database,
+      sourceConfig,
+      logger,
+      controller.signal,
+    );
+    const results = await service.run(request);
+    logger.info("KnownPath official source command completed", {
+      action: request.action,
+      dryRun: request.dryRun,
+      sources: results.map((result) => ({
+        source: result.source.key,
+        adapter: result.source.adapter,
         counters: result.counters,
       })),
     });

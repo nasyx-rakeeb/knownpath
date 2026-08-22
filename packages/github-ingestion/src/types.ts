@@ -3,20 +3,29 @@ import type { IngestionCounters, SourceItem, SourceRegistry } from "@knownpath/d
 export type GitHubSourceType = "issues" | "discussions";
 
 export interface GitHubSourceDefinition {
+  readonly attributionUrl: string;
   readonly canonicalUrl: string;
   readonly defaultLookbackDays: number;
   readonly ecosystemHints: readonly string[];
   readonly enabled: boolean;
   readonly key: string;
+  readonly licenseIdentifier: string;
+  readonly licenseUrl?: string;
   readonly name: string;
   readonly owner: string;
   readonly repository: string;
   readonly repositoryName: string;
+  readonly sourceQuality: {
+    readonly authority: "first_party_official" | "maintainer" | "community" | "general_public";
+    readonly classificationBasis:
+      "official_domain" | "official_repository" | "provider_author_association" | "unverified";
+    readonly publisher: string;
+  };
   readonly types: readonly GitHubSourceType[];
 }
 
 export interface GitHubSourceManifest {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly sources: readonly GitHubSourceDefinition[];
 }
 

@@ -7,6 +7,7 @@ import {
   ingestionRunSchema,
   knownPathSchema,
   sourceItemSchema,
+  sourceItemStateSchema,
   sourceRegistrySchema,
   userSchema,
   type AgentContribution,
@@ -25,6 +26,8 @@ import {
   type KnownPathId,
   type SourceItem,
   type SourceItemId,
+  type SourceItemState,
+  type SourceItemStateId,
   type SourceRegistry,
   type SourceRegistryId,
   type User,
@@ -194,6 +197,14 @@ export class SourceRegistryRepository
     return documents.map((document) => sourceRegistrySchema.parse(document));
   }
 
+  public async listEnabledByKind(kind: SourceRegistry["kind"]): Promise<SourceRegistry[]> {
+    const documents = await this.collection
+      .find({ enabled: true, kind })
+      .sort({ name: 1 })
+      .toArray();
+    return documents.map((document) => sourceRegistrySchema.parse(document));
+  }
+
   public async updateDefinition(
     id: SourceRegistryId,
     definition: Pick<
@@ -205,6 +216,7 @@ export class SourceRegistryRepository
       | "ecosystemHints"
       | "configuration"
       | "visibility"
+      | "kind"
     >,
   ): Promise<SourceRegistry | null> {
     return this.updateOne({ _id: id }, definition);
@@ -237,6 +249,68 @@ export class SourceRegistryRepository
       "identityKey.value": expectedIdentityKey.value,
     });
     return result.deletedCount === 1;
+  }
+}
+
+export class SourceItemStateRepository
+  extends MongoEntityRepository<SourceItemState, SourceItemStateId>
+  implements EntityRepository<SourceItemState, SourceItemStateId>
+{
+  public constructor(collection: Collection<SourceItemState>) {
+    super(collection, sourceItemStateSchema);
+  }
+
+  public async findBySourceIdentity(
+    sourceRegistryId: SourceRegistryId,
+    sourceItemIdentity: string,
+  ): Promise<SourceItemState | null> {
+    return this.findOne({ sourceRegistryId, sourceItemIdentity });
+  }
+
+  public async listByRegistry(sourceRegistryId: SourceRegistryId): Promise<SourceItemState[]> {
+    const documents = await this.collection.find({ sourceRegistryId }).toArray();
+    return documents.map((document) => sourceItemStateSchema.parse(document));
+  }
+
+  public async upsert(entity: SourceItemState): Promise<SourceItemState> {
+    const parsed = sourceItemStateSchema.parse(entity);
+    const result = await this.collection.findOneAndUpdate(
+      { sourceRegistryId: parsed.sourceRegistryId, sourceItemIdentity: parsed.sourceItemIdentity },
+      {
+        $set: {
+          canonicalUrl: parsed.canonicalUrl,
+          itemType: parsed.itemType,
+          lifecycleStatus: parsed.lifecycleStatus,
+          lastFetchedAt: parsed.lastFetchedAt,
+          lastObservedAt: parsed.lastObservedAt,
+          "audit.updatedAt": parsed.audit.updatedAt,
+          ...(parsed.latestSourceItemId === undefined
+            ? {}
+            : { latestSourceItemId: parsed.latestSourceItemId }),
+          ...(parsed.contentDigest === undefined ? {} : { contentDigest: parsed.contentDigest }),
+          ...(parsed.etag === undefined ? {} : { etag: parsed.etag }),
+          ...(parsed.lastModified === undefined ? {} : { lastModified: parsed.lastModified }),
+          ...(parsed.observedRevision === undefined
+            ? {}
+            : { observedRevision: parsed.observedRevision }),
+          ...(parsed.lastChangedAt === undefined ? {} : { lastChangedAt: parsed.lastChangedAt }),
+          ...(parsed.sourceQuality === undefined ? {} : { sourceQuality: parsed.sourceQuality }),
+          ...(parsed.documentMetadata === undefined
+            ? {}
+            : { documentMetadata: parsed.documentMetadata }),
+        },
+        $setOnInsert: {
+          _id: parsed._id,
+          schemaVersion: parsed.schemaVersion,
+          sourceRegistryId: parsed.sourceRegistryId,
+          sourceItemIdentity: parsed.sourceItemIdentity,
+          "audit.createdAt": parsed.audit.createdAt,
+        },
+      },
+      { upsert: true, returnDocument: "after" },
+    );
+    if (result === null) throw new Error("Source item state upsert returned no document");
+    return sourceItemStateSchema.parse(result);
   }
 }
 
@@ -410,6 +484,7 @@ export interface KnownPathRepositories {
   readonly ingestionRuns: IngestionRunRepository;
   readonly knownPaths: KnownPathRepository;
   readonly sourceItems: SourceItemRepository;
+  readonly sourceItemStates: SourceItemStateRepository;
   readonly sourceRegistries: SourceRegistryRepository;
   readonly users: UserRepository;
 }
@@ -424,6 +499,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),
     knownPaths: new KnownPathRepository(collections.knownPaths),
     sourceItems: new SourceItemRepository(collections.sourceItems),
+    sourceItemStates: new SourceItemStateRepository(collections.sourceItemStates),
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),
     users: new UserRepository(collections.users),
   };

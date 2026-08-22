@@ -302,6 +302,7 @@ export class GitHubIngestionService {
       await this.database.repositories.sourceRegistries.findByIdentityKey(identityKey);
     const now = new Date();
     const definition = {
+      kind: "github_repository" as const,
       name: source.name,
       originalUrl: source.canonicalUrl,
       canonicalUrl: source.canonicalUrl,
@@ -313,7 +314,11 @@ export class GitHubIngestionService {
         "github.repository": source.repositoryName,
         "github.types": source.types.join(","),
         "github.defaultLookbackDays": String(source.defaultLookbackDays),
-        "github.manifestVersion": "1",
+        "github.manifestVersion": "2",
+        "source.publisher": source.sourceQuality.publisher,
+        "source.attributionUrl": source.attributionUrl,
+        "source.licenseIdentifier": source.licenseIdentifier,
+        ...(source.licenseUrl === undefined ? {} : { "source.licenseUrl": source.licenseUrl }),
       },
       visibility: { scope: "public" as const },
     };
@@ -328,7 +333,6 @@ export class GitHubIngestionService {
     return this.database.repositories.sourceRegistries.create({
       _id: createSourceRegistryId(),
       schemaVersion: 1,
-      kind: "github_repository",
       identityKey,
       ...definition,
       audit: { createdAt: now, updatedAt: now },

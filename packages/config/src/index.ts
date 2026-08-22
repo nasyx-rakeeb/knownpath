@@ -93,10 +93,19 @@ const githubEnvironmentSchema = z.object({
   GITHUB_INCREMENTAL_OVERLAP_HOURS: z.coerce.number().int().min(1).max(720).default(24),
   GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS: z.coerce.number().int().min(0).max(900).default(120),
   GITHUB_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
-  GITHUB_SOURCE_REGISTRY_PATH: z.string().trim().min(1).default("config/sources/github.json"),
+  SOURCE_REGISTRY_PATH: z.string().trim().min(1).default("config/sources/registry.json"),
   GITHUB_TOKEN: optionalSecretEnvironmentSchema,
   GITHUB_USER_AGENT: z.string().trim().min(1).max(256).default("knownpath/0.0.0"),
   LOG_LEVEL: logLevelSchema,
+});
+
+const sourceIngestionEnvironmentSchema = z.object({
+  LOG_LEVEL: logLevelSchema,
+  SOURCE_MAX_RESPONSE_BYTES: z.coerce.number().int().min(1_024).max(50_000_000).default(5_000_000),
+  SOURCE_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
+  SOURCE_REGISTRY_PATH: z.string().trim().min(1).default("config/sources/registry.json"),
+  SOURCE_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+  SOURCE_USER_AGENT: z.string().trim().min(1).max(256).default("knownpath/0.0.0"),
 });
 
 export type LogLevel = z.infer<typeof logLevelSchema>;
@@ -139,6 +148,15 @@ export interface GitHubConfig {
   readonly requestTimeoutMs: number;
   readonly sourceRegistryPath: string;
   readonly token?: string;
+  readonly userAgent: string;
+}
+
+export interface SourceIngestionConfig {
+  readonly logLevel: LogLevel;
+  readonly maxResponseBytes: number;
+  readonly maxRetries: number;
+  readonly requestTimeoutMs: number;
+  readonly sourceRegistryPath: string;
   readonly userAgent: string;
 }
 
@@ -206,9 +224,23 @@ export function loadGitHubConfig(environment: NodeJS.ProcessEnv = process.env): 
     logLevel: parsed.LOG_LEVEL,
     maxRateLimitWaitSeconds: parsed.GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS,
     requestTimeoutMs: parsed.GITHUB_REQUEST_TIMEOUT_MS,
-    sourceRegistryPath: parsed.GITHUB_SOURCE_REGISTRY_PATH,
+    sourceRegistryPath: parsed.SOURCE_REGISTRY_PATH,
     ...(parsed.GITHUB_TOKEN === undefined ? {} : { token: parsed.GITHUB_TOKEN }),
     userAgent: parsed.GITHUB_USER_AGENT,
+  };
+}
+
+export function loadSourceIngestionConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): SourceIngestionConfig {
+  const parsed = parseEnvironment(sourceIngestionEnvironmentSchema, environment);
+  return {
+    logLevel: parsed.LOG_LEVEL,
+    maxResponseBytes: parsed.SOURCE_MAX_RESPONSE_BYTES,
+    maxRetries: parsed.SOURCE_MAX_RETRIES,
+    requestTimeoutMs: parsed.SOURCE_REQUEST_TIMEOUT_MS,
+    sourceRegistryPath: parsed.SOURCE_REGISTRY_PATH,
+    userAgent: parsed.SOURCE_USER_AGENT,
   };
 }
 

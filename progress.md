@@ -537,3 +537,157 @@ candidate experiences, including the first configured extraction provider, promp
 provenance, bounded processing lifecycle, and deterministic output validation.** Do not implement
 canonical promotion, search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution
 workflows, or dashboards until their designated later phases.
+
+## Phase 5 — Official Expo and React Native knowledge sources
+
+### Phase goal
+
+Extend seed collection beyond community threads with authoritative Expo and React Native
+documentation and release material. Normal synchronization remains curated toward reusable technical
+knowledge, while complete official indexes stay discoverable for targeted or future bounded
+full-catalog ingestion. This phase stores normalized, attributed source material only.
+
+### Research performed
+
+Official sources and maintained parser documentation were checked on 2026-08-22 before
+implementation:
+
+- Expo's current [`llms.txt`](https://docs.expo.dev/llms.txt),
+  [sitemap](https://docs.expo.dev/sitemap.xml), [robots policy](https://docs.expo.dev/robots.txt),
+  [changelog feed](https://expo.dev/changelog/rss.xml), and
+  [documentation source repository](https://github.com/expo/expo/tree/main/docs)
+- React Native's current [`llms.txt`](https://reactnative.dev/llms.txt),
+  [sitemap](https://reactnative.dev/sitemap.xml),
+  [robots policy](https://reactnative.dev/robots.txt),
+  [release feed](https://reactnative.dev/rss.xml), and
+  [documentation repository](https://github.com/reactjs/react-native-website)
+- Expo's repository license and React Native website's CC-BY-4.0 documentation license, plus the
+  official sites' attribution and reuse boundaries
+- [`fast-xml-parser`](https://github.com/NaturalIntelligence/fast-xml-parser),
+  [`marked`](https://marked.js.org/),
+  [`html-to-text`](https://github.com/html-to-text/node-html-to-text), and
+  [`robots-parser`](https://github.com/samclarke/robots-parser) documentation, release metadata,
+  licenses, and supported Node.js ranges
+
+Live discovery found 553 Expo documentation links and 281 React Native documentation links in the
+official `llms.txt` indexes. It also confirmed the current Expo and React Native release feeds and
+their available metadata. Package releases and engine compatibility were selected from current
+registry metadata rather than memory.
+
+### Architecture and technology decisions
+
+- Replaced the GitHub-only source manifest with a versioned, runtime-validated source registry that
+  discriminates `github_repository`, `documentation_site`, and `release_feed` adapters.
+- Curated rules are data, not adapter code. They target upgrade, migration, troubleshooting,
+  compatibility, deprecation, breaking-change, and release material for normal sync. Any indexed
+  page can be requested explicitly, and `--scope all` preserves a future bounded full-catalog path.
+- Official `llms.txt` plus Markdown page endpoints are the primary documentation interface; sitemaps
+  enrich update metadata, robots rules constrain requests, and official feeds supply release
+  summaries. Expo changelog HTML is not scraped or copied.
+- Immutable source snapshots retain processing provenance. A separate mutable fetch-state document
+  holds ETag, Last-Modified, last-fetch, latest hash/snapshot, and lifecycle state so conditional
+  refreshes do not rewrite history.
+- Source authority, quality tier, license, attribution, document type, ecosystem/framework, and
+  detected version are deterministic registry/parser metadata. They are not inferred by an LLM.
+- Markdown becomes bounded structured blocks plus normalized text. Feed HTML is converted to text;
+  navigation, scripts, styles, and full page payloads are not retained. XML entity expansion,
+  nesting, response size, redirects, timeouts, retries, origins, and content types are bounded.
+- Complete changed documentation indexes can mark missing documents deprecated. Feed absence is not
+  treated as deletion because feeds are not authoritative catalogs.
+- No second database, scheduler, queue, search index, extraction provider, or publication surface
+  was added.
+
+Detailed rationale is in [`docs/DECISIONS.md`](docs/DECISIONS.md), data structures and indexes are
+in [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md), and operating/attribution guidance is in
+[`docs/OFFICIAL_SOURCE_INGESTION.md`](docs/OFFICIAL_SOURCE_INGESTION.md).
+
+### Collections, schemas, indexes, and files created or evolved
+
+- Added `@knownpath/source-ingestion` with registry validation, source selection, safe HTTP and
+  robots handling, official catalog/feed discovery, Markdown/feed normalization, snapshot/state
+  persistence, lifecycle handling, orchestration, and CLI parsing.
+- Added `config/sources/registry.json` with nine data-driven sources: the five existing GitHub
+  repositories, Expo and React Native documentation catalogs, the Expo changelog feed, and the React
+  Native release feed.
+- Evolved source registry and source-item contracts with adapter kinds, first-party/community
+  authority classifications, licensing/attribution, document types, structured content blocks,
+  version metadata, lifecycle state, and provenance fields.
+- Added `source_item_states` as the fourteenth collection with three indexes for unique source/item
+  identity, fetch scheduling, and lifecycle inspection.
+- Added document-oriented source-item indexes for canonical URL identity and common
+  ecosystem/framework/version/document-type queries. The database now declares 52 named indexes
+  across 14 collections, excluding automatic `_id_` indexes. No vector index was added.
+- Updated GitHub ingestion to consume the shared registry and attach deterministic source-quality
+  metadata without changing its raw-source responsibility.
+- Added `pnpm ingest:sources`, worker `sources`/`github` command routing, typed fetch limits, and
+  documented environment settings with no credential defaults.
+- Added this progress entry and Phase 5 updates to the root README, architecture, data model,
+  decision log, GitHub ingestion guide, package documentation, and approved Phase 5 design
+  specification.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` completed for all 16 workspace projects.
+- `pnpm typecheck` — 20 tasks successful.
+- `pnpm lint` — 14 tasks successful.
+- `pnpm build` — 14 tasks successful; the Next.js shell compiled and prerendered `/`.
+- `pnpm format` and `pnpm format:check` completed successfully after documentation formatting.
+- Discovery parsed all 553 Expo and 281 React Native indexed documentation links while normal
+  commands selected only the bounded curated set. Both official release feeds were also discovered
+  with bounded selection.
+- A targeted Expo upgrade-guide sync created one source item/snapshot with 39 structured blocks,
+  title, canonical URL, first-party authority, MIT attribution, ETag, fetch timestamps, and content
+  hashes. Repeating it reported one unchanged item and left one immutable snapshot.
+- A bounded React Native 0.87 release sync created one source item/snapshot with 87 structured
+  blocks, canonical/published timestamps, detected version, first-party authority, CC-BY-4.0
+  attribution, and no script/navigation chrome. Both a repeat and `--version 0.87` refresh reported
+  unchanged and left one snapshot.
+- A non-curated Expo Camera page was successfully selected through `--page --dry-run`; direct
+  MongoDB counts before and after remained three source items, three states, and four ingestion
+  runs, confirming dry-run made no persistence changes.
+- A live GitHub dry run through the shared registry successfully discovered one Expo issue. Two
+  later external rechecks received a safely classified retryable GitHub HTTP 504; no incompatible
+  manifest or normalization error was observed.
+- `pnpm db:init` completed twice. The second run reported `created: false` for all 14 collections,
+  confirming idempotence. Direct inspection found all three state indexes and 52 declared named
+  indexes overall.
+- `pnpm db:verify` completed the repository insert/read/update/delete round trip and confirmed
+  cleanup.
+
+No automated tests were created or run, as required for this phase.
+
+### Environment and manual setup still required
+
+- Use the pinned Node.js 24/pnpm 11 toolchain, copy `.env.example` to `.env`, start MongoDB, and run
+  `pnpm db:init` before source ingestion.
+- Configure fetch timeouts, response-size limits, retry count, and an identifying user agent if the
+  documented defaults do not suit the deployment. No official-source credential is required.
+- Review `config/sources/registry.json`; use `discover`, `--dry-run`, and small `--limit` values
+  before expanding curated rules or running `--scope all`. Use `--page` or `--version` for targeted
+  work.
+- A read-only `GITHUB_TOKEN` remains recommended for the GitHub sources and is required for their
+  GraphQL Discussion collection. It is unrelated to official documentation/feed fetching.
+- Production scheduling, worker leases, deployment topology, operational alerting, and automated
+  retention enforcement remain later operational work.
+
+### Known limitations intentionally left for later phases
+
+- No AI/Gemini extraction, prompt execution, candidate experience creation, fix inference, semantic
+  deduplication, deterministic scoring, contradiction resolution, or canonical KnownPath promotion.
+- No vector or lexical indexes, public knowledge retrieval, search ranking, MCP knowledge tools,
+  Agent Skill/installer flow, contribution processing, or dashboard controls.
+- Curated patterns and version extraction are deterministic metadata heuristics and will need normal
+  configuration maintenance as official documentation structures evolve.
+- Feed entries store normalized summaries and provenance, not full linked changelog pages. Exact
+  upstream modification dates are retained only when catalogs or HTTP responses expose them.
+- Deprecation marking is intentionally limited to changed, complete, authoritative documentation
+  indexes; physical snapshot deletion and retention automation are not implemented.
+- No automated tests, by explicit Phase 5 requirement.
+
+### Exact next phase
+
+**Phase 6: implement provider-neutral AI extraction of immutable source snapshots into validated
+candidate experiences, including the first configured extraction provider, prompt/version
+provenance, bounded processing lifecycle, and deterministic output validation.** Do not implement
+canonical promotion, search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution
+workflows, or dashboards until their designated later phases.

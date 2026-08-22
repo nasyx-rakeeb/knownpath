@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 2,
+  "sources": [
+    {
+      "key": "expo-core",
+      "name": "Expo core",
+      "adapter": "github_repository",
+      "repository": "expo/expo",
+      "canonicalUrl": "https://github.com/expo/expo",
+      "ecosystemHints": ["expo", "react-native"],
+      "types": ["issues", "discussions"],
+      "defaultLookbackDays": 30,
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "community",
+        "classificationBasis": "provider_author_association",
+        "publisher": "Expo"
+      },
+      "attributionUrl": "https://github.com/expo/expo",
+      "licenseIdentifier": "mixed-provider-content"
+    },
+    {
+      "key": "react-native-core",
+      "name": "React Native core",
+      "adapter": "github_repository",
+      "repository": "react/react-native",
+      "canonicalUrl": "https://github.com/react/react-native",
+      "ecosystemHints": ["react-native"],
+      "types": ["issues"],
+      "defaultLookbackDays": 30,
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "community",
+        "classificationBasis": "provider_author_association",
+        "publisher": "React Native"
+      },
+      "attributionUrl": "https://github.com/react/react-native",
+      "licenseIdentifier": "mixed-provider-content"
+    },
+    {
+      "key": "react-native-discussions",
+      "name": "React Native discussions and proposals",
+      "adapter": "github_repository",
+      "repository": "react-native-community/discussions-and-proposals",
+      "canonicalUrl": "https://github.com/react-native-community/discussions-and-proposals",
+      "ecosystemHints": ["react-native"],
+      "types": ["discussions"],
+      "defaultLookbackDays": 90,
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "community",
+        "classificationBasis": "provider_author_association",
+        "publisher": "React Native Community"
+      },
+      "attributionUrl": "https://github.com/react-native-community/discussions-and-proposals",
+      "licenseIdentifier": "mixed-provider-content"
+    },
+    {
+      "key": "react-native-new-architecture",
+      "name": "React Native New Architecture working group",
+      "adapter": "github_repository",
+      "repository": "reactwg/react-native-new-architecture",
+      "canonicalUrl": "https://github.com/reactwg/react-native-new-architecture",
+      "ecosystemHints": ["react-native"],
+      "types": ["discussions"],
+      "defaultLookbackDays": 90,
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "community",
+        "classificationBasis": "provider_author_association",
+        "publisher": "React Native Working Group"
+      },
+      "attributionUrl": "https://github.com/reactwg/react-native-new-architecture",
+      "licenseIdentifier": "mixed-provider-content"
+    },
+    {
+      "key": "react-native-upgrade-support",
+      "name": "React Native upgrade support",
+      "adapter": "github_repository",
+      "repository": "react-native-community/upgrade-support",
+      "canonicalUrl": "https://github.com/react-native-community/upgrade-support",
+      "ecosystemHints": ["react-native"],
+      "types": ["issues"],
+      "defaultLookbackDays": 90,
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "community",
+        "classificationBasis": "provider_author_association",
+        "publisher": "React Native Community"
+      },
+      "attributionUrl": "https://github.com/react-native-community/upgrade-support",
+      "licenseIdentifier": "mixed-provider-content"
+    },
+    {
+      "key": "expo-documentation",
+      "name": "Expo documentation",
+      "adapter": "documentation_site",
+      "canonicalUrl": "https://docs.expo.dev/",
+      "ecosystemHints": ["expo", "react-native"],
+      "framework": "expo",
+      "indexUrl": "https://docs.expo.dev/llms.txt",
+      "sitemapUrl": "https://docs.expo.dev/sitemap.xml",
+      "robotsUrl": "https://docs.expo.dev/robots.txt",
+      "allowedOrigins": ["https://docs.expo.dev"],
+      "allowedPathPrefixes": ["/"],
+      "contentUrlSuffix": "",
+      "curatedRules": [
+        {
+          "pattern": "/workflow/upgrading-expo-sdk-walkthrough|/bare/upgrade",
+          "documentType": "upgrade_guide"
+        },
+        {
+          "pattern": "/troubleshooting/|/router/reference/troubleshooting|/build-reference/troubleshooting|/eas/workflows/troubleshooting|/push-notifications/faq",
+          "documentType": "troubleshooting"
+        },
+        {
+          "pattern": "/guides/sdk-libraries-migration/",
+          "documentType": "migration_guide"
+        }
+      ],
+      "classificationRules": [
+        {
+          "pattern": "upgrade|upgrading",
+          "documentType": "upgrade_guide"
+        },
+        {
+          "pattern": "troubleshoot|faq|version-mismatch|clear-cache",
+          "documentType": "troubleshooting"
+        },
+        {
+          "pattern": "migration|migrate",
+          "documentType": "migration_guide"
+        },
+        {
+          "pattern": "deprecat",
+          "documentType": "deprecation_notice"
+        },
+        {
+          "pattern": "breaking",
+          "documentType": "breaking_change"
+        }
+      ],
+      "versionRules": [
+        {
+          "pattern": "/versions/v?(\\d+(?:\\.\\d+){0,2})/",
+          "captureGroup": 1
+        },
+        {
+          "pattern": "SDK[ -]?(\\d+(?:\\.\\d+){0,2})",
+          "captureGroup": 1
+        }
+      ],
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "first_party_official",
+        "classificationBasis": "official_domain",
+        "publisher": "Expo"
+      },
+      "attributionUrl": "https://github.com/expo/expo",
+      "licenseIdentifier": "MIT",
+      "licenseUrl": "https://github.com/expo/expo/blob/main/LICENSE"
+    },
+    {
+      "key": "react-native-documentation",
+      "name": "React Native documentation",
+      "adapter": "documentation_site",
+      "canonicalUrl": "https://reactnative.dev/",
+      "ecosystemHints": ["react-native"],
+      "framework": "react-native",
+      "indexUrl": "https://reactnative.dev/llms.txt",
+      "sitemapUrl": "https://reactnative.dev/sitemap.xml",
+      "robotsUrl": "https://reactnative.dev/robots.txt",
+      "allowedOrigins": ["https://reactnative.dev"],
+      "allowedPathPrefixes": ["/"],
+      "contentUrlSuffix": "",
+      "curatedRules": [
+        {
+          "pattern": "/docs/upgrading",
+          "documentType": "upgrade_guide"
+        },
+        {
+          "pattern": "/docs/(?:troubleshooting|debugging-release-builds)",
+          "documentType": "troubleshooting"
+        },
+        {
+          "pattern": "/docs/(?:release-levels|strict-typescript-api)|/releases/(?:branches|overview|versioning-policy)",
+          "documentType": "compatibility_reference"
+        }
+      ],
+      "classificationRules": [
+        {
+          "pattern": "upgrade|upgrading",
+          "documentType": "upgrade_guide"
+        },
+        {
+          "pattern": "troubleshoot|debugging-release",
+          "documentType": "troubleshooting"
+        },
+        {
+          "pattern": "migration|migrate",
+          "documentType": "migration_guide"
+        },
+        {
+          "pattern": "deprecat",
+          "documentType": "deprecation_notice"
+        },
+        {
+          "pattern": "breaking|strict-typescript-api",
+          "documentType": "breaking_change"
+        },
+        {
+          "pattern": "release-levels|/releases/",
+          "documentType": "compatibility_reference"
+        }
+      ],
+      "versionRules": [
+        {
+          "pattern": "/docs/(\\d+\\.\\d+)/",
+          "captureGroup": 1
+        },
+        {
+          "pattern": "React Native[ -]?(\\d+\\.\\d+)",
+          "captureGroup": 1
+        }
+      ],
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "first_party_official",
+        "classificationBasis": "official_domain",
+        "publisher": "React Native"
+      },
+      "attributionUrl": "https://github.com/reactjs/react-native-website",
+      "licenseIdentifier": "CC-BY-4.0",
+      "licenseUrl": "https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs"
+    },
+    {
+      "key": "expo-changelog",
+      "name": "Expo changelog",
+      "adapter": "release_feed",
+      "canonicalUrl": "https://expo.dev/changelog",
+      "ecosystemHints": ["expo", "react-native"],
+      "framework": "expo",
+      "feedUrl": "https://expo.dev/changelog/rss.xml",
+      "robotsUrl": "https://expo.dev/robots.txt",
+      "allowedOrigins": ["https://expo.dev"],
+      "contentPolicy": "feed_summary",
+      "curatedRules": [
+        {
+          "pattern": "SDK|upgrade|migration|deprecat|breaking|compatib",
+          "documentType": "release_note"
+        }
+      ],
+      "versionRules": [
+        {
+          "pattern": "SDK[ -]?(\\d+(?:\\.\\d+){0,2})",
+          "captureGroup": 1
+        }
+      ],
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "first_party_official",
+        "classificationBasis": "official_domain",
+        "publisher": "Expo"
+      },
+      "attributionUrl": "https://expo.dev/changelog",
+      "licenseIdentifier": "Expo-site-terms"
+    },
+    {
+      "key": "react-native-releases",
+      "name": "React Native releases",
+      "adapter": "release_feed",
+      "canonicalUrl": "https://reactnative.dev/blog",
+      "ecosystemHints": ["react-native"],
+      "framework": "react-native",
+      "feedUrl": "https://reactnative.dev/blog/rss.xml",
+      "robotsUrl": "https://reactnative.dev/robots.txt",
+      "allowedOrigins": ["https://reactnative.dev"],
+      "contentPolicy": "feed_content",
+      "curatedRules": [
+        {
+          "pattern": "React Native 0\\.|release|upgrade|migration|deprecat|breaking|compatib",
+          "documentType": "release_note"
+        }
+      ],
+      "versionRules": [
+        {
+          "pattern": "React Native[ -]?(\\d+\\.\\d+)",
+          "captureGroup": 1
+        },
+        {
+          "pattern": "(?:release-|version-)(\\d+\\.\\d+)",
+          "captureGroup": 1
+        }
+      ],
+      "enabled": true,
+      "sourceQuality": {
+        "authority": "first_party_official",
+        "classificationBasis": "official_domain",
+        "publisher": "React Native"
+      },
+      "attributionUrl": "https://github.com/reactjs/react-native-website",
+      "licenseIdentifier": "CC-BY-4.0",
+      "licenseUrl": "https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs"
+    }
+  ]
+}

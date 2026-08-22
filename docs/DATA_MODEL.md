@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 3 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 5 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -37,6 +37,7 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `audit_events`          | Append-only sensitive-action history without credential material.                              |
 | `source_registries`     | Independently managed source identity/configuration and ingestion cursor.                      |
 | `source_items`          | Immutable captured snapshot; references one source registry.                                   |
+| `source_item_states`    | Mutable latest/fetch projection; one per registry and source-native identity.                  |
 | `ingestion_runs`        | Mutable operational attempt history; references one source registry.                           |
 | `candidate_experiences` | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.    |
 | `known_paths`           | Canonical reusable knowledge record with embedded solution, evidence, score, and search state. |
@@ -92,6 +93,22 @@ metadata. Ingestion counters always include `discovered`, `created`, `updated`, 
 `failed`, and `rateLimited`; bounded provider counters such as `issues`, `discussions`,
 `conditionalNotModified`, and `capabilitySkipped` may be added.
 
+Phase 5 adds `documentation_page`, `release_note`, and catalog snapshots. Official documents embed
+deterministic `sourceQuality`, `documentMetadata`, and bounded `structuredBlocks`. Source quality
+records first-party/maintainer/community/general-public authority, its objective classification
+basis, and publisher. Document metadata records type, ecosystem, framework, detectable versions,
+optional index section, attribution URL, and license. Supported block kinds are heading, paragraph,
+code, list, table, blockquote, and admonition. Raw website HTML and navigation chrome are not
+stored.
+
+`source_item_states` is intentionally mutable and does not replace provenance snapshots. Its unique
+registry/native-identity row points to the latest snapshot and stores lifecycle, canonical URL,
+normalized snapshot digest, ETag, Last-Modified, observed revision, `lastFetchedAt`,
+`lastChangedAt`, and `lastObservedAt`. Conditional `304` responses and equal normalized hashes
+advance fetch state without inserting another immutable source item. Documentation absence can
+become `deleted` only after a complete authoritative index comparison; rolling-feed absence never
+implies deletion.
+
 ### Ecosystem, package, platform, and environment
 
 Candidate and KnownPath documents embed normalized projections for their primary ecosystem and
@@ -133,6 +150,7 @@ content digest, and generation time. No vectors or vector indexes exist in Phase
 | Contribution         | `pending`, `accepted`, `rejected`, `superseded`              |
 | Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`              |
 | Agent outcome        | `helpful`, `not_helpful`, `partially_helpful`, `unknown`     |
+| Source item state    | `active`, `deprecated`, `deleted`                            |
 
 Source registries use an `enabled` flag because disabling a configured source is distinct from a
 processing lifecycle transition. Source items are immutable and therefore have no processing status.
@@ -191,6 +209,16 @@ and is omitted below.
 - `ix_source_items_registry_identity_captured_at`: native item revision history.
 - `ix_source_items_registry_type_observed_at`: incremental inspection by registry, object type, and
   provider observation time.
+- `ix_source_items_authority_ecosystem_document_type_captured_at`: authoritative evidence filtering
+  by ecosystem/document type and recency; partial to document snapshots.
+- `ix_source_items_framework_versions_captured_at`: framework/version document history; partial to
+  document snapshots.
+
+### `source_item_states`
+
+- `uq_source_item_states_registry_identity`: one mutable synchronization state per native identity.
+- `ix_source_item_states_registry_lifecycle_fetched_at`: refresh and authoritative deletion scans.
+- `ix_source_item_states_registry_document_type_versions`: targeted document/version operations.
 
 ### `ingestion_runs`
 
@@ -231,7 +259,7 @@ and is omitted below.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
 parallel-array multikey restriction. No text, TTL, wildcard, geospatial, or vector indexes are
-created through Phase 4. GitHub collection adds no text or vector index.
+created through Phase 5. Source ingestion adds no text or vector index.
 
 ## Initialization and inspection
 
@@ -256,8 +284,13 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Source snapshots, successful ingestion history, canonical knowledge, contributions, and outcomes
   are retained until a future policy says otherwise.
 - Source items are immutable; corrections create a new snapshot.
+- Source-item state is mutable operational metadata. It can be rebuilt from retained snapshots and
+  fresh source discovery, while its validators and fetch timestamps prevent unnecessary work.
 - GitHub cursors and ETags are mutable scheduling state, not provenance. Snapshots and successful
   run history are retained; a future policy must explicitly define archival.
+- Official catalogs and normalized documents are retained internally with canonical attribution and
+  license metadata. Future user-facing knowledge must generalize the material and link to sources,
+  not mirror complete copyrighted pages. Physical purge automation remains deferred.
 - API keys are revoked/expired rather than silently deleted.
 - Users and knowledge use lifecycle/moderation states for soft removal.
 - Authentication sessions and verification records expire logically; no TTL deletion policy is

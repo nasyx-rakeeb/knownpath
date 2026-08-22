@@ -28,6 +28,7 @@ export const apiKeyIdSchema = brandedIdSchema<"ApiKeyId">();
 export const auditEventIdSchema = brandedIdSchema<"AuditEventId">();
 export const sourceRegistryIdSchema = brandedIdSchema<"SourceRegistryId">();
 export const sourceItemIdSchema = brandedIdSchema<"SourceItemId">();
+export const sourceItemStateIdSchema = brandedIdSchema<"SourceItemStateId">();
 export const ingestionRunIdSchema = brandedIdSchema<"IngestionRunId">();
 export const candidateExperienceIdSchema = brandedIdSchema<"CandidateExperienceId">();
 export const knownPathIdSchema = brandedIdSchema<"KnownPathId">();
@@ -39,6 +40,7 @@ export type ApiKeyId = z.infer<typeof apiKeyIdSchema>;
 export type AuditEventId = z.infer<typeof auditEventIdSchema>;
 export type SourceRegistryId = z.infer<typeof sourceRegistryIdSchema>;
 export type SourceItemId = z.infer<typeof sourceItemIdSchema>;
+export type SourceItemStateId = z.infer<typeof sourceItemStateIdSchema>;
 export type IngestionRunId = z.infer<typeof ingestionRunIdSchema>;
 export type CandidateExperienceId = z.infer<typeof candidateExperienceIdSchema>;
 export type KnownPathId = z.infer<typeof knownPathIdSchema>;
@@ -63,6 +65,10 @@ export function createSourceRegistryId(): SourceRegistryId {
 
 export function createSourceItemId(): SourceItemId {
   return sourceItemIdSchema.parse(randomUUID());
+}
+
+export function createSourceItemStateId(): SourceItemStateId {
+  return sourceItemStateIdSchema.parse(randomUUID());
 }
 
 export function createIngestionRunId(): IngestionRunId {

@@ -4,9 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 4 adds bounded, incremental
-> GitHub collection for configured Expo and React Native sources on top of the domain, MongoDB, and
-> secure API foundations. AI extraction, knowledge search, MCP tools, dashboards, Agent Skill
+> [!IMPORTANT] KnownPath is under active phased development. Phase 5 adds curated, incremental
+> collection from official Expo and React Native documentation and release feeds alongside the
+> existing GitHub collector. AI extraction, knowledge search, MCP tools, dashboards, Agent Skill
 > installation, public signup, and contribution workflows are not implemented yet.
 
 ## Prerequisites
@@ -34,7 +34,7 @@ Start MongoDB:
 pnpm dev:infra
 ```
 
-Create/reconcile the Phase 3 collections, validators, and indexes:
+Create or reconcile the current collections, validators, and indexes:
 
 ```sh
 pnpm db:init
@@ -62,6 +62,19 @@ pnpm ingest:github -- --source expo-core --types issues --limit 5
 ```
 
 See [the GitHub ingestion guide](docs/GITHUB_INGESTION.md) before running a backfill.
+
+Discover the current curated official-document set without writing source records, then synchronize
+a bounded source or one indexed page:
+
+```sh
+pnpm ingest:sources -- discover --source expo-documentation --limit 20
+pnpm ingest:sources -- sync --source expo-documentation --limit 5 --dry-run
+pnpm ingest:sources -- sync --source expo-documentation \
+  --page https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough --limit 1
+```
+
+See [the official source ingestion guide](docs/OFFICIAL_SOURCE_INGESTION.md) before changing
+curation or requesting a bounded full-catalog run.
 
 Start all application and package development processes:
 
@@ -98,6 +111,7 @@ pnpm dev:infra:down
 | `pnpm db:verify`        | Run and clean up a repository-layer persistence round trip                 |
 | `pnpm auth:user:create` | Safely provision a user/admin with a masked password prompt                |
 | `pnpm ingest:github`    | Collect a bounded configured GitHub source through official APIs           |
+| `pnpm ingest:sources`   | Discover or sync configured official documentation and release feeds       |
 
 ## Structure
 
@@ -107,7 +121,7 @@ apps/
   cli/             Future installer command boundary
   mcp-server/      MCP protocol process without KnownPath tools
   web/             Next.js application shell
-  worker/          GitHub ingestion and future background processing runtime
+  worker/          Source ingestion and future background processing runtime
 packages/
   agent-adapters/  Future per-agent integration boundary
   ai/              Future provider-neutral extraction boundary
@@ -116,6 +130,7 @@ packages/
   database/        MongoDB lifecycle, repositories, validators, and indexes
   domain/          Versioned domain schemas and canonicalization helpers
   github-ingestion/ GitHub API collection and source normalization
+  source-ingestion/ Official documentation/feed discovery and normalization
   search/          Future retrieval boundary
   typescript-config/ Shared strict compiler configurations
 ```

@@ -237,9 +237,19 @@ export function createSourceItemSnapshot(
     formatVersion: 1,
     payload: object.metadata,
   } as const;
+  const association = object.metadata["authorAssociation"];
+  const sourceQuality = {
+    authority:
+      typeof association === "string" && ["OWNER", "MEMBER", "COLLABORATOR"].includes(association)
+        ? ("maintainer" as const)
+        : ("community" as const),
+    classificationBasis: "provider_author_association" as const,
+    publisher: registry.configuration["source.publisher"] ?? "GitHub",
+  };
   const snapshotMaterial = canonicalizeJson({
     body: object.body,
     metadata: providerMetadata,
+    sourceQuality,
     title: object.title ?? null,
   });
 
@@ -264,6 +274,7 @@ export function createSourceItemSnapshot(
       observedAt: object.observedAt,
     },
     providerMetadata,
+    sourceQuality,
     content: {
       digest: sha256(object.body),
       mediaType: "text/markdown; charset=utf-8",

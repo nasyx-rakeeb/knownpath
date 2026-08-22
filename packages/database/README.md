@@ -5,6 +5,9 @@ envelope validators, index declarations, and idempotent initialization. It also 
 scoped Better Auth MongoDB adapter factory over the managed connection. Raw databases and
 collections remain inside this package.
 
+Immutable source snapshots and mutable per-item fetch state have separate repositories so ETag,
+Last-Modified, lifecycle, and last-fetched updates never rewrite provenance history.
+
 From the repository root with MongoDB and `.env` configured:
 
 ```sh

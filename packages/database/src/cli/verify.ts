@@ -23,7 +23,7 @@ try {
   const record = sourceRegistrySchema.parse({
     _id: id,
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    kind: "documentation",
+    kind: "documentation_site",
     name: marker,
     originalUrl: `https://example.invalid/${marker}`,
     canonicalUrl: normalizeUrl(`https://example.invalid/${marker}`),
