@@ -42,6 +42,7 @@ export const canonicalizationEventIdSchema = brandedIdSchema<"CanonicalizationEv
 export const knownPathRevisionIdSchema = brandedIdSchema<"KnownPathRevisionId">();
 export const canonicalizationOperationIdSchema = brandedIdSchema<"CanonicalizationOperationId">();
 export const knownPathSearchDocumentIdSchema = brandedIdSchema<"KnownPathSearchDocumentId">();
+export const knowledgeSearchEventIdSchema = brandedIdSchema<"KnowledgeSearchEventId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
 
@@ -64,6 +65,7 @@ export type CanonicalizationEventId = z.infer<typeof canonicalizationEventIdSche
 export type KnownPathRevisionId = z.infer<typeof knownPathRevisionIdSchema>;
 export type CanonicalizationOperationId = z.infer<typeof canonicalizationOperationIdSchema>;
 export type KnownPathSearchDocumentId = z.infer<typeof knownPathSearchDocumentIdSchema>;
+export type KnowledgeSearchEventId = z.infer<typeof knowledgeSearchEventIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
 
@@ -141,6 +143,10 @@ export function createCanonicalizationOperationId(): CanonicalizationOperationId
 
 export function createKnownPathSearchDocumentId(): KnownPathSearchDocumentId {
   return knownPathSearchDocumentIdSchema.parse(randomUUID());
+}
+
+export function createKnowledgeSearchEventId(): KnowledgeSearchEventId {
+  return knowledgeSearchEventIdSchema.parse(randomUUID());
 }
 
 export function createAgentContributionId(): AgentContributionId {

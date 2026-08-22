@@ -15,6 +15,7 @@ import {
   knownPathSchema,
   knownPathRevisionSchema,
   knownPathSearchDocumentSchema,
+  knowledgeSearchEventSchema,
   sourceItemSchema,
   sourceItemStateSchema,
   sourceRegistrySchema,
@@ -51,6 +52,8 @@ import {
   type KnownPathRevisionId,
   type KnownPathSearchDocument,
   type KnownPathSearchDocumentId,
+  type KnowledgeSearchEvent,
+  type KnowledgeSearchEventId,
   type SimilarityProfileId,
   type SourceItem,
   type SourceItemId,
@@ -889,6 +892,12 @@ export class KnownPathRepository
     return this.findOne({ "canonicalKey.value": key.value });
   }
 
+  public async findManyByIds(ids: readonly KnownPathId[]): Promise<KnownPath[]> {
+    if (ids.length === 0) return [];
+    const documents = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return documents.map((document) => knownPathSchema.parse(document));
+  }
+
   public async updateStatus(
     id: KnownPathId,
     status: KnownPath["status"],
@@ -910,6 +919,23 @@ export class KnownPathRepository
       .limit(limit)
       .toArray();
     return documents.map((document) => knownPathSchema.parse(document));
+  }
+}
+
+export class KnowledgeSearchEventRepository
+  extends MongoEntityRepository<KnowledgeSearchEvent, KnowledgeSearchEventId>
+  implements EntityRepository<KnowledgeSearchEvent, KnowledgeSearchEventId>
+{
+  public constructor(collection: Collection<KnowledgeSearchEvent>) {
+    super(collection, knowledgeSearchEventSchema);
+  }
+
+  public async recordSelection(
+    id: KnowledgeSearchEventId,
+    principal: KnowledgeSearchEvent["principal"],
+    selected: NonNullable<KnowledgeSearchEvent["selected"]>,
+  ): Promise<KnowledgeSearchEvent | null> {
+    return this.updateOne({ _id: id, principal, selected: { $exists: false } }, { selected });
   }
 }
 
@@ -1202,6 +1228,7 @@ export interface KnownPathRepositories {
   readonly knownPaths: KnownPathRepository;
   readonly knownPathRevisions: KnownPathRevisionRepository;
   readonly knownPathSearchDocuments: KnownPathSearchDocumentRepository;
+  readonly knowledgeSearchEvents: KnowledgeSearchEventRepository;
   readonly sourceItems: SourceItemRepository;
   readonly sourceItemStates: SourceItemStateRepository;
   readonly sourceRegistries: SourceRegistryRepository;
@@ -1232,6 +1259,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     knownPathSearchDocuments: new KnownPathSearchDocumentRepository(
       collections.knownPathSearchDocuments,
     ),
+    knowledgeSearchEvents: new KnowledgeSearchEventRepository(collections.knowledgeSearchEvents),
     sourceItems: new SourceItemRepository(collections.sourceItems),
     sourceItemStates: new SourceItemStateRepository(collections.sourceItemStates),
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),

@@ -1,6 +1,7 @@
 # KnownPath Phase 10 Knowledge API Design
 
 Date: 2026-08-22
+
 Status: Approved
 
 ## Goal

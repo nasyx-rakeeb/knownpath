@@ -911,6 +911,47 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
     ],
   },
   {
+    name: collectionNames.knowledgeSearchEvents,
+    validator: envelopeValidator(
+      [
+        "principal",
+        "accessMode",
+        "requestId",
+        "queryDigest",
+        "digestVersion",
+        "querySummary",
+        "results",
+        "createdAt",
+      ],
+      {
+        principal: { bsonType: "object", required: ["kind", "userId"] },
+        accessMode: { enum: ["published", "review"] },
+        requestId: { bsonType: "string" },
+        queryDigest: { bsonType: "string" },
+        digestVersion: { bsonType: numericBsonTypes },
+        querySummary: { bsonType: "object" },
+        results: { bsonType: "array" },
+        selected: { bsonType: "object" },
+        createdAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      { key: { "principal.userId": 1, createdAt: -1 }, name: "ix_search_events_user_created" },
+      {
+        key: { "principal.apiKeyId": 1, createdAt: -1 },
+        name: "ix_search_events_api_key_created",
+        partialFilterExpression: { "principal.apiKeyId": { $exists: true } },
+      },
+      { key: { requestId: 1 }, name: "uq_search_events_request_id", unique: true },
+      {
+        key: { "selected.knownPathId": 1, "selected.recordedAt": -1 },
+        name: "ix_search_events_selection",
+        partialFilterExpression: { "selected.knownPathId": { $exists: true } },
+      },
+      { key: { accessMode: 1, createdAt: -1 }, name: "ix_search_events_access_created" },
+    ],
+  },
+  {
     name: collectionNames.knownPaths,
     validator: envelopeValidator(["canonicalKey", "status", "metadata", "visibility"], {
       canonicalKey: { bsonType: "object", required: ["value", "version"] },

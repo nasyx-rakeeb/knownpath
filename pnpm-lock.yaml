@@ -182,6 +182,9 @@ importers:
       '@knownpath/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@knownpath/search':
+        specifier: workspace:*
+        version: link:../../packages/search
       fastify:
         specifier: 'catalog:'
         version: 5.12.1

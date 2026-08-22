@@ -1,6 +1,6 @@
 import type { ApiKey, ApiKeyScope, User } from "@knownpath/domain";
 
-import { AuthenticationError, AuthorizationError } from "./errors.js";
+import { AuthenticationError, AuthorizationError, KnowledgeReviewAccessError } from "./errors.js";
 
 export type Principal =
   | { readonly kind: "anonymous" }
@@ -42,4 +42,46 @@ export function requireScope(
     throw new AuthorizationError(`The API key requires the ${scope} scope`);
   }
   return authenticated;
+}
+
+export interface KnowledgeAccessAuthorization {
+  readonly accessMode: "published" | "review";
+  readonly principal:
+    | { readonly kind: "session"; readonly userId: User["_id"] }
+    | {
+        readonly kind: "api_key";
+        readonly userId: User["_id"];
+        readonly apiKeyId: ApiKey["_id"];
+      };
+}
+
+export function authorizeKnowledgeRead(
+  principal: Principal,
+  includeReview: boolean,
+): KnowledgeAccessAuthorization {
+  const authenticated = requireScope(principal, "knowledge:read");
+  if (includeReview) {
+    if (authenticated.kind !== "api_key" || authenticated.user.role !== "admin") {
+      throw new KnowledgeReviewAccessError();
+    }
+    return {
+      accessMode: "review",
+      principal: {
+        kind: "api_key",
+        userId: authenticated.user._id,
+        apiKeyId: authenticated.key._id,
+      },
+    };
+  }
+  return {
+    accessMode: "published",
+    principal:
+      authenticated.kind === "session"
+        ? { kind: "session", userId: authenticated.user._id }
+        : {
+            kind: "api_key",
+            userId: authenticated.user._id,
+            apiKeyId: authenticated.key._id,
+          },
+  };
 }

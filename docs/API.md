@@ -1,0 +1,154 @@
+# Knowledge HTTP API
+
+## Scope
+
+Phase 10 exposes safe canonical knowledge through Fastify under `/api/v1`. The transport composes
+the reusable authorization and knowledge-access services; route handlers do not query MongoDB or
+implement ranking. The API does not expose anonymous knowledge access, private/team retrieval, raw
+source documents, embeddings, model internals, or agent outcomes.
+
+OpenAPI 3.1 is available at `/api/v1/openapi.json`. When `API_DOCS_ENABLED=true`, Swagger UI is
+available at `/docs/`.
+
+## Authentication and lifecycle access
+
+All knowledge routes accept a Better Auth session or `Authorization: Bearer <KnownPath API key>`.
+API keys require `knowledge:read`.
+
+The default access mode is always:
+
+- visibility `public`; and
+- lifecycle `published`.
+
+`includeReview: true` is accepted only from an API key whose active owner is an administrator and
+whose scopes include `knowledge:read`. It is never inferred from the owner role. Sessions, normal
+user keys, missing credentials, and admin keys without explicit review intent cannot read review
+records. Inaccessible and nonexistent details both return `knowledge_not_found`.
+
+Every authorized review search/detail/alternatives read appends an `audit_events` record with the
+admin user ID, API-key ID, request ID, target, and timestamp. Credentials and unrestricted query or
+source content are not included.
+
+## Routes
+
+### Search
+
+`POST /api/v1/knowledge/search` accepts natural-language text plus optional errors, ecosystem,
+packages, versions, platforms, environment tokens, context, semantic mode, limit, and minimum score.
+Callers cannot provide raw database visibility or status filters.
+
+```sh
+curl --request POST http://127.0.0.1:3001/api/v1/knowledge/search \
+  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "text": "EAS build cannot resolve a generated file",
+    "errors": ["None of these files exist"],
+    "ecosystem": "expo",
+    "platforms": ["build"],
+    "semanticMode": "optional",
+    "limit": 5
+  }'
+```
+
+An administrator may explicitly inspect review records:
+
+```sh
+curl --request POST http://127.0.0.1:3001/api/v1/knowledge/search \
+  --header "Authorization: Bearer $KNOWNPATH_ADMIN_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "text": "Expo EAS build ignored file",
+    "includeReview": true,
+    "minimumScore": 0
+  }'
+```
+
+The response returns `searchId`, effective access mode, retrieval capability states, and concise
+ranked results. Each result includes applicability, caveats, deterministic trust/freshness, version
+compatibility, relevance components, penalties, explanations, and bounded safe provenance. It omits
+search-document IDs, assessment/candidate IDs, policy digests, embeddings, provider metadata,
+content hashes, and raw documents.
+
+Search is deliberately bounded top-k rather than cursor-paginated because the ranking/index corpus
+can change between pages.
+
+### Detail
+
+```sh
+curl http://127.0.0.1:3001/api/v1/known-paths/KNOWN_PATH_UUID \
+  --header "Authorization: Bearer $KNOWNPATH_API_KEY"
+```
+
+For an authorized review read, append `?includeReview=true`. Detail returns the generalized problem,
+symptoms, normalized errors, applicability, solution variants/steps/caveats, deterministic trust,
+freshness, and safe provenance. A provenance item contains only a source ID, canonical link, title,
+source type/kind, deterministic authority/publisher classification, relationship, bounded locator,
+and bounded excerpt.
+
+### Alternatives
+
+```sh
+curl "http://127.0.0.1:3001/api/v1/known-paths/KNOWN_PATH_UUID/alternatives?limit=10" \
+  --header "Authorization: Bearer $KNOWNPATH_API_KEY"
+```
+
+This route lists additional solution variants already attached to the same canonical problem. It
+does not infer cross-record relatedness. `nextCursor` is opaque, integrity-protected, and bound to
+the KnownPath; pass it unchanged as `cursor`. Invalid or modified cursors return `invalid_cursor`.
+
+### Selection usage
+
+```sh
+curl --request POST \
+  http://127.0.0.1:3001/api/v1/knowledge/searches/SEARCH_UUID/selections \
+  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"knownPathId":"KNOWN_PATH_UUID"}'
+```
+
+The selected KnownPath must have appeared in that exact principal's search results. A selection is
+usage metadata only; it is never interpreted as a successful outcome. The stored event contains a
+keyed query digest and bounded filter/result metadata, not raw query text.
+
+## Errors and limits
+
+Errors retain the stable envelope:
+
+```json
+{
+  "error": {
+    "code": "knowledge_not_found",
+    "message": "The requested KnownPath was not found"
+  },
+  "requestId": "server-generated-uuid"
+}
+```
+
+Knowledge-specific codes include `knowledge_not_found`, `knowledge_review_access_forbidden`,
+`invalid_cursor`, `semantic_retrieval_unavailable`, `search_backend_unavailable`,
+`search_event_not_found`, `selection_not_in_results`, `selection_conflict`, and `payload_too_large`.
+Existing auth/validation/rate-limit codes remain stable.
+
+Search has a 32 KiB body limit and a 30-request/minute process-local policy. Detail/alternatives
+have a 120-request/minute policy. Selection reporting has a separate 120-request/minute policy. The
+current limiter is IP-oriented and process-local; a distributed store is deferred until a
+multi-instance deployment is introduced.
+
+## Security notes
+
+- Never place API keys in URLs, examples, source files, or committed environment files.
+- Fastify logs method, safe URL, request ID, response status, and latency. Authorization/cookie/key
+  fields are redacted and bodies are not logged.
+- Normal clients cannot use review records even when they know a review UUID.
+- Private/team records are not queryable in Phase 10 and cannot use unpaid Gemini embeddings.
+- Rotate any credential that has been pasted into chat, logs, shell history, or another untrusted
+  location.
+
+## Official references
+
+- [Fastify validation and serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/)
+- [Fastify errors](https://fastify.dev/docs/latest/Reference/Errors/)
+- [Fastify logging](https://fastify.dev/docs/latest/Reference/Logging/)
+- [`@fastify/swagger`](https://github.com/fastify/fastify-swagger)
+- [`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit)

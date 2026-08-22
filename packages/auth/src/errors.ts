@@ -8,13 +8,24 @@ export class AuthenticationError extends Error {
 }
 
 export class AuthorizationError extends Error {
-  public readonly code = "insufficient_permission";
+  public readonly code: string = "insufficient_permission";
 
   public constructor(
     message = "The authenticated principal is not permitted to perform this action",
   ) {
     super(message);
     this.name = "AuthorizationError";
+  }
+}
+
+export class KnowledgeReviewAccessError extends AuthorizationError {
+  public override readonly code = "knowledge_review_access_forbidden";
+
+  public constructor() {
+    super(
+      "Review records require an explicit request from an admin-owned API key with knowledge:read",
+    );
+    this.name = "KnowledgeReviewAccessError";
   }
 }
 

@@ -2,9 +2,9 @@
 
 ## Scope
 
-Phase 9 retrieves canonical KnownPaths through an explainable staged pipeline. It does not expose a
-public search HTTP endpoint or MCP tool. The developer CLI is the inspection surface until those
-transport phases arrive.
+Phase 9 established canonical retrieval through an explainable staged pipeline. Phase 10 now exposes
+that service through authenticated safe HTTP contracts; it still does not expose an anonymous public
+endpoint or MCP tool. The developer CLI remains available for direct inspection.
 
 ## Backends
 
@@ -92,6 +92,10 @@ to exact/lexical retrieval; `required` fails when Vector Search or an approved p
 Default queries include only `published`; use `--include-review` for development inspection.
 Explicit `reembed` requires a configured key and cannot replace a ready vector with an unavailable
 placeholder.
+
+The HTTP transport applies a stricter boundary than the developer CLI: `includeReview` requires an
+admin-owned `knowledge:read` API key, is never the default, and is audited. See
+[`docs/API.md`](API.md).
 
 ## Current official references
 

@@ -143,6 +143,10 @@ at <http://127.0.0.1:3001/health/live> and <http://127.0.0.1:3001/health/ready>.
 <http://127.0.0.1:3001/api/v1/openapi.json>; development Swagger UI is at
 <http://127.0.0.1:3001/docs/>.
 
+Authenticated knowledge search, canonical detail, alternatives, review-access rules, and safe curl
+examples are documented in [the Knowledge HTTP API guide](docs/API.md). Normal clients receive only
+public published records; review access is explicit, admin-key-only, and audited.
+
 Stop MongoDB without deleting its named development volume:
 
 ```sh
@@ -198,8 +202,9 @@ packages/
 ```
 
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
-[retrieval guide](docs/RETRIEVAL.md), [decision log](docs/DECISIONS.md), and
-[phase progress](progress.md) for the current boundaries and delivery status.
+[retrieval guide](docs/RETRIEVAL.md), [Knowledge HTTP API guide](docs/API.md),
+[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
+delivery status.
 
 ## License
 

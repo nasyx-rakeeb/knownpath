@@ -8,5 +8,6 @@ export * from "./feedback.js";
 export * from "./identity.js";
 export * from "./ingestion.js";
 export * from "./knowledge.js";
+export * from "./knowledge-access.js";
 export * from "./search.js";
 export * from "./sources.js";

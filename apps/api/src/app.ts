@@ -13,7 +13,13 @@ import {
   createRateLimitPolicies,
 } from "@knownpath/auth";
 import type { ApiConfig, AuthConfig } from "@knownpath/config";
+import type { EmbeddingConfig, SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
+import {
+  GeminiEmbeddingProvider,
+  KnowledgeAccessService,
+  RetrievalService,
+} from "@knownpath/search";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   jsonSchemaTransform,
@@ -23,12 +29,15 @@ import {
 
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerErrorHandler } from "./error-handler.js";
+import { registerKnowledgeRoutes } from "./knowledge-routes.js";
 import { registerAccountRoutes, registerApiKeyRoutes, registerSystemRoutes } from "./routes.js";
 
 export interface BuildApiOptions {
   readonly apiConfig: ApiConfig;
   readonly authConfig: AuthConfig;
   readonly database: KnownPathDatabase;
+  readonly embeddingConfig: EmbeddingConfig;
+  readonly searchConfig: SearchConfig;
 }
 
 export async function buildApi(options: BuildApiOptions): Promise<FastifyInstance> {
@@ -65,7 +74,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       info: {
         title: "KnownPath API",
         description:
-          "Authentication and account foundation for the KnownPath shared knowledge network.",
+          "Authenticated account and safe knowledge retrieval API for the KnownPath shared knowledge network.",
         version: "1.0.0",
       },
       components: {
@@ -124,7 +133,9 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     if (
       request.url.startsWith("/api/v1/auth") ||
       request.url.startsWith("/api/v1/account") ||
-      request.url.startsWith("/api/v1/api-keys")
+      request.url.startsWith("/api/v1/api-keys") ||
+      request.url.startsWith("/api/v1/knowledge") ||
+      request.url.startsWith("/api/v1/known-paths")
     ) {
       reply.header("cache-control", "no-store");
       reply.header("pragma", "no-cache");
@@ -145,11 +156,39 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.apiConfig.rateLimitMax,
     options.apiConfig.rateLimitWindowMs,
   );
+  const providerFactory =
+    options.embeddingConfig.geminiApiKey === undefined
+      ? undefined
+      : () =>
+          new GeminiEmbeddingProvider({
+            apiKey: options.embeddingConfig.geminiApiKey ?? "",
+            modelIdentifier: options.embeddingConfig.model,
+            modelVersion: options.embeddingConfig.modelVersion,
+            requestTimeoutMs: options.embeddingConfig.requestTimeoutMs,
+          });
+  const retrieval = new RetrievalService(options.database, {
+    backend: options.searchConfig.backend,
+    atlasLexicalIndex: options.searchConfig.atlasLexicalIndex,
+    atlasVectorIndex: options.searchConfig.atlasVectorIndex,
+    candidatePoolMultiplier: options.searchConfig.candidatePoolMultiplier,
+    dimensions: options.embeddingConfig.dimensions,
+    modelIdentifier: options.embeddingConfig.model,
+    modelVersion: options.embeddingConfig.modelVersion,
+    ...(providerFactory === undefined ? {} : { providerFactory }),
+  });
+  const knowledge = new KnowledgeAccessService(options.database, retrieval, {
+    secret: options.authConfig.apiKeyPepper,
+  });
 
   registerSystemRoutes(api, options.database);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
+  registerKnowledgeRoutes(api, authenticator, knowledge, {
+    read: rateLimitPolicies.knowledgeRead,
+    search: rateLimitPolicies.knowledgeSearch,
+    usage: rateLimitPolicies.knowledgeUsage,
+  });
   api.get("/api/v1/openapi.json", { schema: { hide: true } }, async (_request, reply) =>
     reply.send(api.swagger()),
   );

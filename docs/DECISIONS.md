@@ -605,3 +605,56 @@ Silently disabling only document embeddings while still embedding private query 
 immediate disclosure path open.
 
 **References:** [Gemini pricing and data use](https://ai.google.dev/gemini-api/docs/pricing)
+
+## 2026-08-22 — Expose safe knowledge views through a transport-independent access service
+
+**Decision:** Keep Fastify handlers thin and add versioned request/response contracts plus a shared
+knowledge-access service over retrieval and repositories. HTTP responses are explicit allowlists and
+never serialize persisted KnownPath, source-item, assessment, candidate, or search-document objects.
+Use `/api/v1`, the existing error envelope, strict body limits, named per-route rate policies, and
+OpenAPI generated from the same Zod route schemas.
+
+**Why:** Upcoming MCP, web, and CLI clients need the same lifecycle authorization, safe provenance,
+and explanation mapping without duplicating it in each transport. Response allowlists make
+accidental embedding/source/internal-field leakage fail serialization instead of becoming a client
+contract.
+
+**Rejected:** Returning persistence schemas couples clients to MongoDB and leaks internal fields.
+Putting projection/ranking/database calls in route handlers prevents MCP reuse. A separate admin
+route tree duplicates contracts and drifts from normal retrieval behavior.
+
+**References:**
+[Fastify validation and serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/),
+[`@fastify/swagger`](https://github.com/fastify/fastify-swagger),
+[`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit)
+
+## 2026-08-22 — Require explicit admin API-key authorization for review knowledge
+
+**Decision:** Normal sessions and API keys receive only public `published` KnownPaths. Review access
+requires explicit request intent plus an active admin-owned API key with `knowledge:read`; even
+admin sessions remain published-only. Hide inaccessible review IDs behind `knowledge_not_found` and
+append review search/read audit events with user, key, request, target, and timestamp metadata.
+
+**Why:** The real Phase 9 corpus contains two review records and zero published records. Durable
+moderation access permits honest verification without falsely publishing them or adding a
+development bypass. Explicit intent prevents administrator role from silently widening every
+request.
+
+**Rejected:** Publishing verification records misstates their lifecycle. A local-only bypass must be
+removed later and risks production exposure. Ordinary user keys and sessions cannot safely inspect
+unapproved knowledge.
+
+## 2026-08-22 — Keep search selection usage separate from agent outcomes
+
+**Decision:** Store bounded search executions in `knowledge_search_events` with a keyed/versioned
+query digest, structured counts, returned IDs/ranks/scores, and an optional selected result. Verify
+that selection belongs to the same principal and returned set. Do not interpret selection as success
+or write `agent_outcomes`.
+
+**Why:** Search and selection telemetry helps debug ranking and future usage while preserving the
+semantic distinction between choosing an answer and proving it solved a problem. HMAC digests
+support correlation without persisting unrestricted query text.
+
+**Rejected:** Logging raw queries can retain private incident material. Counting clicks as
+successful outcomes would contaminate future trust scoring. Reusing security audit events mixes
+operational usage with immutable sensitive-action history.

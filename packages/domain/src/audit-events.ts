@@ -17,6 +17,8 @@ export const auditEventTypeSchema = z.enum([
   "api_key.rotated",
   "api_key.revoked",
   "api_key.authentication_failed",
+  "knowledge.review_searched",
+  "knowledge.review_read",
 ]);
 
 export const auditActorSchema = z.discriminatedUnion("kind", [
@@ -30,7 +32,7 @@ export const auditActorSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const auditTargetSchema = z.strictObject({
-  kind: z.enum(["user", "session", "api_key"]),
+  kind: z.enum(["user", "session", "api_key", "knowledge_search", "known_path"]),
   id: shortStringSchema,
 });
 

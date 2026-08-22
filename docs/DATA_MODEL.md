@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 9 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 10 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -50,6 +50,7 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `known_path_revisions`          | Immutable complete canonical snapshots keyed by membership/assessment/builder inputs.             |
 | `known_paths`                   | Stable current canonical projection with solution variants, evidence, trust, and latest revision. |
 | `known_path_search_documents`   | Rebuildable versioned retrieval projection with one active row per KnownPath/model tuple.         |
+| `knowledge_search_events`       | Bounded search/selection usage metadata; explicitly not a technical outcome.                      |
 | `agent_contributions`           | Independent proposed lesson/correction; may reference a KnownPath and source items.               |
 | `agent_outcomes`                | Independent usefulness report referencing one KnownPath.                                          |
 
@@ -249,6 +250,10 @@ and is omitted below.
 - `ix_audit_event_type_time`: action-category history.
 - `ix_audit_request_id`: partial correlation lookup when a request ID exists.
 
+Phase 10 adds `knowledge.review_searched` and `knowledge.review_read`. Their API-key actor and
+request/target metadata make explicit review access inspectable without storing credentials or raw
+query/source text.
+
 ### `source_registries`
 
 - `uq_source_registries_identity_key`: unique deterministic source identity.
@@ -393,6 +398,19 @@ Atlas deployments separately manage `knownpath_lexical_v1` (`type: search`) and
 `knownpath_vector_v1` (`type: vectorSearch`) through `listSearchIndexes`/`createSearchIndexes`.
 These are not ordinary `createIndexes` entries and are unavailable on the default local standalone
 MongoDB path. Their exact definitions are documented in [`docs/RETRIEVAL.md`](RETRIEVAL.md).
+
+### `knowledge_search_events`
+
+- `ix_search_events_user_created`: account usage history in reverse chronological order.
+- `ix_search_events_api_key_created`: API-key usage history when a key principal exists.
+- `uq_search_events_request_id`: one search execution event per HTTP request ID.
+- `ix_search_events_selection`: selected KnownPath/time navigation when a selection exists.
+- `ix_search_events_access_created`: operational inspection by published/review access mode.
+
+Each event stores principal IDs, effective access mode, request ID, HMAC-SHA-256 query digest and
+digest version, bounded filter counts, returned KnownPath IDs/ranks/scores, and at most one selected
+result. It never stores a plaintext API key, raw query, embedding, raw source, or success/failure
+outcome. Selection updates only the bounded usage record and does not create an `agent_outcome`.
 
 ### `agent_contributions`
 

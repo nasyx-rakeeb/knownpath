@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 9. A boundary appearing here does not mean its future product behavior is
+established through Phase 10. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -15,8 +15,8 @@ database.
 ### Applications
 
 - `@knownpath/api` owns Fastify HTTP transport, route composition, request validation, OpenAPI,
-  network security policy, and API process lifecycle. Phase 3 exposes operational health,
-  closed-registration session routes, account inspection, and API-key lifecycle routes under
+  network security policy, and API process lifecycle. It exposes operational health,
+  closed-registration session/account/API-key routes, and Phase 10's safe knowledge routes under
   `/api/v1`.
 - `@knownpath/worker` owns ingestion and background-process lifecycle. It composes bounded GitHub,
   official-document, and AI extraction commands; it is not yet a scheduler or queue consumer.
@@ -51,7 +51,8 @@ database.
 - `@knownpath/canonicalization` owns technical normalization, deterministic profiles/blocking, pair
   decisions, membership operations, audit history, and canonical rebuilds.
 - `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
-  search projections, local/Atlas retrieval adapters, version fit, and explainable hybrid reranking.
+  search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
+  the transport-independent safe knowledge-access service.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
@@ -136,7 +137,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 23 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 24 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -163,9 +164,13 @@ indexes, and feedback aggregation before implementing this complete flow.
 12. The worker materializes versioned search documents from canonical revisions. Local MongoDB
     supplies exact/error and weighted-text retrieval; configured Atlas deployments add separately
     managed lexical/vector channels before deterministic trust/version/freshness reranking.
-13. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
-    OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
-    deferred.
+13. Fastify validates and authenticates versioned knowledge requests, then delegates to the shared
+    knowledge-access service. Published public records are the default; explicit review reads
+    require an admin-owned scoped API key and append audit events. Responses use safe view contracts
+    rather than persisted schemas.
+14. Search execution/selection metadata is stored separately from outcomes with a keyed query
+    digest. Fastify also exposes health, account/API-key/session routes, OpenAPI JSON, and optional
+    Swagger UI. MCP, dashboard, and installer product behavior remains deferred.
 
 ## Configuration and secrets
 
@@ -225,7 +230,7 @@ principal field rather than a route-layer redesign.
 Fastify supplies server-generated request IDs, Zod request/response schemas, a stable error
 envelope, credential-safe structured logs, CORS allowlists, explicit proxy trust, security headers,
 and a patched per-process rate limiter. The limiter boundary can receive distributed storage later;
-Phase 3 intentionally adds no Redis or Valkey. Sensitive actions append bounded `audit_events`
+Phase 10 intentionally adds no Redis or Valkey. Sensitive actions append bounded `audit_events`
 without credentials. OpenAPI 3.1 is generated from route schemas at `/api/v1/openapi.json`; Swagger
 UI is configuration-controlled at `/docs`.
 
@@ -342,8 +347,27 @@ an explicit developer option.
 
 The unpaid Gemini provider remains public-only for both document and query embeddings. Local
 contributors retain useful non-vector retrieval without Atlas or paid infrastructure. Search is
-currently a worker/developer CLI capability; HTTP and MCP exposure remain later phases. See
-[`docs/RETRIEVAL.md`](RETRIEVAL.md).
+available through the worker/developer CLI and is now exposed through the authorization-aware HTTP
+knowledge service. MCP exposure remains a later phase. See [`docs/RETRIEVAL.md`](RETRIEVAL.md) and
+[`docs/API.md`](API.md).
+
+## Phase 10 knowledge API boundary
+
+Fastify exposes search, canonical detail, solution alternatives, and result-selection reporting
+under `/api/v1`. Shared versioned Zod contracts describe client concepts rather than MongoDB fields.
+Response schemas are allowlists: raw source bodies, embeddings, provider/model internals, hashes,
+assessment/candidate IDs, audit metadata, and private/team fields never leave the API.
+
+`@knownpath/auth` centrally derives a knowledge-access authorization from a session or API-key
+principal. Normal clients receive only public `published` records. Review access is explicit and
+requires an admin-owned API key with `knowledge:read`; admin sessions are insufficient. Inaccessible
+review details are indistinguishable from nonexistent IDs. Every allowed review query/read is
+audited with its user/key/request identity.
+
+`@knownpath/search` translates the safe request to the retrieval query, enforces the authorized
+lifecycle set again, builds safe applicability/trust/freshness/provenance views, signs alternative
+cursors, and records bounded usage. `knowledge_search_events` stores a keyed query digest and the
+returned/selected IDs; a selection never becomes an `agent_outcome`. See [`docs/API.md`](API.md).
 
 ## Technology fit
 

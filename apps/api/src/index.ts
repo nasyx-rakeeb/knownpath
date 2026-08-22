@@ -1,4 +1,10 @@
-import { loadApiConfig, loadAuthConfig, loadMongoConfig } from "@knownpath/config";
+import {
+  loadApiConfig,
+  loadAuthConfig,
+  loadEmbeddingConfig,
+  loadMongoConfig,
+  loadSearchConfig,
+} from "@knownpath/config";
 import { connectToMongo } from "@knownpath/database";
 
 import { buildApi } from "./app.js";
@@ -6,8 +12,16 @@ import { buildApi } from "./app.js";
 async function main(): Promise<void> {
   const config = loadApiConfig();
   const authConfig = loadAuthConfig();
+  const embeddingConfig = loadEmbeddingConfig();
+  const searchConfig = loadSearchConfig();
   const database = await connectToMongo(loadMongoConfig());
-  const api = await buildApi({ apiConfig: config, authConfig, database });
+  const api = await buildApi({
+    apiConfig: config,
+    authConfig,
+    database,
+    embeddingConfig,
+    searchConfig,
+  });
   let closing = false;
 
   const close = async (signal: NodeJS.Signals): Promise<void> => {

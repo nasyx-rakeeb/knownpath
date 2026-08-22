@@ -13,6 +13,7 @@ import type {
   ExtractionAttempt,
   IngestionRun,
   KnownPath,
+  KnowledgeSearchEvent,
   KnownPathSearchDocument,
   KnownPathRevision,
   SourceItem,
@@ -42,6 +43,7 @@ export const collectionNames = {
   knownPaths: "known_paths",
   knownPathRevisions: "known_path_revisions",
   knownPathSearchDocuments: "known_path_search_documents",
+  knowledgeSearchEvents: "knowledge_search_events",
   sourceItems: "source_items",
   sourceItemStates: "source_item_states",
   sourceRegistries: "source_registries",
@@ -65,6 +67,7 @@ export interface KnownPathCollections {
   readonly knownPaths: Collection<KnownPath>;
   readonly knownPathRevisions: Collection<KnownPathRevision>;
   readonly knownPathSearchDocuments: Collection<KnownPathSearchDocument>;
+  readonly knowledgeSearchEvents: Collection<KnowledgeSearchEvent>;
   readonly sourceItems: Collection<SourceItem>;
   readonly sourceItemStates: Collection<SourceItemState>;
   readonly sourceRegistries: Collection<SourceRegistry>;
@@ -104,6 +107,9 @@ export function getCollections(database: Db): KnownPathCollections {
     knownPathRevisions: database.collection<KnownPathRevision>(collectionNames.knownPathRevisions),
     knownPathSearchDocuments: database.collection<KnownPathSearchDocument>(
       collectionNames.knownPathSearchDocuments,
+    ),
+    knowledgeSearchEvents: database.collection<KnowledgeSearchEvent>(
+      collectionNames.knowledgeSearchEvents,
     ),
     sourceItems: database.collection<SourceItem>(collectionNames.sourceItems),
     sourceItemStates: database.collection<SourceItemState>(collectionNames.sourceItemStates),

@@ -1276,3 +1276,179 @@ with operations and ranking behavior in [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md)
 **Phase 10: expose the existing visibility-aware retrieval service through a secure, versioned MCP
 knowledge interface with bounded results and transparent ranking/provenance, without starting Agent
 Skill installation, contribution/outcome collection, or dashboard work early.**
+
+## Phase 10 — Stable knowledge HTTP API
+
+### Phase goal
+
+Expose canonical retrieval through a secure, versioned HTTP contract for future MCP, web, CLI, and
+integration clients. Keep ranking, persistence, lifecycle authorization, safe response projection,
+review auditing, and usage semantics out of Fastify handlers. Do not expose raw sources, embeddings,
+model internals, private/team records, or unapproved review records.
+
+This phase deliberately implements the HTTP API requested by the Phase 10 prompt before the MCP
+transport previously anticipated at the end of Phase 9. That sequencing change does not alter the
+retrieval/domain boundaries and is recorded rather than rewriting prior phase history.
+
+### Research performed and official references consulted
+
+- Rechecked Fastify 5.12.1's current route, validation/serialization, error, and logging guidance.
+  Route schemas remain the request/response authority; database work stays in services/hooks;
+  response schemas act as serialization allowlists; request IDs and Pino redaction remain the safe
+  logging boundary.
+- Rechecked `@fastify/swagger` 9's Fastify 5 support and register-before-routes requirement. OpenAPI
+  3.1 continues to be generated from the Zod route schemas.
+- Rechecked `@fastify/rate-limit` 11 behavior and per-route configuration. Phase 10 adds named route
+  policy metadata while retaining the explicitly limited in-memory/IP-oriented store until a
+  multi-instance topology justifies distributed infrastructure.
+- Reviewed URL versioning and error/pagination standards. KnownPath retains `/api/v1` rather than
+  adding header negotiation; retains its Phase 3 stable error envelope rather than breaking clients
+  for RFC 9457; and uses a bounded top-k search plus an integrity-protected opaque cursor only for
+  stable solution-variant lists.
+
+Official references consulted:
+
+- <https://fastify.dev/docs/latest/Reference/Routes/>
+- <https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/>
+- <https://fastify.dev/docs/latest/Reference/Errors/>
+- <https://fastify.dev/docs/latest/Reference/Logging/>
+- <https://github.com/fastify/fastify-swagger>
+- <https://github.com/fastify/fastify-rate-limit>
+- <https://www.rfc-editor.org/rfc/rfc8288>
+- <https://www.rfc-editor.org/rfc/rfc9457>
+
+### Architecture and technology decisions
+
+- Added versioned shared Zod contracts for knowledge search, safe ranked results, detail,
+  alternatives, provenance, usage selection, access modes, cursors, and stable response envelopes.
+  Persisted KnownPath/source/search/assessment records are never HTTP response schemas.
+- Added centralized `authorizeKnowledgeRead`. Normal sessions and keys are forced to public
+  `published` records. Review access requires an explicit flag plus an admin-owned active API key
+  with `knowledge:read`; even admin sessions remain published-only. Inaccessible review IDs return
+  the same `knowledge_not_found` response as nonexistent IDs.
+- Extended `@knownpath/search` with a transport-independent knowledge-access service. It translates
+  safe inputs to retrieval queries, rechecks lifecycle/visibility, maps applicability/trust/
+  freshness, resolves bounded safe provenance, signs/validates alternative cursors, records usage,
+  and appends review audit events. Fastify handlers only validate, authenticate, authorize, and
+  delegate.
+- Added `knowledge_search_events` for bounded search/selection usage. It stores a keyed/versioned
+  query digest, structured counts, returned IDs/ranks/scores, and at most one selected result. It
+  stores no raw query and never creates or implies an `agent_outcome`.
+- Added four authenticated routes: `POST /api/v1/knowledge/search`, `GET /api/v1/known-paths/:id`,
+  `GET /api/v1/known-paths/:id/alternatives`, and
+  `POST /api/v1/knowledge/searches/:searchId/selections`.
+- Added explicit 32 KiB/4 KiB mutation body limits, named search/read/usage rate policies, stable
+  knowledge error codes, no-store caching, OpenAPI examples/descriptions, and safe provider-error
+  mapping. Anonymous public access and private/team retrieval remain disabled.
+- Kept multiple solutions as variants of one canonical KnownPath. The alternatives endpoint does not
+  invent cross-record semantic relationships. Search remains top-k; cursor pagination is used only
+  where stable variant ordering exists.
+- Fixed a live Phase 3 audit boundary discovered during verification: Better Auth may supply an
+  empty/one-character session IP representation. The audit service now omits invalid IP metadata
+  rather than failing sign-in or weakening the persisted audit schema.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-10-knowledge-api-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-10-knowledge-api-design.md).
+The operational contract and curl examples are in [`docs/API.md`](docs/API.md).
+
+### Files and persistence created or materially updated
+
+- Added `packages/domain/src/knowledge-access.ts` and extended common/audit contracts with search
+  event identity and review audit types.
+- Added `packages/search/src/access.ts` for the reusable knowledge-access/safe-projection service.
+- Added `apps/api/src/knowledge-routes.ts`; updated API composition, startup configuration,
+  centralized errors, caching, OpenAPI, and the API workspace dependency graph.
+- Extended `@knownpath/auth` with centralized knowledge authorization, review-specific authorization
+  errors, named rate policies, and safe IP normalization in audit writes.
+- Added the `knowledge_search_events` collection, strict validator, repository, selection update,
+  collection registry, and five named indexes. MongoDB now has 24 declared collections and 101
+  ordinary named non-`_id_` indexes.
+- Added `docs/API.md`; updated `README.md`, `docs/ARCHITECTURE.md`, `docs/DATA_MODEL.md`,
+  `docs/RETRIEVAL.md`, `docs/DECISIONS.md`, and the lockfile.
+- `.env.example` required no new secret or setting: Phase 10 reuses the required `API_KEY_PEPPER`
+  for HMAC query digests/cursors and the existing search/embedding/API configuration.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled the API's new workspace dependency and passed the repository's
+  supply-chain lockfile policy.
+- `pnpm typecheck` completed **26/26** tasks; `pnpm lint` completed **16/16** tasks; `pnpm build`
+  completed **16/16** tasks; and `pnpm format`/`pnpm format:check` completed without formatting
+  failures. No tests were created or run.
+- Atlas `pnpm db:init` created only `knowledge_search_events` on the first Phase 10 run. A repeated
+  run reported **24 collections, 0 created**, and all five search-event indexes. Direct Atlas
+  inspection counted **24 collections and 101 ordinary named indexes**.
+- The API booted against Atlas with process-local generated auth secrets. `/health/live` and
+  `/health/ready` returned 200; readiness reported MongoDB/auth healthy. OpenAPI 3.1 and Swagger
+  registration loaded successfully with all four knowledge routes and strict request/response
+  schemas.
+- Users were created only through the masked closed-registration CLI. An admin and normal user each
+  received a temporary hashed `knowledge:read` API key through the session-only issuance route; no
+  full key was printed or persisted after the verification process.
+- With the same admin key, default `published` search returned HTTP 200 and **0 results**. Explicit
+  `includeReview` search returned HTTP 200 and both existing real records, each still `review`;
+  semantic capability reported `used` through Atlas Vector Search. Atlas still contained **2 review,
+  0 published** KnownPaths after verification.
+- Explicit admin detail returned 200 with only `contractVersion`, identity/title/problem, symptoms,
+  normalized errors, applicability, solutions, trust, freshness, and safe provenance. The inspected
+  provenance contained only its source ID/link/title/type/kind/authority/publisher/relationship/
+  locator/excerpt. A recursive field check found **0** embedding, content-digest, provider-metadata,
+  assessment, candidate, audit, or key-hash fields.
+- The same review detail without explicit review intent returned 404 `knowledge_not_found`.
+  Alternatives returned 200 with the truthful empty list for the current one-solution record. A
+  malformed cursor returned 400 `invalid_cursor`.
+- Selection reporting returned 200 and persisted the selected KnownPath/rank/request time on the
+  originating search record. Direct inspection showed only the HMAC query digest, bounded query
+  counts, two returned IDs/ranks/scores, and selected ID/rank/time—not raw text or an outcome. A
+  final current-build pass confirmed first selection 200, same-selection retry 200 idempotently, and
+  a different second selection 409 `selection_conflict` after the atomic select-once guard.
+- Direct audit inspection found `knowledge.review_searched` and `knowledge.review_read` records with
+  the admin user ID, API-key ID, request ID, target, success outcome, and timestamps.
+- A normal-user key requesting review returned 403 `knowledge_review_access_forbidden`; invalid
+  input returned 400 `validation_failed`; an invalid key returned 401 `authentication_required`; a
+  nonexistent UUID returned 404 `knowledge_not_found`; and a body over the route limit returned 413
+  `payload_too_large`.
+- `/api/v1/account/me` returned 200 with API-key authentication metadata. Both verification keys
+  revoked successfully, then the revoked admin key returned 401. Direct Atlas inspection found **0
+  active Phase 10 verification keys**. All six temporary verification identities created while
+  diagnosing the sign-in boundary were suspended through the repository layer.
+- Observed structured request logs contained method, safe URL, request ID, status, and latency but
+  no Authorization header, cookie, plaintext key, password, or request body. Temporary cookie files
+  and in-process credential variables were removed.
+
+### Environment and manual setup still required
+
+- Contributors must configure ignored `MONGODB_URI`/`MONGODB_DATABASE`, generate independent
+  `BETTER_AUTH_SECRET` and `API_KEY_PEPPER`, configure trusted origins/proxy settings, and run
+  `pnpm db:init`.
+- Create users only through `pnpm auth:user:create`; issue keys through an authenticated session.
+  Normal agent/MCP clients need `knowledge:read`. Review inspection additionally requires an admin
+  owner and explicit request intent.
+- Atlas semantic retrieval requires the documented Search/Vector Search indexes and a configured
+  public-only Gemini key. Local MongoDB remains useful through deterministic/weighted-text fallback.
+- Rotate the Gemini and Atlas credentials previously pasted into conversation; they were kept only
+  in the ignored local environment but should be treated as exposed.
+
+### Known limitations intentionally left for later phases
+
+- The development corpus remains only two unrelated review records. No record was fabricated,
+  merged, verified, or published for API verification.
+- Anonymous public access remains disabled. The current per-process/IP-oriented limiter is not a
+  production distributed abuse-control system.
+- Private/team knowledge authorization and an explicitly approved private-data embedding provider
+  remain future work; Phase 10 never sends such data through unpaid Gemini.
+- Alternatives currently represent additional solution variants on the same KnownPath. Reviewed
+  cross-record relatedness is not modeled and semantic similarity alone does not create it.
+- Search events have no TTL/retention automation yet. The intended retention policy must be chosen
+  from measured operational/privacy needs before adding deletion.
+- Search selection is usage only. Real agent success/failure outcomes and conservative confidence
+  updates remain deferred.
+- No MCP knowledge tool, Agent Skill/installer, web dashboard, contribution workflow, public signup,
+  OAuth, password reset, email verification, or team/workspace administration was added. No tests
+  were added by explicit Phase 10 requirement.
+
+### Exact next phase
+
+**Phase 11: expose the existing authorization-aware knowledge-access service through the official
+MCP TypeScript SDK with bounded, explainable search/detail tools, without starting Agent Skill
+installation, contribution/outcome collection, or dashboard work early.**

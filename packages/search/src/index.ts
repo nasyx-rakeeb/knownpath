@@ -1,4 +1,5 @@
 export * from "./gemini.js";
+export * from "./access.js";
 export * from "./cli.js";
 export * from "./indexes.js";
 export * from "./normalization.js";
