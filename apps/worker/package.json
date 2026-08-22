@@ -11,6 +11,7 @@
     "extract": "tsx --env-file-if-exists=../../.env src/index.ts extract",
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
     "ingest:sources": "tsx --env-file-if-exists=../../.env src/index.ts sources",
+    "score": "tsx --env-file-if-exists=../../.env src/index.ts score",
     "lint": "eslint src",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
@@ -20,7 +21,8 @@
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/github-ingestion": "workspace:*",
-    "@knownpath/source-ingestion": "workspace:*"
+    "@knownpath/source-ingestion": "workspace:*",
+    "@knownpath/verification": "workspace:*"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

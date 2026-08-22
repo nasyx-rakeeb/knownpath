@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   auditMetadataSchema,
+  candidateAssessmentIdSchema,
   candidateExperienceIdSchema,
   extractionAttemptIdSchema,
   knownPathIdSchema,
@@ -180,6 +181,7 @@ export const candidateExperienceSchema = z
     conflicts: z.array(evidenceReferenceSchema).max(64).default([]),
     candidateVerificationLabels: z.array(candidateVerificationLabelSchema).max(32).default([]),
     extraction: extractionProvenanceSchema,
+    latestAssessmentId: candidateAssessmentIdSchema.optional(),
   })
   .superRefine(validateErrorFingerprintProjection);
 

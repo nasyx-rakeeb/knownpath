@@ -3,6 +3,7 @@ import {
   agentOutcomeSchema,
   apiKeySchema,
   auditEventSchema,
+  candidateAssessmentSchema,
   candidateExperienceSchema,
   extractionAttemptSchema,
   ingestionRunSchema,
@@ -19,6 +20,8 @@ import {
   type ApiKeyId,
   type AuditEvent,
   type AuditEventId,
+  type CandidateAssessment,
+  type CandidateAssessmentId,
   type CandidateExperience,
   type CandidateExperienceId,
   type ExtractionAttempt,
@@ -335,6 +338,12 @@ export class SourceItemRepository
     return this.findOne({ "deduplicationKey.value": key.value });
   }
 
+  public async findByIds(ids: readonly SourceItemId[]): Promise<SourceItem[]> {
+    if (ids.length === 0) return [];
+    const documents = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return documents.map((document) => sourceItemSchema.parse(document));
+  }
+
   public async findLatestBySourceIdentity(
     sourceRegistryId: SourceRegistryId,
     sourceItemIdentity: string,
@@ -550,7 +559,67 @@ export class CandidateExperienceRepository
     return this.updateOne({ _id: id }, { status });
   }
 
+  public async listForScoring(
+    limit: number,
+    onlyWithoutAssessment = false,
+  ): Promise<CandidateExperience[]> {
+    const documents = await this.collection
+      .find(onlyWithoutAssessment ? { latestAssessmentId: { $exists: false } } : {})
+      .sort({ "audit.createdAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidateExperienceSchema.parse(document));
+  }
+
+  public async setLatestAssessment(
+    id: CandidateExperienceId,
+    assessmentId: CandidateAssessmentId,
+  ): Promise<CandidateExperience | null> {
+    return this.updateOne({ _id: id }, { latestAssessmentId: assessmentId });
+  }
+
   public async removeVerificationRecord(id: CandidateExperienceId): Promise<boolean> {
+    const result = await this.collection.deleteOne({ _id: id });
+    return result.deletedCount === 1;
+  }
+}
+
+export class CandidateAssessmentRepository
+  extends MongoEntityRepository<CandidateAssessment, CandidateAssessmentId>
+  implements EntityRepository<CandidateAssessment, CandidateAssessmentId>
+{
+  public constructor(collection: Collection<CandidateAssessment>) {
+    super(collection, candidateAssessmentSchema);
+  }
+
+  public async createIfAbsent(entity: CandidateAssessment): Promise<CandidateAssessment | null> {
+    const parsed = candidateAssessmentSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<CandidateAssessment | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async listByCandidate(
+    candidateExperienceId: CandidateExperienceId,
+    limit = 50,
+  ): Promise<CandidateAssessment[]> {
+    const documents = await this.collection
+      .find({ candidateExperienceId })
+      .sort({ evaluatedAt: -1, "audit.createdAt": -1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidateAssessmentSchema.parse(document));
+  }
+
+  public async removeVerificationRecord(id: CandidateAssessmentId): Promise<boolean> {
     const result = await this.collection.deleteOne({ _id: id });
     return result.deletedCount === 1;
   }
@@ -614,6 +683,7 @@ export interface KnownPathRepositories {
   readonly agentOutcomes: AgentOutcomeRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly auditEvents: AuditEventRepository;
+  readonly candidateAssessments: CandidateAssessmentRepository;
   readonly candidateExperiences: CandidateExperienceRepository;
   readonly extractionAttempts: ExtractionAttemptRepository;
   readonly ingestionRuns: IngestionRunRepository;
@@ -630,6 +700,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     agentOutcomes: new AgentOutcomeRepository(collections.agentOutcomes),
     apiKeys: new ApiKeyRepository(collections.apiKeys),
     auditEvents: new AuditEventRepository(collections.auditEvents),
+    candidateAssessments: new CandidateAssessmentRepository(collections.candidateAssessments),
     candidateExperiences: new CandidateExperienceRepository(collections.candidateExperiences),
     extractionAttempts: new ExtractionAttemptRepository(collections.extractionAttempts),
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),

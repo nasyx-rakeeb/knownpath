@@ -4,9 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 6 adds public-only Gemini
-> extraction into validated candidate experiences on top of the GitHub and official-source
-> collectors. Deterministic scoring/promotion, knowledge search, MCP tools, dashboards, Agent Skill
+> [!IMPORTANT] KnownPath is under active phased development. Phase 7 adds deterministic, explainable
+> candidate evidence scoring with immutable assessment history on top of public-source collection
+> and Gemini extraction. Canonical promotion, knowledge search, MCP tools, dashboards, Agent Skill
 > installation, public signup, and contribution workflows are not implemented yet.
 
 ## Prerequisites
@@ -89,6 +89,18 @@ pnpm extract inspect --candidate <uuid>
 The unpaid Gemini path hard-rejects private/team source records before any provider call. Read
 [the AI extraction guide](docs/AI_EXTRACTION.md) before configuring the key or expanding a batch.
 
+Score extracted candidates without calling an AI provider, then inspect the full breakdown/history:
+
+```sh
+pnpm score one --candidate <uuid>
+pnpm score pending --limit 10
+pnpm score inspect --assessment <uuid>
+pnpm score history --candidate <uuid>
+```
+
+Scores are explainable ranking signals, not truth probabilities. Read
+[the scoring guide](docs/SCORING.md) before changing the versioned policy.
+
 Start all application and package development processes:
 
 ```sh
@@ -126,6 +138,7 @@ pnpm dev:infra:down
 | `pnpm ingest:github`    | Collect a bounded configured GitHub source through official APIs           |
 | `pnpm ingest:sources`   | Discover or sync configured official documentation and release feeds       |
 | `pnpm extract`          | Extract or inspect bounded public-source candidate experiences             |
+| `pnpm score`            | Verify evidence and create/inspect immutable candidate assessments         |
 
 ## Structure
 
@@ -145,6 +158,7 @@ packages/
   domain/          Versioned domain schemas and canonicalization helpers
   github-ingestion/ GitHub API collection and source normalization
   source-ingestion/ Official documentation/feed discovery and normalization
+  verification/    Deterministic evidence verification and immutable seed scoring
   search/          Future retrieval boundary
   typescript-config/ Shared strict compiler configurations
 ```

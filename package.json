@@ -25,6 +25,7 @@
     "ingest:github": "pnpm --filter @knownpath/worker ingest:github",
     "ingest:sources": "pnpm --filter @knownpath/worker ingest:sources",
     "lint": "turbo run lint",
+    "score": "pnpm --filter @knownpath/worker score",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {

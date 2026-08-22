@@ -3,6 +3,7 @@ import type {
   AgentOutcome,
   ApiKey,
   AuditEvent,
+  CandidateAssessment,
   CandidateExperience,
   ExtractionAttempt,
   IngestionRun,
@@ -23,6 +24,7 @@ export const collectionNames = {
   authSessions: "auth_sessions",
   authVerifications: "auth_verifications",
   candidateExperiences: "candidate_experiences",
+  candidateAssessments: "candidate_assessments",
   extractionAttempts: "extraction_attempts",
   ingestionRuns: "ingestion_runs",
   knownPaths: "known_paths",
@@ -37,6 +39,7 @@ export interface KnownPathCollections {
   readonly agentOutcomes: Collection<AgentOutcome>;
   readonly apiKeys: Collection<ApiKey>;
   readonly auditEvents: Collection<AuditEvent>;
+  readonly candidateAssessments: Collection<CandidateAssessment>;
   readonly candidateExperiences: Collection<CandidateExperience>;
   readonly extractionAttempts: Collection<ExtractionAttempt>;
   readonly ingestionRuns: Collection<IngestionRun>;
@@ -53,6 +56,9 @@ export function getCollections(database: Db): KnownPathCollections {
     agentOutcomes: database.collection<AgentOutcome>(collectionNames.agentOutcomes),
     apiKeys: database.collection<ApiKey>(collectionNames.apiKeys),
     auditEvents: database.collection<AuditEvent>(collectionNames.auditEvents),
+    candidateAssessments: database.collection<CandidateAssessment>(
+      collectionNames.candidateAssessments,
+    ),
     candidateExperiences: database.collection<CandidateExperience>(
       collectionNames.candidateExperiences,
     ),

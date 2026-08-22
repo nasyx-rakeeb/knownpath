@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 6. A boundary appearing here does not mean its future product behavior is
+established through Phase 7. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -45,6 +45,9 @@ database.
 - `@knownpath/ai` owns provider-neutral extraction contracts, privacy enforcement, context assembly,
   versioned prompts, structured validation, Gemini integration, processing budgets, and candidate
   construction.
+- `@knownpath/verification` owns deterministic provenance checks, objective evidence signals,
+  versioned scoring policy, freshness/version-fit calculation, immutable assessment history, and
+  human-readable score explanations.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
@@ -76,6 +79,9 @@ packages/github-ingestion --> packages/source-ingestion (shared manifest contrac
 apps/worker --> packages/ai --> packages/domain
                   |          --> packages/database
                   +-----------> official Gemini SDK
+
+apps/worker --> packages/verification --> packages/domain
+                             +----------> packages/database
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -124,7 +130,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 15 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 16 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -139,13 +145,16 @@ indexes, and feedback aggregation before implementing this complete flow.
    provider. Strict output and provenance validation either create a candidate, record an objective
    non-solution classification, quarantine invalid output, or block disallowed visibility before any
    outbound call.
-9. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
-   OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
-   deferred.
+9. The worker can resolve a candidate back to immutable source snapshots, verify objective metadata,
+   and append an immutable deterministic assessment. The candidate's latest pointer is updated only
+   after the assessment exists; prior assessments remain unchanged.
+10. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+    OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
+    deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 6. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 7. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -260,6 +269,25 @@ known-ID checks, exact-excerpt matching, and deterministic canonicalization run 
 Only a grounded `reusable` result creates a candidate. Confidence/freshness scoring and verification
 labels remain uncalculated/unverified for Phase 7. Operational history lives in the independent
 `extraction_attempts` collection. See [`docs/AI_EXTRACTION.md`](AI_EXTRACTION.md).
+
+## Phase 7 deterministic verification boundary
+
+Verification starts from a persisted candidate and resolves all evidence references through the
+repository layer. Missing sources or mismatched digests, URLs, excerpts, or visibility produce an
+immutable ineligible assessment at score 0. GitHub authority, selected-answer state, closure, merged
+closing pull requests, and reactions come only from captured provider metadata. First-party status
+comes only from deterministic source classification. Model labels are suggestions until
+independently verified.
+
+`@knownpath/verification` computes source evidence, freshness, and version fit independently. The
+0–100 result is a ranking score, not probability. Weak temporal/popularity signals are capped;
+conflicts, unsupported claims, weak confirmation, and staleness are explicit penalties/caps. Agent
+outcomes remain an unobserved, separate component so a future statistically conservative outcome
+model can overtake seed evidence without rewriting it.
+
+Assessments are append-only and include exact inputs, signals, versions, policy digest, score
+breakdown, reason codes, and explanations. A candidate's `latestAssessmentId` is only a fast
+pointer. See [`docs/SCORING.md`](SCORING.md).
 
 ## Technology fit
 

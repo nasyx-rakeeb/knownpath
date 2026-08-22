@@ -32,6 +32,7 @@ export const sourceItemStateIdSchema = brandedIdSchema<"SourceItemStateId">();
 export const ingestionRunIdSchema = brandedIdSchema<"IngestionRunId">();
 export const extractionAttemptIdSchema = brandedIdSchema<"ExtractionAttemptId">();
 export const candidateExperienceIdSchema = brandedIdSchema<"CandidateExperienceId">();
+export const candidateAssessmentIdSchema = brandedIdSchema<"CandidateAssessmentId">();
 export const knownPathIdSchema = brandedIdSchema<"KnownPathId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
@@ -45,6 +46,7 @@ export type SourceItemStateId = z.infer<typeof sourceItemStateIdSchema>;
 export type IngestionRunId = z.infer<typeof ingestionRunIdSchema>;
 export type ExtractionAttemptId = z.infer<typeof extractionAttemptIdSchema>;
 export type CandidateExperienceId = z.infer<typeof candidateExperienceIdSchema>;
+export type CandidateAssessmentId = z.infer<typeof candidateAssessmentIdSchema>;
 export type KnownPathId = z.infer<typeof knownPathIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
@@ -83,6 +85,10 @@ export function createExtractionAttemptId(): ExtractionAttemptId {
 
 export function createCandidateExperienceId(): CandidateExperienceId {
   return candidateExperienceIdSchema.parse(randomUUID());
+}
+
+export function createCandidateAssessmentId(): CandidateAssessmentId {
+  return candidateAssessmentIdSchema.parse(randomUUID());
 }
 
 export function createKnownPathId(): KnownPathId {

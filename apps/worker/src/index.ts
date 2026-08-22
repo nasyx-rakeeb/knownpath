@@ -28,6 +28,15 @@ import {
   parseSourceIngestionArgs,
   sourceIngestionUsage,
 } from "@knownpath/source-ingestion";
+import {
+  CandidateAssessmentService,
+  inspectAssessment,
+  inspectAssessmentHistory,
+  loadScoringPolicy,
+  parseScoringArgs,
+  runAssessmentBatch,
+  scoringUsage,
+} from "@knownpath/verification";
 
 const command = process.argv[2];
 
@@ -35,7 +44,61 @@ async function main(): Promise<void> {
   if (command === "github") return runGitHub();
   if (command === "sources") return runOfficialSources();
   if (command === "extract") return runExtraction();
-  console.info(`${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}`);
+  if (command === "score") return runScoring();
+  console.info(
+    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}`,
+  );
+}
+
+async function runScoring(): Promise<void> {
+  const request = parseScoringArgs(process.argv.slice(3));
+  const database = await connectToMongo(loadMongoConfig());
+  try {
+    if (request.action === "inspect") {
+      console.info(await inspectAssessment(database, request.assessmentId));
+      return;
+    }
+    if (request.action === "history") {
+      console.info(await inspectAssessmentHistory(database, request.candidateId, request.limit));
+      return;
+    }
+    const policy = await loadScoringPolicy(request.policyPath);
+    const service = new CandidateAssessmentService(database, policy);
+    if (request.action === "one") {
+      const result = await service.assess(request.candidateId, {
+        evaluatedAt: request.evaluatedAt,
+        force: request.force,
+      });
+      console.info(
+        JSON.stringify({
+          assessmentId: result.assessment._id,
+          candidateExperienceId: result.assessment.candidateExperienceId,
+          score: result.assessment.finalScore.score,
+          grade: result.assessment.finalScore.grade,
+          status: result.assessment.status,
+          reused: result.reused,
+        }),
+      );
+      return;
+    }
+    const summary = await runAssessmentBatch(database, service, request);
+    console.info(
+      JSON.stringify({
+        assessed: summary.assessments.length,
+        created: summary.created,
+        reused: summary.reused,
+        assessments: summary.assessments.map((assessment) => ({
+          assessmentId: assessment._id,
+          candidateExperienceId: assessment.candidateExperienceId,
+          score: assessment.finalScore.score,
+          grade: assessment.finalScore.grade,
+          status: assessment.status,
+        })),
+      }),
+    );
+  } finally {
+    await database.close();
+  }
 }
 
 async function runExtraction(): Promise<void> {

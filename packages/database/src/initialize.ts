@@ -319,6 +319,71 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
     ],
   },
   {
+    name: collectionNames.candidateAssessments,
+    validator: envelopeValidator(
+      [
+        "candidateExperienceId",
+        "idempotencyKey",
+        "status",
+        "algorithm",
+        "policy",
+        "verifierVersion",
+        "evaluatedAt",
+        "candidateDigest",
+        "inputs",
+        "signals",
+        "components",
+        "finalScore",
+      ],
+      {
+        candidateExperienceId: { bsonType: "string" },
+        idempotencyKey: { bsonType: "object", required: ["value", "version"] },
+        status: { enum: ["completed", "ineligible"] },
+        algorithm: { bsonType: "object", required: ["identifier", "version"] },
+        policy: { bsonType: "object", required: ["identifier", "version", "digest"] },
+        verifierVersion: { bsonType: numericBsonTypes },
+        evaluatedAt: { bsonType: "date" },
+        candidateDigest: { bsonType: "string" },
+        inputs: { bsonType: "object", required: ["sourceItems"] },
+        signals: { bsonType: "array" },
+        components: {
+          bsonType: "object",
+          required: ["sourceEvidence", "freshness", "versionFit", "outcomeConfidence"],
+        },
+        finalScore: { bsonType: "object", required: ["kind", "score", "grade"] },
+      },
+    ),
+    indexes: [
+      {
+        key: { "idempotencyKey.value": 1 },
+        name: "uq_candidate_assessments_idempotency_key",
+        unique: true,
+      },
+      {
+        key: { candidateExperienceId: 1, evaluatedAt: -1 },
+        name: "ix_candidate_assessments_candidate_evaluated_at",
+      },
+      {
+        key: {
+          "algorithm.identifier": 1,
+          "algorithm.version": 1,
+          "policy.identifier": 1,
+          "policy.version": 1,
+          evaluatedAt: -1,
+        },
+        name: "ix_candidate_assessments_algorithm_policy_evaluated_at",
+      },
+      {
+        key: { status: 1, "finalScore.score": -1 },
+        name: "ix_candidate_assessments_status_score",
+      },
+      {
+        key: { "inputs.sourceItems.sourceItemId": 1, evaluatedAt: -1 },
+        name: "ix_candidate_assessments_source_item_evaluated_at",
+      },
+    ],
+  },
+  {
     name: collectionNames.candidateExperiences,
     validator: envelopeValidator(["deduplicationKey", "status", "metadata"], {
       deduplicationKey: { bsonType: "object", required: ["value", "version"] },

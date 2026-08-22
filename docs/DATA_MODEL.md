@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 6 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 7 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -41,6 +41,7 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `ingestion_runs`        | Mutable operational attempt history; references one source registry.                           |
 | `extraction_attempts`   | Independent AI lifecycle keyed by source/context/prompt/provider versions.                     |
 | `candidate_experiences` | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.    |
+| `candidate_assessments` | Immutable verification/score history; references one candidate and exact source inputs.        |
 | `known_paths`           | Canonical reusable knowledge record with embedded solution, evidence, score, and search state. |
 | `agent_contributions`   | Independent proposed lesson/correction; may reference a KnownPath and source items.            |
 | `agent_outcomes`        | Independent usefulness report referencing one KnownPath.                                       |
@@ -135,12 +136,19 @@ the item supports the problem, supports the solution, verifies an outcome, confl
 context. It may include a locator, bounded excerpt, URL, and content digest; it does not duplicate
 the source document.
 
-### Confidence, freshness, and search state
+### Candidate assessments, confidence, freshness, and search state
 
-Confidence contains an aggregate from 0 to 1, named components, `scoreVersion`, calculation time,
-and bounded verification signals. It belongs only to canonical KnownPaths. Phase 6 candidates do not
-contain numeric confidence or freshness, preventing model interpretation from becoming a final trust
-score before Phase 7.
+Each Phase 7 `candidate_assessments` document is immutable and records candidate/source digests,
+algorithm/policy/verifier versions, evaluation time, verified evidence signals, independent
+source-evidence/freshness/version-fit/outcome components, an integer 0–100 seed score, grade, caps,
+reason codes, and explanations. Candidates store only `latestAssessmentId` as a mutable fast-path
+pointer; rescoring never overwrites history. `ineligible` records preserve integrity failures at
+score 0. Agent outcome confidence is explicitly `unobserved` in Phase 7; its future observed shape
+requires successes/failures/sample size and Wilson interval metadata.
+
+Canonical KnownPath confidence retains its existing aggregate projection for later promotion work.
+Phase 8 must deliberately map immutable candidate assessments into the canonical representation;
+Phase 7 does not promote candidates.
 
 Freshness records last verification, next review, and stale-after timestamps. Search metadata is
 provider-neutral and records lexical/embedding processing status, model identifier, dimensions,
@@ -155,6 +163,7 @@ content digest, and generation time. No vectors or vector indexes exist in Phase
 | Ingestion run        | `queued`, `running`, `succeeded`, `failed`, `cancelled`                                                                             |
 | Extraction attempt   | `queued`, `running`, `succeeded`, `irrelevant`, `insufficient_evidence`, `conflicting_evidence`, `quarantined`, `blocked`, `failed` |
 | Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`                                                                           |
+| Candidate assessment | `completed`, `ineligible`                                                                                                           |
 | KnownPath            | `draft`, `published`, `deprecated`, `superseded`, `archived`                                                                        |
 | Contribution         | `pending`, `accepted`, `rejected`, `superseded`                                                                                     |
 | Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`                                                                                     |
@@ -256,6 +265,16 @@ and is omitted below.
 - `ix_candidate_experiences_ecosystem_package`: ecosystem/package lookup.
 - `ix_candidate_experiences_error_fingerprints`: normalized error lookup.
 
+### `candidate_assessments`
+
+- `uq_candidate_assessments_idempotency_key`: prevents duplicate assessments for identical
+  candidate/source material, algorithm/policy/verifier versions, policy digest, and evaluation time.
+- `ix_candidate_assessments_candidate_evaluated_at`: immutable candidate history in reverse
+  evaluation order.
+- `ix_candidate_assessments_algorithm_policy_evaluated_at`: audit and comparison by scoring logic.
+- `ix_candidate_assessments_status_score`: review ineligible/completed records by seed score.
+- `ix_candidate_assessments_source_item_evaluated_at`: find assessments affected by a source item.
+
 ### `extraction_attempts`
 
 - `uq_extraction_attempts_idempotency_key`: prevents duplicate charged work for identical inputs and
@@ -329,12 +348,13 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Audit events are retained until a future compliance/privacy policy defines archival or deletion.
 - Failed operational runs may later receive a TTL/archive policy, but Phase 2 has insufficient usage
   evidence to choose one.
-- Extraction attempts and candidates are retained for reproducibility and review until measured
-  volume and privacy requirements justify an explicit archive/purge policy.
+- Extraction attempts, candidates, and immutable candidate assessments are retained for
+  reproducibility, audit, and score-version comparison until measured volume and privacy
+  requirements justify an explicit archive/purge policy.
 
 ## Deferred model behavior
 
-The schemas do not imply that scoring, canonical promotion, verification, search, MCP, contribution
-promotion, public registration, recovery, OAuth, team membership, or dashboards are implemented.
-Team IDs remain opaque until the team/workspace model exists. Semantic deduplication and vector
-storage/indexing belong to later phases.
+The schemas do not imply that canonical promotion, search, MCP, contribution promotion, public
+registration, recovery, OAuth, team membership, or dashboards are implemented. Team IDs remain
+opaque until the team/workspace model exists. Semantic deduplication and vector storage/indexing
+belong to later phases.

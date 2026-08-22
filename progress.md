@@ -849,3 +849,139 @@ candidate experiences, including the first configured extraction provider, promp
 provenance, bounded processing lifecycle, and deterministic output validation.** Do not implement
 canonical promotion, search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution
 workflows, or dashboards until their designated later phases.
+
+## Phase 7 — Deterministic evidence verification and trust scoring
+
+### Phase goal
+
+Resolve Gemini-extracted candidate evidence back to immutable source snapshots, verify objective
+authority/confirmation/conflict signals, and produce reproducible, explainable seed-confidence
+assessments without allowing an LLM to choose the score. Preserve every result as immutable history
+while keeping a latest pointer on the candidate. Do not merge or promote candidates yet.
+
+### Research performed
+
+Current primary/official references were consulted on 2026-08-22 before implementation:
+
+- GitHub's GraphQL `CommentAuthorAssociation` enum and Discussion object fields for repository
+  authority, selected answers, answer timestamps, upvotes, and answer identity
+- GitHub's official Reactions REST API and closing-issue pull-request/merge metadata
+- NIST's binomial interval guidance, including Wilson confidence intervals for later outcome data
+- Semantic Versioning 2.0.0 for explicit version interpretation boundaries
+- Elasticsearch's explicit date-decay model as a mature reference for inspectable freshness decay
+- OpenSSF Scorecard's versioned, per-check explainability as a ranking-system design reference
+
+References and their application are recorded in [`docs/SCORING.md`](docs/SCORING.md) and
+[`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+### Architecture and technology decisions
+
+- Added framework/provider-independent `@knownpath/verification`; it calls no AI provider and reads
+  persistence only through Phase 2 repositories.
+- Added immutable `candidate_assessments`. Candidates carry only `latestAssessmentId`; rescoring
+  appends history and then atomically updates that pointer through the candidate repository.
+- Assessment idempotency covers candidate material, exact resolved source IDs/digests, algorithm,
+  policy version/digest, verifier version, and explicit evaluation timestamp. Default CLI evaluation
+  is stable for the current UTC day; `--force` explicitly creates another audit record.
+- Evidence-reference source existence, digest, canonical URL, exact excerpt, and visibility are hard
+  integrity boundaries. A mismatch creates an `ineligible` assessment at score 0.
+- Official authority, GitHub author association, accepted-answer identity, original-author identity,
+  merged closing PRs, closure timing, and reactions are verified from persisted deterministic
+  metadata. Reactions and closure timing remain weak, capped signals and never imply
+  truth/causality.
+- Seed scoring is integer 0–100 ranking, not probability. Source evidence, freshness, version fit,
+  and future agent outcomes are separate components. Complete inputs, points, caps, reason codes,
+  and explanations are stored with each result.
+- Outcome confidence is `unobserved` in Phase 7. Its future observed schema requires sample counts,
+  observed proportion, Wilson bounds, method version, and timestamp, preventing small-sample success
+  rates from silently masquerading as confidence.
+- A runtime-validated JSON policy can be supplied explicitly with `--policy`; environment variables
+  cannot silently change scoring. The bundled algorithm/policy are version 1 and the finalized
+  verifier implementation is version 5 after development corrections remained visible in local
+  immutable audit history.
+
+### Collections, schemas, indexes, and files created or evolved
+
+- Added versioned candidate-assessment, evidence-signal, source-input, score-component, outcome, and
+  final-score schemas plus branded assessment IDs in `@knownpath/domain`.
+- Added `latestAssessmentId` to candidate experiences.
+- Added the sixteenth MongoDB collection, `candidate_assessments`, with five explicit indexes:
+  unique idempotency; candidate/evaluation history; algorithm/policy history; status/score review;
+  and affected-source lookup.
+- Added repository methods for batch source resolution, candidate scoring queues/latest pointer,
+  immutable assessment creation/idempotency lookup/history, and bounded manual cleanup.
+- Added `@knownpath/verification` with stable hashing, policy validation, GitHub metadata
+  validation, provenance resolution, deterministic scoring, batch orchestration, inspection, and
+  command parsing.
+- Added worker/root `pnpm score` commands for `one`, `pending`, `all`, `inspect`, and `history`,
+  plus reproducible `--as-of`, explicit `--policy`, bounded `--limit`, and intentional `--force`
+  options.
+- Added [`docs/SCORING.md`](docs/SCORING.md), the approved design specification, and Phase 7 updates
+  to the architecture, data model, decision log, README, workspace lockfile, and this progress log.
+- No new environment variables or secrets were needed; `.env.example` remains complete.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` completed across all 17 workspace projects.
+- `pnpm typecheck` — 23 tasks successful.
+- `pnpm lint` — 15 tasks successful.
+- `pnpm build` — 15 tasks successful; the Next.js shell compiled and prerendered `/`.
+- `pnpm format` and `pnpm format:check` completed successfully.
+- `pnpm db:init` created `candidate_assessments` with its strict validator and five indexes. A
+  repeat reported `created: false` for all 16 collections. Direct `mongosh` inspection found the
+  automatic `_id_` plus all five declared indexes.
+- Two real extracted candidates were assessed: first-party Expo EAS troubleshooting scored 70/high;
+  an Expo issue with a verified `MEMBER` solution comment and later closure scored 63/moderate.
+  Inspected signals came from source authority/Google-independent GitHub metadata, not Gemini
+  labels.
+- Repeating the same two-candidate command at the same `evaluatedAt` reported `created: 0` and
+  `reused: 2`, with unchanged assessment IDs.
+- Evaluating the official candidate four years later produced freshness 9/stale and reduced its
+  score from 70 to 51 with an explicit `stale_applicability` cap; restoring the original evaluation
+  reused the original assessment and latest pointer.
+- A runtime-validated development policy changed the same official candidate from 70 to 52 and
+  stored a distinct policy version/digest. History inspection retained the default, stale, changed-
+  policy, and earlier verifier records without overwriting any result.
+- A temporary repository-created clone of the real official candidate added a deterministic
+  authoritative conflict. It scored 45 with the `authoritative_conflict` signal/cap, then both the
+  temporary assessment and candidate were removed through repository cleanup.
+- A direct MongoDB inspection found 16 collections, 61 named non-`_id_` indexes, two candidates, ten
+  retained immutable development/audit assessments at that checkpoint, no candidate without a latest
+  pointer, and no temporary candidate record.
+- Final verifier-v5 scoring created the two current assessments at 70/high and 63/moderate; an exact
+  repeat reported `created: 0` and `reused: 2`. The built worker booted and printed the complete
+  scoring command contract alongside existing worker commands. Final direct inspection found 12
+  immutable assessment records, two verifier-v5 records, two candidates, and no dangling latest
+  pointer.
+
+No automated tests were created or run, as required for this phase.
+
+### Environment and manual setup still required
+
+- Use the pinned Node.js 24/pnpm 11 toolchain, configure the existing ignored `.env`, start MongoDB,
+  and run `pnpm db:init` before scoring.
+- Keep source ingestion/extraction current before rescoring. Use `--as-of` for historical comparison
+  and commit a deliberate policy/version change before production-wide `score all` operations.
+- No additional credential is required for scoring; Gemini and GitHub are not contacted.
+
+### Known limitations intentionally left for later phases
+
+- Phase 7 does not semantically merge duplicate candidates or promote them into canonical
+  KnownPaths. Independent convergence currently requires distinct persisted source roots and does
+  not claim semantic equivalence.
+- Agent outcomes do not affect seed scores yet. Wilson interval fields are modeled, but outcome
+  aggregation/calibration waits for the contribution/outcome phase and real samples.
+- Version fit is deterministic normalized metadata overlap, not dependency solving or semantic
+  compatibility inference. Freshness policy will need versioned calibration from observed use.
+- Assessment immutability is enforced by domain/repository APIs and append-only application flow;
+  operational database roles must later deny direct update/delete privileges in production.
+- No automated scheduler, canonical promotion, search/retrieval, vector index, MCP knowledge tools,
+  Agent Skill/installer, contribution workflow, or dashboard was added.
+- No automated tests, by explicit Phase 7 requirement.
+
+### Exact next phase
+
+**Phase 8: deterministically identify materially duplicate candidates, preserve conflicts and
+provenance, and promote eligible groups into versioned canonical KnownPaths.** Do not begin public
+search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution workflows, or
+dashboards until their designated later phases.

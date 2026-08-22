@@ -445,3 +445,47 @@ history inside candidates loses failed and blocked processing records.
 **References:** [MongoDB schema design](https://www.mongodb.com/docs/manual/data-modeling/),
 [unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/),
 [Gemini token usage](https://ai.google.dev/gemini-api/docs/tokens)
+
+## 2026-08-22 — Append immutable candidate assessments and retain a latest pointer
+
+**Decision:** Store every verification/scoring result in a separate append-only
+`candidate_assessments` document. Keep `latestAssessmentId` on the candidate for fast access. The
+idempotency key covers candidate/source digests, exact scoring policy digest, algorithm/policy/
+verifier versions, and evaluation time. Rescoring never updates an existing assessment.
+
+**Why:** Immutable assessments make scoring changes auditable, reproducible, comparable, and safe to
+recalculate. The pointer gives common reads one hop without collapsing independently growing history
+into the candidate. Unique idempotency prevents accidental duplicate records while `--force` remains
+an explicit audited choice.
+
+**Rejected:** Overwriting score fields destroys evidence of policy changes and debugging inputs.
+Embedding an unbounded assessment array in the candidate creates document growth and write
+contention. Computing every latest score at read time is unnecessarily expensive.
+
+**References:**
+[MongoDB immutable data pattern](https://www.mongodb.com/docs/manual/core/schema-validation/specify-json-schema/),
+[MongoDB unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/)
+
+## 2026-08-22 — Treat seed confidence as explainable ranking, not probability
+
+**Decision:** Implement `knownpath-seed-evidence` version 1 as deterministic integer 0–100 scoring
+with separately stored source-evidence, freshness, version-fit, and future outcome components.
+Objective official/GitHub metadata supplies strong signals. Closure timing and reactions are weak,
+capped signals. Conflicts, unsupported model labels, weak confirmation, staleness, and missing
+provenance are explicit penalties or caps. Outcome confidence remains unobserved until real reports
+exist and its future schema records Wilson bounds.
+
+**Why:** The available seed signals are heterogeneous ranking evidence, not independent probability
+measurements. Component storage and reason codes prevent fake precision and let future agent
+outcomes be statistically conservative at small sample sizes. Versioned policy JSON permits
+deterministic rescore experiments without environment-driven hidden behavior.
+
+**Rejected:** Letting Gemini choose confidence makes the result non-reproducible. Treating reactions
+as truth rewards popularity. A single opaque floating-point score obscures conflicts and freshness.
+Naive success proportions become overconfident with tiny outcome samples.
+
+**References:**
+[GitHub author association enum](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation),
+[GitHub reactions](https://docs.github.com/en/rest/reactions/reactions),
+[NIST binomial confidence intervals](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/binotest.htm),
+[Semantic Versioning](https://semver.org/), [OpenSSF Scorecard](https://scorecard.dev/)
