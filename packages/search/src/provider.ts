@@ -3,7 +3,8 @@ import type { Visibility } from "@knownpath/domain";
 export interface EmbeddingProviderRequest {
   readonly input: string;
   readonly dimensions: number;
-  readonly task: "semantic_similarity";
+  readonly task: "retrieval_document" | "retrieval_query" | "semantic_similarity";
+  readonly title?: string;
 }
 
 export interface EmbeddingProviderResponse {

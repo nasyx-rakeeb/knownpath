@@ -51,6 +51,9 @@ catalogs:
     '@types/react-dom':
       specifier: 19.2.4
       version: 19.2.4
+    '@types/semver':
+      specifier: 7.8.0
+      version: 7.8.0
     better-auth:
       specifier: 1.7.1
       version: 1.7.1
@@ -99,6 +102,9 @@ catalogs:
     robots-parser:
       specifier: 3.0.1
       version: 3.0.1
+    semver:
+      specifier: 7.8.5
+      version: 7.8.5
     tsx:
       specifier: 4.23.12
       version: 4.23.12
@@ -490,9 +496,18 @@ importers:
       '@google/genai':
         specifier: 'catalog:'
         version: 2.18.0
+      '@knownpath/database':
+        specifier: workspace:*
+        version: link:../database
       '@knownpath/domain':
         specifier: workspace:*
         version: link:../domain
+      semver:
+        specifier: 'catalog:'
+        version: 7.8.5
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*
@@ -500,6 +515,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      '@types/semver':
+        specifier: 'catalog:'
+        version: 7.8.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1541,6 +1559,9 @@ packages:
 
   '@types/retry@0.12.0':
     resolution: {integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==}
+
+  '@types/semver@7.8.0':
+    resolution: {integrity: sha512-1mAINjtQCXXeLkJ9ehXkwOcBpqtLxiVtKhpUf83DdRNdQKV0iXZpaHYqRr7nj+wvxuJzoAmAwXI+sCNMv1CzLQ==}
 
   '@types/webidl-conversions@7.0.3':
     resolution: {integrity: sha512-CiJJvcRtIgzadHCYXw7dqEnMNRjhGZlYK05Mj9OyktqV8uVT8fD2BFOB7S1uwBE3Kj2Z+4UyPmFw/Ixgw/LAlA==}
@@ -3454,6 +3475,8 @@ snapshots:
       csstype: 3.2.3
 
   '@types/retry@0.12.0': {}
+
+  '@types/semver@7.8.0': {}
 
   '@types/webidl-conversions@7.0.3': {}
 

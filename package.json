@@ -27,6 +27,7 @@
     "ingest:sources": "pnpm --filter @knownpath/worker ingest:sources",
     "lint": "turbo run lint",
     "score": "pnpm --filter @knownpath/worker score",
+    "search": "pnpm --filter @knownpath/worker run retrieve",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {

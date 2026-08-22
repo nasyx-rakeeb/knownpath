@@ -5,6 +5,7 @@ import {
   loadGitHubConfig,
   loadEmbeddingConfig,
   loadMongoConfig,
+  loadSearchConfig,
   loadSourceIngestionConfig,
   type LogLevel,
 } from "@knownpath/config";
@@ -49,7 +50,16 @@ import {
   runAssessmentBatch,
   scoringUsage,
 } from "@knownpath/verification";
-import { GeminiEmbeddingProvider } from "@knownpath/search";
+import {
+  GeminiEmbeddingProvider,
+  RetrievalService,
+  SearchProjectionService,
+  createAtlasSearchIndexDefinitions,
+  createAtlasSearchIndexes,
+  inspectAtlasSearchIndexes,
+  parseSearchArgs,
+  searchUsage,
+} from "@knownpath/search";
 
 const command = process.argv[2];
 
@@ -59,9 +69,152 @@ async function main(): Promise<void> {
   if (command === "extract") return runExtraction();
   if (command === "score") return runScoring();
   if (command === "canonicalize") return runCanonicalization();
+  if (command === "search") return runSearch();
   console.info(
-    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}`,
+    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}\n\n${searchUsage()}`,
   );
+}
+
+async function runSearch(): Promise<void> {
+  const searchConfig = loadSearchConfig();
+  const embeddingConfig = loadEmbeddingConfig();
+  const request = parseSearchArgs(process.argv.slice(3), {
+    limit: searchConfig.defaultLimit,
+    minimumScore: searchConfig.minimumScore,
+  });
+  const database = await connectToMongo(loadMongoConfig());
+  const providerFactory =
+    embeddingConfig.geminiApiKey === undefined
+      ? undefined
+      : () =>
+          new GeminiEmbeddingProvider({
+            apiKey: embeddingConfig.geminiApiKey ?? "",
+            modelIdentifier: embeddingConfig.model,
+            modelVersion: embeddingConfig.modelVersion,
+            requestTimeoutMs: embeddingConfig.requestTimeoutMs,
+          });
+  try {
+    if (request.action === "indexes") {
+      const names = {
+        lexical: searchConfig.atlasLexicalIndex,
+        vector: searchConfig.atlasVectorIndex,
+      };
+      if (request.operation === "print") {
+        console.info(
+          JSON.stringify(
+            {
+              collection: "known_path_search_documents",
+              indexes: createAtlasSearchIndexDefinitions(names, embeddingConfig.dimensions),
+            },
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      if (searchConfig.backend !== "atlas")
+        throw Object.assign(
+          new Error("SEARCH_BACKEND=atlas is required for Atlas search-index operations"),
+          { code: "atlas_search_not_enabled" },
+        );
+      if (request.operation === "create") {
+        console.info(
+          JSON.stringify(
+            await createAtlasSearchIndexes(
+              database,
+              names,
+              embeddingConfig.dimensions,
+              searchConfig.indexReadyTimeoutMs,
+            ),
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      console.info(JSON.stringify({ indexes: await inspectAtlasSearchIndexes(database) }, null, 2));
+      return;
+    }
+    const projections = new SearchProjectionService(database, {
+      dimensions: embeddingConfig.dimensions,
+      providerCapability: "public_only",
+      providerIdentifier: embeddingConfig.provider,
+      providerModel: embeddingConfig.model,
+      providerModelVersion: embeddingConfig.modelVersion,
+      ...(providerFactory === undefined ? {} : { providerFactory }),
+    });
+    if (request.action === "project" || request.action === "reembed") {
+      if (request.action === "reembed" && providerFactory === undefined)
+        throw Object.assign(
+          new Error("GEMINI_API_KEY is required to re-embed KnownPath search documents"),
+          { code: "embedding_provider_not_configured" },
+        );
+      const useEmbedding = request.action === "reembed" ? true : request.useEmbedding;
+      const results =
+        request.knownPathId === undefined
+          ? await projections.projectPending(request.limit, useEmbedding)
+          : [await projections.project(request.knownPathId, useEmbedding)];
+      console.info(
+        JSON.stringify(
+          {
+            projected: results.length,
+            providerCalls: results.filter((entry) => entry.providerCalled).length,
+            documents: results.map((entry) => ({
+              id: entry.document._id,
+              knownPathId: entry.document.knownPathId,
+              revisionId: entry.document.knownPathRevisionId,
+              embeddingStatus: entry.document.embedding.status,
+              model: entry.document.embedding.modelIdentifier,
+              dimensions: entry.document.embedding.dimensions,
+              reused: entry.reused,
+            })),
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    if (request.action === "inspect") {
+      const document = await database.repositories.knownPathSearchDocuments.findActive(
+        request.knownPathId,
+        embeddingConfig.model,
+        embeddingConfig.modelVersion,
+        embeddingConfig.dimensions,
+      );
+      if (document === null) throw new Error("Active search projection not found");
+      console.info(
+        JSON.stringify(
+          {
+            ...document,
+            embedding: {
+              ...document.embedding,
+              values:
+                document.embedding.values === undefined
+                  ? undefined
+                  : `<${document.embedding.values.length} dimensions>`,
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+    const service = new RetrievalService(database, {
+      backend: searchConfig.backend,
+      atlasLexicalIndex: searchConfig.atlasLexicalIndex,
+      atlasVectorIndex: searchConfig.atlasVectorIndex,
+      candidatePoolMultiplier: searchConfig.candidatePoolMultiplier,
+      dimensions: embeddingConfig.dimensions,
+      modelIdentifier: embeddingConfig.model,
+      modelVersion: embeddingConfig.modelVersion,
+      ...(providerFactory === undefined ? {} : { providerFactory }),
+    });
+    console.info(JSON.stringify(await service.search(request.query), null, 2));
+  } finally {
+    await database.close();
+  }
 }
 
 async function runCanonicalization(): Promise<void> {

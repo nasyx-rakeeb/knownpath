@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 8 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 9 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -49,6 +49,7 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `canonicalization_events`       | Append-only requested/completed merge, split, reassign, and rebuild audit history.                |
 | `known_path_revisions`          | Immutable complete canonical snapshots keyed by membership/assessment/builder inputs.             |
 | `known_paths`                   | Stable current canonical projection with solution variants, evidence, trust, and latest revision. |
+| `known_path_search_documents`   | Rebuildable versioned retrieval projection with one active row per KnownPath/model tuple.         |
 | `agent_contributions`           | Independent proposed lesson/correction; may reference a KnownPath and source items.               |
 | `agent_outcomes`                | Independent usefulness report referencing one KnownPath.                                          |
 
@@ -167,9 +168,11 @@ Append-only canonicalization events and immutable KnownPath revisions preserve t
 trail. `known_paths.latestRevisionId` is a fast projection pointer, not historical truth.
 
 Freshness records last verification, next review, and stale-after timestamps. Search metadata is
-provider-neutral and records lexical/embedding processing status. Phase 8 stores candidate vectors
-in ordinary MongoDB documents with provider/model/version/dimensions/digest/time metadata. There is
-no vector index or retrieval implementation.
+provider-neutral and records lexical/embedding processing status. Candidate vectors remain ordinary
+pair-comparison documents. Phase 9 search projections additionally store bounded normalized text,
+error codes/classes/fingerprints, applicability, trust pointers, visibility/lifecycle, and one
+provider/model/version/dimension-specific vector. Superseded projections are retired rather than
+overwritten; the projection can be rebuilt from a KnownPath revision and assessments.
 
 ## Lifecycle values
 
@@ -371,6 +374,26 @@ These are ordinary MongoDB indexes. Phase 8 creates no vector index.
 - `ix_known_paths_freshness_status`: stale-record review.
 - `ix_known_paths_latest_revision`: current-projection pointer lookup.
 
+### `known_path_search_documents`
+
+- `uq_known_path_search_documents_idempotency`: reuses an identical canonical revision/content,
+  projection/input version, provider/model/version/dimensions, and embedding mode.
+- `uq_known_path_search_documents_active_model`: partial unique constraint allowing only one active
+  projection per KnownPath/model/version/dimension tuple.
+- `ix_known_path_search_documents_scope_status_trust`: visibility/lifecycle filtering and trust
+  ordering.
+- `ix_known_path_search_documents_ecosystem_packages`: deterministic ecosystem/package blocking.
+- `ix_known_path_search_documents_platforms`: deterministic platform blocking.
+- `ix_known_path_search_documents_error_fingerprints`: exact normalized-error lookup.
+- `ix_known_path_search_documents_error_codes`: exact technical identifier lookup.
+- `tx_known_path_search_documents_v1`: weighted local text fallback over title, problem, normalized
+  errors, solutions, and bounded searchable text.
+
+Atlas deployments separately manage `knownpath_lexical_v1` (`type: search`) and
+`knownpath_vector_v1` (`type: vectorSearch`) through `listSearchIndexes`/`createSearchIndexes`.
+These are not ordinary `createIndexes` entries and are unavailable on the default local standalone
+MongoDB path. Their exact definitions are documented in [`docs/RETRIEVAL.md`](RETRIEVAL.md).
+
 ### `agent_contributions`
 
 - `uq_agent_contributions_deduplication_key`: unique submission deduplication.
@@ -384,8 +407,8 @@ These are ordinary MongoDB indexes. Phase 8 creates no vector index.
 - `ix_agent_outcomes_outcome_created_at`: analysis by result and time.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
-parallel-array multikey restriction. No text, TTL, wildcard, geospatial, or vector indexes are
-created through Phase 8.
+parallel-array multikey restriction. Phase 9 adds one ordinary weighted text index. No TTL,
+wildcard, or geospatial index exists; Vector Search is an explicit Atlas-only lifecycle.
 
 ## Initialization and inspection
 
@@ -430,10 +453,13 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Similarity profiles, public embeddings, pair assessments, canonical events, and KnownPath
   revisions are retained to reproduce deduplication decisions. Memberships may become inactive but
   remain as assignment history; canonical projections are not historical truth.
+- Search documents are derived projections. Retired versions may be archived or purged by a future
+  explicit operational policy because revision, assessment, content-hash, and model metadata make
+  them reproducible; Phase 9 adds no automatic deletion.
 
 ## Deferred model behavior
 
-The schemas do not imply that search, MCP, contribution promotion, public registration, recovery,
-OAuth, team membership, or dashboards are implemented. Team IDs remain opaque until the
-team/workspace model exists. Candidate embeddings support only blocked pair comparison; vector
-indexing and retrieval belong to Phase 9.
+The schemas do not imply that HTTP/MCP search exposure, contribution promotion, public registration,
+recovery, OAuth, team membership, or dashboards are implemented. Team IDs remain opaque until the
+team/workspace model exists. Candidate embeddings still support only blocked pair comparison;
+KnownPath search projections are the separate Phase 9 retrieval corpus.

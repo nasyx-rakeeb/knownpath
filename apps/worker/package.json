@@ -13,6 +13,7 @@
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
     "ingest:sources": "tsx --env-file-if-exists=../../.env src/index.ts sources",
     "score": "tsx --env-file-if-exists=../../.env src/index.ts score",
+    "retrieve": "tsx --env-file-if-exists=../../.env src/index.ts search",
     "lint": "eslint src",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"

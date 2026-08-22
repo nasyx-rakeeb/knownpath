@@ -136,6 +136,16 @@ const embeddingEnvironmentSchema = z.object({
   GEMINI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
 });
 
+const searchEnvironmentSchema = z.object({
+  SEARCH_BACKEND: z.enum(["local", "atlas"]).default("local"),
+  SEARCH_ATLAS_LEXICAL_INDEX: z.string().trim().min(1).max(128).default("knownpath_lexical_v1"),
+  SEARCH_ATLAS_VECTOR_INDEX: z.string().trim().min(1).max(128).default("knownpath_vector_v1"),
+  SEARCH_DEFAULT_LIMIT: z.coerce.number().int().min(1).max(100).default(10),
+  SEARCH_MINIMUM_SCORE: z.coerce.number().int().min(0).max(100).default(35),
+  SEARCH_CANDIDATE_POOL_MULTIPLIER: z.coerce.number().int().min(2).max(100).default(20),
+  SEARCH_INDEX_READY_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -179,6 +189,16 @@ export interface EmbeddingConfig {
   readonly modelVersion: string;
   readonly provider: "gemini";
   readonly requestTimeoutMs: number;
+}
+
+export interface SearchConfig {
+  readonly atlasLexicalIndex: string;
+  readonly atlasVectorIndex: string;
+  readonly backend: "local" | "atlas";
+  readonly candidatePoolMultiplier: number;
+  readonly defaultLimit: number;
+  readonly indexReadyTimeoutMs: number;
+  readonly minimumScore: number;
 }
 
 export interface GitHubConfig {
@@ -333,6 +353,19 @@ export function loadEmbeddingConfig(environment: NodeJS.ProcessEnv = process.env
     modelVersion: parsed.GEMINI_EMBEDDING_MODEL_VERSION,
     provider: parsed.EMBEDDING_PROVIDER,
     requestTimeoutMs: parsed.GEMINI_REQUEST_TIMEOUT_MS,
+  };
+}
+
+export function loadSearchConfig(environment: NodeJS.ProcessEnv = process.env): SearchConfig {
+  const parsed = parseEnvironment(searchEnvironmentSchema, environment);
+  return {
+    atlasLexicalIndex: parsed.SEARCH_ATLAS_LEXICAL_INDEX,
+    atlasVectorIndex: parsed.SEARCH_ATLAS_VECTOR_INDEX,
+    backend: parsed.SEARCH_BACKEND,
+    candidatePoolMultiplier: parsed.SEARCH_CANDIDATE_POOL_MULTIPLIER,
+    defaultLimit: parsed.SEARCH_DEFAULT_LIMIT,
+    indexReadyTimeoutMs: parsed.SEARCH_INDEX_READY_TIMEOUT_MS,
+    minimumScore: parsed.SEARCH_MINIMUM_SCORE,
   };
 }
 

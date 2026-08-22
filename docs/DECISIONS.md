@@ -557,3 +557,51 @@ environment-specific fixes.
 [MongoDB document versioning pattern](https://www.mongodb.com/blog/post/building-with-patterns-the-document-versioning-pattern),
 [MongoDB unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/),
 [MongoDB transactions](https://www.mongodb.com/docs/manual/core/transactions/)
+
+## 2026-08-22 — Materialize versioned search projections and fuse channels in application code
+
+**Decision:** Build `known_path_search_documents` as a rebuildable projection of stable KnownPath
+revisions. Run deterministic error/metadata retrieval first, then lexical retrieval, then optional
+MongoDB Vector Search. Apply a versioned, digest-addressed ranking policy in application code that
+separately exposes relevance, version fit, deterministic trust, freshness, outcomes, conflicts, and
+lifecycle penalties. Default local MongoDB uses ordinary exact and weighted-text indexes; Atlas is
+an explicit optional backend with separately managed Search and Vector Search indexes.
+
+**Why:** Query-time joins across canonical history would make ranking expensive and difficult to
+reproduce. A projection keeps provider/model/content metadata beside the vector and can be safely
+regenerated. Application-side fusion works on the supported local MongoDB baseline and avoids
+coupling the policy to rapidly evolving `$rankFusion`/`$scoreFusion` server-version requirements.
+Exact technical identifiers and explicit version incompatibility must retain control over a merely
+semantic match. Atlas Free remains a genuine development option, while local contributors still get
+useful retrieval without `mongot` or a paid service.
+
+**Rejected:** A dedicated vector database would violate MongoDB's primary-store boundary.
+Cosine-only ranking hides trust and applicability. Semantic-only retrieval can elevate incompatible
+fixes. Requiring Atlas for every contributor removes the free local path. Query-time canonical joins
+and unversioned mutable vectors make model changes hard to audit.
+
+**References:**
+[MongoDB Vector Search index syntax](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/),
+[MongoDB `$vectorSearch`](https://www.mongodb.com/docs/manual/reference/operator/aggregation/vectorsearch/),
+[MongoDB hybrid search](https://www.mongodb.com/docs/atlas/atlas-vector-search/hybrid-search/),
+[Atlas Free limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/),
+[Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings),
+[Gemini embedding model](https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2)
+
+## 2026-08-22 — Keep unpaid retrieval embeddings public-only
+
+**Decision:** Apply the existing `public_only` provider capability to both search-document and query
+embeddings. Before provider construction, verify the KnownPath, all supporting candidates, and all
+referenced sources are public. Reject private/team query text with
+`embedding_provider_visibility_forbidden`; never downgrade it to the unpaid provider.
+
+**Why:** Retrieval queries can contain private incident details even when no private KnownPath is
+returned. Applying the gate symmetrically prevents an accidental outbound disclosure and preserves
+the same provider interface for a future explicitly approved private-data account or self-hosted
+implementation.
+
+**Rejected:** Falling back to free Gemini on quota/configuration failure violates the data policy.
+Silently disabling only document embeddings while still embedding private query text leaves the more
+immediate disclosure path open.
+
+**References:** [Gemini pricing and data use](https://ai.google.dev/gemini-api/docs/pricing)

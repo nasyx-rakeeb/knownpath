@@ -39,7 +39,7 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
     try {
       const response = await this.client.models.embedContent({
         model: this.modelIdentifier,
-        contents: request.input,
+        contents: formatEmbeddingInput(request),
         config: {
           outputDimensionality: request.dimensions,
           httpOptions: { timeout: this.options.requestTimeoutMs },
@@ -59,6 +59,16 @@ export class GeminiEmbeddingProvider implements EmbeddingProvider {
       throw classifyGeminiEmbeddingError(error);
     }
   }
+}
+
+function formatEmbeddingInput(request: EmbeddingProviderRequest): string {
+  if (request.task === "retrieval_query") {
+    return `task: search result | query: ${request.input}`;
+  }
+  if (request.task === "retrieval_document") {
+    return `title: ${request.title?.trim() || "none"} | text: ${request.input}`;
+  }
+  return request.input;
 }
 
 function classifyGeminiEmbeddingError(error: unknown): EmbeddingProviderError {

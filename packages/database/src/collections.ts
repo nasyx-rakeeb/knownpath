@@ -13,6 +13,7 @@ import type {
   ExtractionAttempt,
   IngestionRun,
   KnownPath,
+  KnownPathSearchDocument,
   KnownPathRevision,
   SourceItem,
   SourceItemState,
@@ -40,6 +41,7 @@ export const collectionNames = {
   ingestionRuns: "ingestion_runs",
   knownPaths: "known_paths",
   knownPathRevisions: "known_path_revisions",
+  knownPathSearchDocuments: "known_path_search_documents",
   sourceItems: "source_items",
   sourceItemStates: "source_item_states",
   sourceRegistries: "source_registries",
@@ -62,6 +64,7 @@ export interface KnownPathCollections {
   readonly ingestionRuns: Collection<IngestionRun>;
   readonly knownPaths: Collection<KnownPath>;
   readonly knownPathRevisions: Collection<KnownPathRevision>;
+  readonly knownPathSearchDocuments: Collection<KnownPathSearchDocument>;
   readonly sourceItems: Collection<SourceItem>;
   readonly sourceItemStates: Collection<SourceItemState>;
   readonly sourceRegistries: Collection<SourceRegistry>;
@@ -99,6 +102,9 @@ export function getCollections(database: Db): KnownPathCollections {
     ingestionRuns: database.collection<IngestionRun>(collectionNames.ingestionRuns),
     knownPaths: database.collection<KnownPath>(collectionNames.knownPaths),
     knownPathRevisions: database.collection<KnownPathRevision>(collectionNames.knownPathRevisions),
+    knownPathSearchDocuments: database.collection<KnownPathSearchDocument>(
+      collectionNames.knownPathSearchDocuments,
+    ),
     sourceItems: database.collection<SourceItem>(collectionNames.sourceItems),
     sourceItemStates: database.collection<SourceItemState>(collectionNames.sourceItemStates),
     sourceRegistries: database.collection<SourceRegistry>(collectionNames.sourceRegistries),

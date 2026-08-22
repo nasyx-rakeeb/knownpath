@@ -23,10 +23,14 @@
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "@types/semver": "catalog:",
     "typescript": "catalog:"
   },
   "dependencies": {
     "@google/genai": "catalog:",
-    "@knownpath/domain": "workspace:*"
+    "@knownpath/database": "workspace:*",
+    "@knownpath/domain": "workspace:*",
+    "semver": "catalog:",
+    "zod": "catalog:"
   }
 }

@@ -1120,3 +1120,141 @@ with operating behavior in [`docs/CANONICALIZATION.md`](docs/CANONICALIZATION.md
 **Phase 9: build visibility-aware semantic/hybrid retrieval and production search indexing over
 canonical KnownPaths, including the vector-index lifecycle and explainable ranking, without starting
 MCP, Agent Skill/installer, contribution, or dashboard phases early.**
+
+## Phase 9 — Hybrid semantic retrieval and explainable ranking
+
+### Phase goal
+
+Let a developer describe an Expo/React Native problem and retrieve the most relevant canonical
+KnownPaths through exact technical matching, lexical relevance, optional semantic similarity,
+version applicability, deterministic trust, freshness, and future outcome signals. Keep MongoDB as
+the only database, preserve a useful local path, and make every ranking decision inspectable.
+
+### Research performed
+
+Current official and primary references were checked on 2026-08-22 before implementation:
+
+- MongoDB's current
+  [Vector Search index fields](https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-type/),
+  [`$vectorSearch` stage](https://www.mongodb.com/docs/manual/reference/operator/aggregation/vectorsearch/),
+  [Search index management](https://www.mongodb.com/docs/atlas/atlas-search/create-index/), and
+  [hybrid-search guidance](https://www.mongodb.com/docs/atlas/atlas-vector-search/hybrid-search/)
+  for current index definitions, first-stage query requirements, filtering, candidate pools, and
+  server-side fusion availability.
+- MongoDB's current
+  [Search deployment documentation](https://www.mongodb.com/docs/manual/core/search/) and
+  [Atlas Free limits](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/) for the
+  local `mongot` boundary, Free-cluster storage/search-index limits, and the possibility that Free
+  clusters require Atlas UI index creation.
+- Official [Gemini embedding guidance](https://ai.google.dev/gemini-api/docs/embeddings),
+  [`gemini-embedding-2`](https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2), and
+  [pricing/data-use terms](https://ai.google.dev/gemini-api/docs/pricing) for the current stable
+  model, 8,192-token input limit, 128–3,072 configurable dimensions, asymmetric retrieval task
+  formatting, and unpaid-service privacy boundary.
+- [Semantic Versioning](https://semver.org/) and the maintained `node-semver` implementation for
+  exact/range compatibility and explicit unknown/incompatible states.
+
+### Architecture and technology decisions
+
+- Added a rebuildable `known_path_search_documents` projection so retrieval never performs a large
+  canonical-history join. Each document records its canonical revision, content digest,
+  projection/text/ranking versions, visibility/lifecycle, exact identifiers, applicability, trust
+  assessment IDs, freshness/outcome state, and provider/model/version/dimensions/input-hash/time.
+- Retrieval is staged: deterministic indexed error/metadata blocking, lexical retrieval, optional
+  Atlas vector retrieval, then versioned application-side reranking. The ranker returns component
+  values, penalties, caps, reason codes, and explanations rather than one opaque score.
+- Local MongoDB is the default free path using exact indexes plus a weighted text index. Atlas is an
+  explicit optional backend with `search` and `vectorSearch` definitions and an idempotent,
+  readiness-polled index lifecycle. MongoDB remains the sole database.
+- `gemini-embedding-2` is the real configurable embedding provider at 768 dimensions by default.
+  Model/version/dimensions and input versions make re-embedding safe. Semantic relevance cannot
+  overrule explicit version incompatibility, conflict, moderation, deprecation, or weak trust.
+- The unpaid provider remains `public_only` for both documents and queries. KnownPath, candidate,
+  and source visibility is checked before provider construction; private/team query text fails with
+  `embedding_provider_visibility_forbidden` and is never silently downgraded. The developer CLI also
+  rejects non-public retrieval without future owner/team authorization context.
+- Published records are the normal query scope. Review records require an explicit CLI option, so
+  the verification corpus was not falsely published.
+
+The detailed design is in
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-9-retrieval-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-9-retrieval-design.md),
+with operations and ranking behavior in [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md).
+
+### Collections, schemas, indexes, commands, and verification data
+
+- Added strict domain/API-facing query, search-document, capability, version-fit, result, and score
+  breakdown schemas; deterministic query/error normalization and semver/range evaluation; and the
+  versioned `knownpath-retrieval-ranking` policy.
+- Added the `known_path_search_documents` repository, validator, materialization service, exact,
+  local text, Atlas Search, and Atlas Vector Search queries. MongoDB now has 23 declared collections
+  and 96 named non-primary indexes, including eight ordinary search-document indexes.
+- Added Atlas lexical/vector index printing, creation/readiness, and status commands; bounded
+  projection/re-embedding; redacted inspection; and manual hybrid query commands under
+  `pnpm run search`.
+- Added centralized local/Atlas backend, index-name, readiness, candidate-pool, result-limit, and
+  minimum-score configuration plus documented `.env.example` values.
+- The database had **0 canonical KnownPaths at Phase 9 start**. As explicitly approved, the two
+  existing real scored candidates were promoted separately—not merged—into public `review` records
+  `0853accf-9e56-4b6f-9952-a4263c91d537` and `00fddedd-4666-453c-9732-a20219bc99e3`. Each has
+  exactly one supporting membership, immutable revision, original candidate ID, source evidence, and
+  latest immutable assessment ID. Neither was marked published or verified, and no additional
+  canonical knowledge was fabricated.
+
+### Commands successfully verified
+
+- `pnpm install` completed for all 18 workspace projects after adding current `semver` and type
+  declarations.
+- `pnpm typecheck` completed all 26 tasks; `pnpm lint` completed all 16 tasks; `pnpm format:check`
+  passed; and `pnpm build` completed all 16 build tasks.
+- `pnpm db:init` completed twice. The first created only `known_path_search_documents`; the repeat
+  reported every collection as existing. Direct MongoDB inspection found 23 collections and 96 named
+  non-`_id_` indexes.
+- Both approved review KnownPaths were projected with real public Gemini embeddings using
+  `gemini-embedding-2`, 768 dimensions. Direct inspection found two active ready projections. An
+  unchanged repeat and `reembed --all` each reported two reused documents and **0 provider calls**.
+  With the key explicitly absent, a no-embedding projection reused the unchanged ready document;
+  explicit re-embedding failed clearly with `embedding_provider_not_configured`.
+- The exact `ERR_INVALID_ARG_VALUE`/Expo 26.7.0 query ranked its matching real review KnownPath
+  first at 68 with visible exact-error 18, lexical 15, metadata 12, exact-version 10, trust 8,
+  freshness 5, and outcome 0 components. Querying the same material with Expo 999.0.0 classified it
+  incompatible, applied the penalty/cap, and returned zero results at the default 35 threshold.
+- A separate EAS `None of these files exist` query ranked the official-document-backed record above
+  the unrelated Node/TypeScript record. Local optional semantic mode explicitly reported Vector
+  Search unavailable while exact and weighted-text retrieval continued.
+- A private semantic query failed before Gemini with `embedding_provider_visibility_forbidden`.
+  Atlas `search` and `vectorSearch` definitions printed successfully without exposing credentials.
+  `git diff --check` passed.
+- Direct revision inspection confirmed the original source IDs/URLs/excerpts and immutable Phase 7
+  assessment IDs remain attached to both review records. No tests were added or run, as required.
+
+### Environment and manual setup still required
+
+- Use Node.js 24.18.0/pnpm 11, configure the ignored `.env`, start MongoDB, and run `pnpm db:init`.
+- Public document/query embeddings require `GEMINI_API_KEY`; review call budgets and rotate the key
+  if it has ever been exposed outside the ignored local environment.
+- Atlas semantic retrieval requires a compatible Atlas deployment, `SEARCH_BACKEND=atlas`, and the
+  printed Search/Vector Search indexes. No Atlas connection was available for live Phase 9 index
+  creation or vector-query verification; use `indexes create` or the Atlas UI, then inspect
+  `indexes status` before requiring semantic mode.
+- Keep review records opt-in until actual moderation/publication logic justifies a status change.
+
+### Known limitations intentionally left for later phases
+
+- The retained real verification corpus has only two unrelated review records. It validates
+  exact/lexical/version/trust/freshness behavior but is too small to evaluate production recall,
+  semantic ranking calibration, or result diversity.
+- Local standalone MongoDB has no configured Search service, so it intentionally cannot execute
+  semantic vector retrieval. The fallback does not pretend cosine scores exist.
+- Outcome contribution is modeled and explained as unobserved/zero; real agent outcomes and
+  conservative small-sample calibration remain a later contribution phase.
+- Atlas index-definition drift currently remains an explicit operator inspection/versioning task; an
+  existing same-name definition is reused rather than silently mutated.
+- No public search HTTP route, MCP knowledge tool, Agent Skill/installer, contribution workflow,
+  public registration, team/workspace authorization model, or dashboard was added. No tests were
+  added by explicit Phase 9 requirement.
+
+### Exact next phase
+
+**Phase 10: expose the existing visibility-aware retrieval service through a secure, versioned MCP
+knowledge interface with bounded results and transparent ranking/provenance, without starting Agent
+Skill installation, contribution/outcome collection, or dashboard work early.**

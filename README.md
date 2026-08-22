@@ -4,10 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 8 adds deterministic-first
-> candidate deduplication, public-only Gemini similarity support, and reversible canonical KnownPath
-> projections. Knowledge search, vector indexes, MCP tools, dashboards, Agent Skill installation,
-> public signup, and contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 9 adds explainable hybrid
+> retrieval over canonical KnownPaths, with useful local text/error matching and optional Atlas
+> Vector Search. Public HTTP/MCP search, dashboards, Agent Skill installation, public signup, and
+> contribution workflows are not implemented yet.
 
 ## Prerequisites
 
@@ -117,6 +117,21 @@ Gemini embeddings are generated only after both candidates and all referenced so
 public. They support plausible blocked comparisons but never decide an automatic merge. Read
 [the canonicalization guide](docs/CANONICALIZATION.md) before applying merges or manual operations.
 
+Build current canonical search projections and query them locally. Review-state records are excluded
+unless explicitly requested:
+
+```sh
+pnpm run search project --pending --limit 10
+pnpm run search query --text "EAS build cannot find an imported file" \
+  --error "None of these files exist" --ecosystem expo --include-review
+pnpm run search indexes print
+```
+
+Local MongoDB uses exact/error and weighted-text retrieval and clearly reports semantic retrieval as
+unavailable. Atlas Search/Vector Search is optional configuration. The unpaid Gemini provider
+hard-rejects private/team documents and query text. Read [the retrieval guide](docs/RETRIEVAL.md)
+before enabling Atlas or changing ranking/model configuration.
+
 Start all application and package development processes:
 
 ```sh
@@ -156,6 +171,7 @@ pnpm dev:infra:down
 | `pnpm extract`          | Extract or inspect bounded public-source candidate experiences             |
 | `pnpm score`            | Verify evidence and create/inspect immutable candidate assessments         |
 | `pnpm canonicalize`     | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
+| `pnpm run search`       | Project, embed, index, inspect, or query canonical KnownPaths              |
 
 ## Structure
 
@@ -177,13 +193,13 @@ packages/
   github-ingestion/ GitHub API collection and source normalization
   source-ingestion/ Official documentation/feed discovery and normalization
   verification/    Deterministic evidence verification and immutable seed scoring
-  search/          Provider-neutral embedding boundary; retrieval remains deferred
+  search/          Embeddings, search projections, hybrid retrieval, and explainable ranking
   typescript-config/ Shared strict compiler configurations
 ```
 
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
-[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
-delivery status.
+[retrieval guide](docs/RETRIEVAL.md), [decision log](docs/DECISIONS.md), and
+[phase progress](progress.md) for the current boundaries and delivery status.
 
 ## License
 

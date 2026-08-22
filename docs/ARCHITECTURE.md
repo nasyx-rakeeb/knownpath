@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 8. A boundary appearing here does not mean its future product behavior is
+established through Phase 9. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -50,8 +50,8 @@ database.
   human-readable score explanations.
 - `@knownpath/canonicalization` owns technical normalization, deterministic profiles/blocking, pair
   decisions, membership operations, audit history, and canonical rebuilds.
-- `@knownpath/search` owns the provider-neutral embedding contract, public-only Gemini adapter, and
-  vector similarity utility. Vector indexing and retrieval remain Phase 9 work.
+- `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
+  search projections, local/Atlas retrieval adapters, version fit, and explainable hybrid reranking.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
@@ -136,7 +136,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 22 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 23 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -160,7 +160,10 @@ indexes, and feedback aggregation before implementing this complete flow.
 11. Canonical membership operations append audit events, rebuild immutable KnownPath revisions, and
     update a stable current projection. Split/reassign operations never delete candidates or
     history.
-12. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+12. The worker materializes versioned search documents from canonical revisions. Local MongoDB
+    supplies exact/error and weighted-text retrieval; configured Atlas deployments add separately
+    managed lexical/vector channels before deterministic trust/version/freshness reranking.
+13. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
     OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
     deferred.
 
@@ -183,6 +186,10 @@ skipped capability when the token is absent.
 `GEMINI_API_KEY` has no committed default and is never logged. Phase 6's provider capability and
 environment policy are both `public_only`; private/team input blocks before provider construction.
 Model, request, retry, spacing, and token/call/target budgets are centralized configuration.
+
+Search defaults to the local non-vector backend. Atlas index names/readiness timeout and the
+embedding model/version/dimensions are explicit environment configuration. A private/team query or
+projection cannot silently use the unpaid public provider.
 
 ## Phase 2 persistence boundary
 
@@ -319,6 +326,24 @@ merge, split, reassign, and rebuild operations resumable on standalone local Mon
 first creates/reuses an immutable `known_path_revisions` snapshot and then updates the stable
 `known_paths` projection. Multiple solution variants, all evidence excerpts, contributing assessment
 IDs, and conflicts remain inspectable. See [`docs/CANONICALIZATION.md`](CANONICALIZATION.md).
+
+## Phase 9 retrieval boundary
+
+Search reads a rebuildable `known_path_search_documents` projection rather than joining canonical
+history during every query. Deterministic error and metadata blocking runs first. Local MongoDB adds
+a weighted text channel; Atlas configuration adds MongoDB Search lexical and Vector Search channels.
+Application-side reranking then combines relevance with version compatibility, immutable trust
+assessments, freshness, outcomes, conflict, moderation, and lifecycle signals.
+
+The retrieval policy is versioned and digest-addressed. Results expose component scores, penalties,
+caps, reason codes, and capability state. Vector similarity is never the sole rank and cannot erase
+an explicit incompatibility. Published records are the default query scope; review records require
+an explicit developer option.
+
+The unpaid Gemini provider remains public-only for both document and query embeddings. Local
+contributors retain useful non-vector retrieval without Atlas or paid infrastructure. Search is
+currently a worker/developer CLI capability; HTTP and MCP exposure remain later phases. See
+[`docs/RETRIEVAL.md`](RETRIEVAL.md).
 
 ## Technology fit
 

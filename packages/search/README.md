@@ -1,5 +1,7 @@
 # `@knownpath/search`
 
-Provider-neutral embedding contracts, public-only Gemini embedding support, and vector similarity
-utilities live here. Phase 8 stores ordinary embedding documents for blocked candidate pairs but
-does not add a vector index, retrieval, ranking, or public search API.
+Provider-neutral embeddings, materialized KnownPath search projections, MongoDB local/Atlas
+retrieval adapters, version compatibility, and explainable hybrid reranking live here. The unpaid
+Gemini path is public-only. Local MongoDB keeps exact and weighted-text retrieval useful without a
+vector service; Atlas Search/Vector Search is explicit configuration. See
+[`docs/RETRIEVAL.md`](../../docs/RETRIEVAL.md).

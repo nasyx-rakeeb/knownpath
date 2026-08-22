@@ -14,6 +14,7 @@ import {
   ingestionRunSchema,
   knownPathSchema,
   knownPathRevisionSchema,
+  knownPathSearchDocumentSchema,
   sourceItemSchema,
   sourceItemStateSchema,
   sourceRegistrySchema,
@@ -48,6 +49,8 @@ import {
   type KnownPathId,
   type KnownPathRevision,
   type KnownPathRevisionId,
+  type KnownPathSearchDocument,
+  type KnownPathSearchDocumentId,
   type SimilarityProfileId,
   type SourceItem,
   type SourceItemId,
@@ -899,6 +902,254 @@ export class KnownPathRepository
   ): Promise<KnownPath | null> {
     return this.updateOne({ _id: id }, projection);
   }
+
+  public async listForSearchProjection(limit = 100): Promise<KnownPath[]> {
+    const documents = await this.collection
+      .find({ status: { $in: ["review", "published"] }, latestRevisionId: { $exists: true } })
+      .sort({ "audit.updatedAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => knownPathSchema.parse(document));
+  }
+}
+
+export interface SearchChannelHit {
+  readonly document: KnownPathSearchDocument;
+  readonly score: number;
+}
+
+export class KnownPathSearchDocumentRepository
+  extends MongoEntityRepository<KnownPathSearchDocument, KnownPathSearchDocumentId>
+  implements EntityRepository<KnownPathSearchDocument, KnownPathSearchDocumentId>
+{
+  public constructor(collection: Collection<KnownPathSearchDocument>) {
+    super(collection, knownPathSearchDocumentSchema);
+  }
+
+  public async createIfAbsent(
+    entity: KnownPathSearchDocument,
+  ): Promise<KnownPathSearchDocument | null> {
+    const parsed = knownPathSearchDocumentSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<KnownPathSearchDocument | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async findActive(
+    knownPathId: KnownPathId,
+    modelIdentifier: string,
+    modelVersion: string,
+    dimensions: number,
+  ): Promise<KnownPathSearchDocument | null> {
+    return this.findOne({
+      knownPathId,
+      active: true,
+      "embedding.modelIdentifier": modelIdentifier,
+      "embedding.modelVersion": modelVersion,
+      "embedding.dimensions": dimensions,
+    });
+  }
+
+  public async retireActive(
+    knownPathId: KnownPathId,
+    modelIdentifier: string,
+    modelVersion: string,
+    dimensions: number,
+    exceptId: KnownPathSearchDocumentId,
+    retiredAt = new Date(),
+  ): Promise<number> {
+    const result = await this.collection.updateMany(
+      {
+        knownPathId,
+        active: true,
+        _id: { $ne: exceptId },
+        "embedding.modelIdentifier": modelIdentifier,
+        "embedding.modelVersion": modelVersion,
+        "embedding.dimensions": dimensions,
+      },
+      { $set: { active: false, retiredAt, "audit.updatedAt": retiredAt } },
+    );
+    return result.modifiedCount;
+  }
+
+  public async activate(
+    id: KnownPathSearchDocumentId,
+    activatedAt = new Date(),
+  ): Promise<KnownPathSearchDocument | null> {
+    return this.updateOne({ _id: id }, { active: true, activatedAt });
+  }
+
+  public async listActive(
+    statuses: readonly KnownPath["status"][],
+    limit: number,
+  ): Promise<KnownPathSearchDocument[]> {
+    const documents = await this.collection
+      .find({ active: true, knownPathStatus: { $in: [...statuses] } })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => knownPathSearchDocumentSchema.parse(document));
+  }
+
+  public async exactCandidates(input: {
+    statuses: readonly KnownPath["status"][];
+    visibilityScope: "public" | "private" | "team";
+    errorFingerprints: readonly string[];
+    errorCodes: readonly string[];
+    ecosystem?: string;
+    packages: readonly string[];
+    platforms: readonly string[];
+    limit: number;
+  }): Promise<KnownPathSearchDocument[]> {
+    const signals: Filter<KnownPathSearchDocument>[] = [];
+    if (input.errorFingerprints.length > 0)
+      signals.push({ errorFingerprints: { $in: [...input.errorFingerprints] } });
+    if (input.errorCodes.length > 0) signals.push({ errorCodes: { $in: [...input.errorCodes] } });
+    if (input.ecosystem !== undefined) signals.push({ ecosystem: input.ecosystem });
+    if (input.packages.length > 0) signals.push({ packages: { $in: [...input.packages] } });
+    if (input.platforms.length > 0) signals.push({ platforms: { $in: [...input.platforms] } });
+    if (signals.length === 0) return [];
+    const documents = await this.collection
+      .find({
+        active: true,
+        visibilityScope: input.visibilityScope,
+        knownPathStatus: { $in: [...input.statuses] },
+        $or: signals,
+      })
+      .limit(input.limit)
+      .toArray();
+    return documents.map((document) => knownPathSearchDocumentSchema.parse(document));
+  }
+
+  public async localTextSearch(
+    text: string,
+    statuses: readonly KnownPath["status"][],
+    visibilityScope: "public" | "private" | "team",
+    limit: number,
+  ): Promise<SearchChannelHit[]> {
+    const documents = (await this.collection
+      .find(
+        {
+          $text: { $search: text },
+          active: true,
+          visibilityScope,
+          knownPathStatus: { $in: [...statuses] },
+        },
+        { projection: { score: { $meta: "textScore" } } },
+      )
+      .sort({ score: { $meta: "textScore" } })
+      .limit(limit)
+      .toArray()) as Array<KnownPathSearchDocument & { score?: number }>;
+    return documents.map(({ score = 0, ...document }) => ({
+      document: knownPathSearchDocumentSchema.parse(document),
+      score,
+    }));
+  }
+
+  public async atlasTextSearch(
+    text: string,
+    statuses: readonly KnownPath["status"][],
+    visibilityScope: "public" | "private" | "team",
+    index: string,
+    limit: number,
+  ): Promise<SearchChannelHit[]> {
+    const documents = (await this.collection
+      .aggregate([
+        {
+          $search: {
+            index,
+            compound: {
+              must: [
+                {
+                  text: {
+                    query: text,
+                    path: [
+                      "title",
+                      "problemSummary",
+                      "searchableText",
+                      "normalizedErrors",
+                      "solutions",
+                    ],
+                  },
+                },
+              ],
+              filter: [
+                { equals: { path: "active", value: true } },
+                { equals: { path: "visibilityScope", value: visibilityScope } },
+                { in: { path: "knownPathStatus", value: [...statuses] } },
+              ],
+            },
+          },
+        },
+        { $limit: limit },
+        { $set: { _channelScore: { $meta: "searchScore" } } },
+      ])
+      .toArray()) as Array<KnownPathSearchDocument & { _channelScore?: number }>;
+    return documents.map(({ _channelScore = 0, ...document }) => ({
+      document: knownPathSearchDocumentSchema.parse(document),
+      score: _channelScore,
+    }));
+  }
+
+  public async atlasVectorSearch(
+    vector: readonly number[],
+    statuses: readonly KnownPath["status"][],
+    visibilityScope: "public" | "private" | "team",
+    modelIdentifier: string,
+    modelVersion: string,
+    dimensions: number,
+    index: string,
+    limit: number,
+    numCandidates: number,
+  ): Promise<SearchChannelHit[]> {
+    const documents = (await this.collection
+      .aggregate([
+        {
+          $vectorSearch: {
+            index,
+            path: "embedding.values",
+            queryVector: [...vector],
+            numCandidates,
+            limit,
+            filter: {
+              active: true,
+              visibilityScope,
+              knownPathStatus: { $in: [...statuses] },
+              "embedding.modelIdentifier": modelIdentifier,
+              "embedding.modelVersion": modelVersion,
+              "embedding.dimensions": dimensions,
+            },
+          },
+        },
+        { $set: { _channelScore: { $meta: "vectorSearchScore" } } },
+      ])
+      .toArray()) as Array<KnownPathSearchDocument & { _channelScore?: number }>;
+    return documents.map(({ _channelScore = 0, ...document }) => ({
+      document: knownPathSearchDocumentSchema.parse(document),
+      score: _channelScore,
+    }));
+  }
+
+  public async createAtlasIndexes(
+    definitions: readonly {
+      name: string;
+      type?: "search" | "vectorSearch";
+      definition: Record<string, unknown>;
+    }[],
+  ): Promise<string[]> {
+    return this.collection.createSearchIndexes([...definitions]);
+  }
+
+  public async listAtlasIndexes(): Promise<Record<string, unknown>[]> {
+    return this.collection.listSearchIndexes().toArray() as Promise<Record<string, unknown>[]>;
+  }
 }
 
 export class AgentContributionRepository
@@ -950,6 +1201,7 @@ export interface KnownPathRepositories {
   readonly ingestionRuns: IngestionRunRepository;
   readonly knownPaths: KnownPathRepository;
   readonly knownPathRevisions: KnownPathRevisionRepository;
+  readonly knownPathSearchDocuments: KnownPathSearchDocumentRepository;
   readonly sourceItems: SourceItemRepository;
   readonly sourceItemStates: SourceItemStateRepository;
   readonly sourceRegistries: SourceRegistryRepository;
@@ -977,6 +1229,9 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),
     knownPaths: new KnownPathRepository(collections.knownPaths),
     knownPathRevisions: new KnownPathRevisionRepository(collections.knownPathRevisions),
+    knownPathSearchDocuments: new KnownPathSearchDocumentRepository(
+      collections.knownPathSearchDocuments,
+    ),
     sourceItems: new SourceItemRepository(collections.sourceItems),
     sourceItemStates: new SourceItemStateRepository(collections.sourceItemStates),
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),
