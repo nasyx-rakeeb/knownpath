@@ -265,3 +265,43 @@ violate the phase's infrastructure restraint.
 [Fastify Swagger](https://github.com/fastify/fastify-swagger),
 [Fastify rate limit](https://github.com/fastify/fastify-rate-limit),
 [OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)
+
+## 2026-08-22 — Use official GitHub APIs through Octokit with a hybrid REST/GraphQL collector
+
+**Decision:** Use Octokit 5 against GitHub REST API version `2026-03-10` for repository metadata,
+issues, comments, labels, and reactions. Use authenticated GitHub GraphQL for Discussions and
+closing-pull-request enrichment. Public REST collection may run without a token; Discussions are an
+explicit skipped capability in that mode.
+
+**Why:** GitHub REST exposes cache validators and public unauthenticated access, while Discussions
+and their answer/thread graph are officially supported through GraphQL. Octokit is the maintained
+GitHub SDK and provides request, retry, throttling, and pagination infrastructure. The collector
+still validates every used response shape with Zod before normalization.
+
+**Rejected:** Scraping GitHub HTML violates the provenance/API boundary and is brittle. REST-only
+cannot capture Discussions. GraphQL-only gives up useful REST conditional requests and a supported
+lower-friction unauthenticated path. A custom HTTP/retry stack would duplicate maintained SDK work.
+
+**References:**
+[GitHub REST API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions),
+[REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+[REST best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api),
+[Discussions GraphQL guide](https://docs.github.com/en/graphql/guides/using-the-graphql-api-for-discussions),
+[Octokit](https://github.com/octokit/octokit.js)
+
+## 2026-08-22 — Persist immutable GitHub objects with overlapping incremental cursors
+
+**Decision:** Persist each issue, discussion, comment, and reply as an independent immutable source
+snapshot. Keep root/parent identities and versioned provider metadata. Deduplicate exact observed
+versions through canonical SHA-256 keys, and advance per-type updated-time cursors only after a
+failure-free run. Incremental reads overlap the last cursor by a configurable window; issue-list
+ETags avoid unchanged transfers when the request bounds match.
+
+**Why:** Independent comments avoid unbounded embedded arrays and let later extraction cite exact
+evidence. Immutable snapshots preserve edits and objective provenance. Overlap catches late edits
+and timestamp-boundary races; deterministic deduplication makes it safe. A failed object must not
+move the source cursor past work that needs retrying.
+
+**Rejected:** Overwriting one mutable document loses edit history. Embedding whole threads creates
+large, frequently rewritten documents. Cursor-only collection without overlap risks boundary misses.
+Semantic deduplication and inferred fixes belong to later processing phases.

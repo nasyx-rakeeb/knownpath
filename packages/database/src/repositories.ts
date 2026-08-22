@@ -38,6 +38,7 @@ import type {
   OptionalUnlessRequiredId,
   WithId,
 } from "mongodb";
+import { MongoServerError } from "mongodb";
 
 import type { KnownPathCollections } from "./collections.js";
 
@@ -185,6 +186,48 @@ export class SourceRegistryRepository
     return this.updateOne({ _id: id }, { enabled });
   }
 
+  public async listEnabledGitHub(): Promise<SourceRegistry[]> {
+    const documents = await this.collection
+      .find({ enabled: true, kind: "github_repository" })
+      .sort({ name: 1 })
+      .toArray();
+    return documents.map((document) => sourceRegistrySchema.parse(document));
+  }
+
+  public async updateDefinition(
+    id: SourceRegistryId,
+    definition: Pick<
+      SourceRegistry,
+      | "name"
+      | "originalUrl"
+      | "canonicalUrl"
+      | "enabled"
+      | "ecosystemHints"
+      | "configuration"
+      | "visibility"
+    >,
+  ): Promise<SourceRegistry | null> {
+    return this.updateOne({ _id: id }, definition);
+  }
+
+  public async recordAttempt(
+    id: SourceRegistryId,
+    attemptedAt: Date,
+  ): Promise<SourceRegistry | null> {
+    return this.updateOne({ _id: id }, { lastIngestionAttemptAt: attemptedAt });
+  }
+
+  public async recordSuccess(
+    id: SourceRegistryId,
+    succeededAt: Date,
+    cursor: Readonly<Record<string, string>>,
+  ): Promise<SourceRegistry | null> {
+    return this.updateOne(
+      { _id: id },
+      { lastSuccessfulIngestionAt: succeededAt, cursor: { ...cursor } },
+    );
+  }
+
   public async removeVerificationRecord(
     id: SourceRegistryId,
     expectedIdentityKey: VersionedKey,
@@ -208,6 +251,30 @@ export class SourceItemRepository
   public async findByDeduplicationKey(key: VersionedKey): Promise<SourceItem | null> {
     return this.findOne({ "deduplicationKey.value": key.value });
   }
+
+  public async findLatestBySourceIdentity(
+    sourceRegistryId: SourceRegistryId,
+    sourceItemIdentity: string,
+  ): Promise<SourceItem | null> {
+    const document = await this.collection.findOne(
+      { sourceRegistryId, "provenance.sourceItemIdentity": sourceItemIdentity },
+      { sort: { capturedAt: -1 } },
+    );
+    return document === null ? null : sourceItemSchema.parse(document);
+  }
+
+  public async createIfAbsent(entity: SourceItem): Promise<SourceItem | null> {
+    const parsed = sourceItemSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) {
+        return null;
+      }
+      throw error;
+    }
+  }
 }
 
 export class IngestionRunRepository
@@ -223,6 +290,41 @@ export class IngestionRunRepository
     status: IngestionRun["status"],
   ): Promise<IngestionRun | null> {
     return this.updateOne({ _id: id }, { status });
+  }
+
+  public async start(id: IngestionRunId, startedAt = new Date()): Promise<IngestionRun | null> {
+    return this.updateOne({ _id: id, status: "queued" }, { status: "running", startedAt });
+  }
+
+  public async updateCounters(
+    id: IngestionRunId,
+    counters: IngestionRun["counters"],
+    stage: string,
+  ): Promise<IngestionRun | null> {
+    return this.updateOne({ _id: id, status: "running" }, { counters, stage });
+  }
+
+  public async succeed(
+    id: IngestionRunId,
+    counters: IngestionRun["counters"],
+    completedAt = new Date(),
+  ): Promise<IngestionRun | null> {
+    return this.updateOne(
+      { _id: id, status: "running" },
+      { status: "succeeded", stage: "complete", counters, completedAt },
+    );
+  }
+
+  public async fail(
+    id: IngestionRunId,
+    counters: IngestionRun["counters"],
+    failure: NonNullable<IngestionRun["failure"]>,
+    completedAt = new Date(),
+  ): Promise<IngestionRun | null> {
+    return this.updateOne(
+      { _id: id, status: { $in: ["queued", "running"] } } as Filter<IngestionRun>,
+      { status: "failed", stage: "failed", counters, failure, completedAt },
+    );
   }
 }
 

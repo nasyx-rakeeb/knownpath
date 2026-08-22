@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 3. A boundary appearing here does not mean its future product behavior is
+established through Phase 4. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -18,8 +18,8 @@ database.
   network security policy, and API process lifecycle. Phase 3 exposes operational health,
   closed-registration session routes, account inspection, and API-key lifecycle routes under
   `/api/v1`.
-- `@knownpath/worker` owns future ingestion and background-processing process lifecycle. It does no
-  processing in Phase 1.
+- `@knownpath/worker` owns ingestion and background-process lifecycle. Phase 4 exposes a bounded
+  GitHub collection command; it is not yet a scheduler or queue consumer.
 - `@knownpath/mcp-server` owns MCP protocol and transport adaptation. It uses the official SDK but
   registers no tools, prompts, or resources in Phase 1.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
@@ -38,6 +38,8 @@ database.
 - `@knownpath/auth` owns Better Auth composition, API-key cryptography and lifecycle services,
   principal resolution, authorization policies, audit-event creation, and framework-neutral
   rate-limit policy contracts. It does not depend on Fastify.
+- `@knownpath/github-ingestion` owns configured GitHub API collection, runtime response validation,
+  provider-neutral normalization, incremental cursors, and ingestion-run orchestration.
 - `@knownpath/ai` will hold provider-neutral extraction contracts and provider implementations.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
@@ -52,11 +54,14 @@ conventions. No Skill artifact is published in Phase 1.
 
 ```text
 apps/api ---------+
-apps/worker ------+
 apps/mcp-server --+--> capability packages ---> packages/domain
 apps/cli ---------+              |
 apps/web ---------+              +-------------> packages/config
                                  +-------------> packages/database
+
+apps/worker --> packages/github-ingestion --> packages/domain
+                       |                    --> packages/config
+                       +---------------------> packages/database
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -112,13 +117,16 @@ indexes, and feedback aggregation before implementing this complete flow.
 6. The API constructs Better Auth and KnownPath auth services over that same database boundary,
    resolves either HttpOnly cookie sessions or bearer API keys into reusable principals, and applies
    route-specific authorization.
-7. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
-   OpenAPI JSON, and optional Swagger UI. Worker, MCP, web, and installer product behavior remains
+7. The worker composes `@knownpath/github-ingestion`, the source manifest, configuration, and the
+   repository registry. It collects bounded issue/discussion graphs into immutable source items and
+   advances a cursor only after a failure-free run.
+8. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+   OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
    deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 3. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 4. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -127,6 +135,10 @@ cookie security, and rate-limit settings are explicit configuration rather than 
 Invalid configuration fails before an application starts. Database callers supply a validated
 `MongoConfig`; only command entry points read process globals. The reusable database layer receives
 configuration explicitly.
+
+`GITHUB_TOKEN` has no committed default and is never logged. Public REST collection can operate
+without it at GitHub's lower limit. Discussions require authenticated GraphQL and are reported as a
+skipped capability when the token is absent.
 
 ## Phase 2 persistence boundary
 
@@ -165,6 +177,25 @@ and a patched per-process rate limiter. The limiter boundary can receive distrib
 Phase 3 intentionally adds no Redis or Valkey. Sensitive actions append bounded `audit_events`
 without credentials. OpenAPI 3.1 is generated from route schemas at `/api/v1/openapi.json`; Swagger
 UI is configuration-controlled at `/docs`.
+
+## Phase 4 GitHub ingestion boundary
+
+The versioned manifest at `config/sources/github.json` identifies the initial Expo and React Native
+repositories and supported source types. The worker verifies repository identity/capabilities and
+uses Octokit against GitHub's official REST and GraphQL APIs. Requests are serial, paginated, time
+bounded, retried with bounded backoff, and expose only safe rate telemetry to logs.
+
+Issue threads use REST for issues, comments, labels, and reactions, with GraphQL enrichment for
+closing pull requests when authenticated. Discussions use authenticated GraphQL for discussions,
+answer state, comments/replies, and reactions. All response shapes are runtime validated and all
+source text remains explicitly untrusted data.
+
+Each issue, discussion, comment, and reply becomes its own immutable source snapshot. Parent/root
+identities retain thread structure; provider metadata retains GitHub IDs, node IDs, association,
+labels, reactions, state, and timestamps. Content hashes and unique deduplication keys make overlap
+and reruns safe. Source-registry cursors track each source type independently; a default overlap
+window catches late edits. Cursors advance only after all discovered objects persist successfully.
+See [`docs/GITHUB_INGESTION.md`](GITHUB_INGESTION.md).
 
 ## Technology fit
 

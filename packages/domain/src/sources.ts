@@ -35,7 +35,9 @@ export const sourceRegistrySchema = z.strictObject({
 
 export const sourceItemTypeSchema = z.enum([
   "issue",
+  "issue_comment",
   "discussion",
+  "discussion_comment",
   "pull_request",
   "documentation_page",
   "release_note",
@@ -45,10 +47,18 @@ export const sourceItemTypeSchema = z.enum([
 export const sourceProvenanceSchema = z.strictObject({
   canonicalUrl: z.url(),
   sourceItemIdentity: shortStringSchema,
+  rootSourceItemIdentity: shortStringSchema.optional(),
+  parentSourceItemIdentity: shortStringSchema.optional(),
   observedRevision: z.string().trim().min(1).max(512).optional(),
   author: z.string().trim().min(1).max(512).optional(),
   publishedAt: timestampSchema.optional(),
   observedAt: timestampSchema,
+});
+
+export const sourceProviderMetadataSchema = z.strictObject({
+  provider: shortStringSchema,
+  formatVersion: z.int().positive(),
+  payload: z.json(),
 });
 
 export const sourceContentSchema = z.strictObject({
@@ -66,6 +76,7 @@ export const sourceItemSchema = z.strictObject({
   itemType: sourceItemTypeSchema,
   title: nonEmptyStringSchema.optional(),
   provenance: sourceProvenanceSchema,
+  providerMetadata: sourceProviderMetadataSchema.optional(),
   content: sourceContentSchema,
   deduplicationKey: versionedKeySchema,
   capturedAt: timestampSchema,
@@ -75,3 +86,4 @@ export const sourceItemSchema = z.strictObject({
 
 export type SourceRegistry = z.infer<typeof sourceRegistrySchema>;
 export type SourceItem = z.infer<typeof sourceItemSchema>;
+export type SourceProviderMetadata = z.infer<typeof sourceProviderMetadataSchema>;

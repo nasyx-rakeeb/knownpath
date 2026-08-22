@@ -1,27 +1,35 @@
 {
-  "name": "@knownpath/worker",
+  "name": "@knownpath/github-ingestion",
   "version": "0.0.0",
   "private": true,
-  "description": "KnownPath background processing runtime.",
+  "description": "GitHub source collection and normalization for KnownPath.",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
-    "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
+    "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src",
-    "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
-    "@knownpath/github-ingestion": "workspace:*"
+    "@knownpath/domain": "workspace:*",
+    "octokit": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

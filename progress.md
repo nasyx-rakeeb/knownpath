@@ -397,3 +397,143 @@ including immutable source snapshot capture, provenance, idempotent ingestion ru
 processing-state transitions through the existing repositories.** Do not begin AI extraction,
 semantic search, MCP knowledge tools, Agent Skill distribution, contributions, or dashboards until
 their designated later phases.
+
+## Phase 4 — Expo and React Native GitHub source collection
+
+### Phase goal
+
+Implement the first real, source-registry-driven collector for high-signal public Expo and React
+Native GitHub material. Preserve objective source text and provenance as immutable MongoDB snapshots
+for a later extraction phase without inferring fixes or creating knowledge records.
+
+### Research performed
+
+Official documentation and live public repository metadata were checked on 2026-08-22 before
+implementation:
+
+- [GitHub REST API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions),
+  [pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api),
+  [rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+  and
+  [best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
+- GitHub's official [issues](https://docs.github.com/en/rest/issues/issues),
+  [comments](https://docs.github.com/en/rest/issues/comments),
+  [reactions](https://docs.github.com/en/rest/reactions/reactions), and
+  [GraphQL Discussions](https://docs.github.com/en/graphql/guides/using-the-graphql-api-for-discussions)
+  documentation
+- [GitHub credential guidance](https://docs.github.com/en/rest/authentication/keeping-your-api-credentials-secure)
+  and the maintained [Octokit JavaScript SDK](https://github.com/octokit/octokit.js)
+- Current [Expo documentation](https://docs.expo.dev/),
+  [React Native contributing overview](https://reactnative.dev/contributing/overview), and
+  [React Native support locations](https://reactnative.dev/community/support)
+
+Live GitHub API checks confirmed `expo/expo`, the current `react/react-native` canonical repository,
+`react-native-community/discussions-and-proposals`, `reactwg/react-native-new-architecture`, and
+`react-native-community/upgrade-support`. They also confirmed the old `facebook/react-native` path
+redirects, React Native core has no enabled Discussions, and the other selected source capabilities
+match the manifest. GitHub's current REST version is `2026-03-10`; authenticated and unauthenticated
+primary limits and the authenticated-only GraphQL boundary were verified from both documentation and
+live response telemetry.
+
+### Architecture and technology decisions
+
+- A versioned JSON manifest makes the five initial sources, ecosystem hints, types, lookbacks, and
+  enabled state data-driven.
+- Octokit 5 supplies maintained REST/GraphQL requests, retry, throttling, and pagination support.
+  Zod still validates every response shape consumed by normalization.
+- REST collects repositories, issues, comments, labels, reactions, and conditional ETags. GraphQL
+  collects Discussions, answer/thread/reaction graphs, and closing pull-request enrichment.
+- Public REST works without a token at the lower limit. Discussions are explicitly skipped and
+  counted without authenticated GraphQL rather than silently producing incomplete records.
+- Issues, discussions, comments, and replies are separate immutable snapshots with root/parent
+  identities, objective versioned provider metadata, content hashes, and deterministic deduplication
+  keys. All source text remains untrusted.
+- Per-type updated-time cursors use a configurable overlap window, and issue-list ETags avoid
+  unchanged transfers when request bounds match. Cursors advance only after failure-free runs.
+- Requests remain serial and bounded. Transient retry/rate waiting is capped; permanent failures
+  receive safe error codes. Phase 4 adds no scheduler, queue, cache, or second database.
+
+Detailed rationale is in [`docs/DECISIONS.md`](docs/DECISIONS.md); operating guidance is in
+[`docs/GITHUB_INGESTION.md`](docs/GITHUB_INGESTION.md).
+
+### Collections, schemas, indexes, and files created or evolved
+
+- Added `@knownpath/github-ingestion` with manifest selection, official API clients, runtime
+  schemas, issue/discussion collectors, normalization, orchestration, error handling, and CLI
+  parsing.
+- Added `config/sources/github.json` with five verified Expo/React Native source definitions.
+- Evolved source items with `issue_comment`/`discussion_comment`, thread provenance, and versioned
+  provider metadata. Evolved ingestion counters with required created/updated/unchanged/failed/
+  rate-limited dimensions.
+- Evolved repositories for registry definition/cursors, immutable snapshot insert-or-observe, and
+  queued/running/succeeded/failed ingestion-run transitions.
+- Added `ix_source_items_registry_type_observed_at`, bringing the declared named index count to 47
+  across the existing 13 collections, excluding automatic `_id_` indexes.
+- Added `pnpm ingest:github`, worker signal handling, typed GitHub configuration, and documented
+  environment variables with no token default.
+- Added this progress entry and Phase 4 updates to README, architecture, data model, decision log,
+  package documentation, and the approved Phase 4 design specification.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` installed all 15 workspace projects and Octokit 5.0.5.
+- `pnpm typecheck` — 18 tasks successful across 14 packages.
+- `pnpm lint` — 13 tasks successful.
+- `pnpm build` — 13 tasks successful; the Next.js shell compiled and prerendered `/`.
+- Authenticated dry runs discovered one Expo issue and one Expo Discussion without database writes.
+- An unauthenticated Expo REST dry run returned a live primary limit of 60; an unauthenticated
+  Discussion dry run completed with `capabilitySkipped: 1` and no fabricated data.
+- A bounded authenticated Expo issue run stored one issue plus three comments. Inspection confirmed
+  source text, labels, one reaction, contributor/collaborator author associations, closing pull
+  request metadata, URLs, IDs, timestamps, and root/parent relationships.
+- A bounded authenticated Expo Discussion run stored a discussion and its comment. Inspection
+  confirmed untrusted Markdown content, association/answer/reaction metadata, content digest, and
+  correct root/parent identities.
+- Repeating the issue sample reported `created: 0`, `unchanged: 4`; repeating the discussion/comment
+  sample reported `created: 0`, `unchanged: 2`. No duplicate snapshots were created.
+- One live response exposed GitHub's nullable `isAnswered` value; runtime validation safely failed
+  and recorded the run. The schema was corrected to match the observed API, and the same bounded run
+  then succeeded. The failed operational record remains as honest ingestion history.
+- Captured debug logs showed safe status/rate-limit/request-ID telemetry. Exact token and credential
+  pattern scans were clean; no token, authorization header, or bearer credential appeared.
+- `pnpm db:init` completed twice with `created: false` for all 13 collections. Direct MongoDB
+  inspection found the four declared source indexes plus `_id_`, six valid source snapshots across
+  all four implemented item kinds, no malformed GitHub item envelope, and succeeded/failed run
+  history.
+- `pnpm format` and `pnpm format:check` completed successfully.
+
+No automated tests were created or run, as required for this phase.
+
+### Environment and manual setup still required
+
+- Use the pinned Node.js 24/pnpm 11 toolchain, copy `.env.example` to `.env`, start MongoDB, and run
+  `pnpm db:init` before collection.
+- Supply a read-only `GITHUB_TOKEN` for the normal authenticated limit and Discussions. Public REST
+  can run without one at its lower limit; never place a token in command arguments or source files.
+- Review `config/sources/github.json`, use `--dry-run`, and begin with small `--limit` values. An
+  intentional historical backfill requires `--backfill` plus an explicit `--since`; advance bounded
+  windows manually while monitoring rate telemetry.
+- Production scheduling, worker leases, deployment topology, token rotation, observability, and
+  operational retention remain deployment/later-phase work.
+
+### Known limitations intentionally left for later phases
+
+- No AI/Gemini extraction, prompt execution, candidate experience creation, fix inference, semantic
+  deduplication, deterministic trust scoring, or canonical KnownPath promotion.
+- No documentation-site ingestion, webhooks, scheduler, distributed queue, parallel collector, or
+  automatic failed-run retry process.
+- No vector embeddings/indexes, lexical/hybrid retrieval, public knowledge API, or search ranking.
+- No MCP knowledge tools, Agent Skill artifact/installer, agent contributions/outcomes processing,
+  team model, or dashboard ingestion controls.
+- Top-level collection is bounded per enabled source type, but related thread comments/replies/
+  reactions are intentionally complete; very large-thread operational chunking may be added when
+  real workload evidence exists.
+- No automated tests, by explicit Phase 4 requirement.
+
+### Exact next phase
+
+**Phase 5: implement provider-neutral AI extraction of immutable source snapshots into validated
+candidate experiences, including the first configured extraction provider, prompt/version
+provenance, bounded processing lifecycle, and deterministic output validation.** Do not implement
+canonical promotion, search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution
+workflows, or dashboards until their designated later phases.

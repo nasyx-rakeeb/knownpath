@@ -79,6 +79,19 @@ A source item retains its registry ID, source-native identity, canonical URL, op
 revision and author, observed/published/captured timestamps, content digest, media type, byte
 length, and either bounded text or an external content reference. Captured content is immutable.
 
+Phase 4 stores GitHub `issue`, `issue_comment`, `discussion`, and `discussion_comment` snapshots.
+Comments and replies carry both root and parent source-native identities so a future extractor can
+reconstruct threads without embedding unbounded comment arrays. `providerMetadata` is a versioned,
+provider-namespaced JSON boundary containing objective GitHub metadata such as immutable database
+and node IDs, repository identity, author association, labels, state, reactions, answer state,
+closing pull-request references, and edit timestamps. Source body text is untrusted Markdown and is
+never interpreted as instructions by the collector.
+
+GitHub source registries store independent issue/discussion updated-time cursors plus REST ETag
+metadata. Ingestion counters always include `discovered`, `created`, `updated`, `unchanged`,
+`failed`, and `rateLimited`; bounded provider counters such as `issues`, `discussions`,
+`conditionalNotModified`, and `capabilitySkipped` may be added.
+
 ### Ecosystem, package, platform, and environment
 
 Candidate and KnownPath documents embed normalized projections for their primary ecosystem and
@@ -176,6 +189,8 @@ and is omitted below.
 - `uq_source_items_deduplication_key`: unique immutable-snapshot deduplication.
 - `ix_source_items_registry_captured_at`: snapshot history for a registry.
 - `ix_source_items_registry_identity_captured_at`: native item revision history.
+- `ix_source_items_registry_type_observed_at`: incremental inspection by registry, object type, and
+  provider observation time.
 
 ### `ingestion_runs`
 
@@ -216,7 +231,7 @@ and is omitted below.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
 parallel-array multikey restriction. No text, TTL, wildcard, geospatial, or vector indexes are
-created in Phase 2.
+created through Phase 4. GitHub collection adds no text or vector index.
 
 ## Initialization and inspection
 
@@ -241,6 +256,8 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Source snapshots, successful ingestion history, canonical knowledge, contributions, and outcomes
   are retained until a future policy says otherwise.
 - Source items are immutable; corrections create a new snapshot.
+- GitHub cursors and ETags are mutable scheduling state, not provenance. Snapshots and successful
+  run history are retained; a future policy must explicitly define archival.
 - API keys are revoked/expired rather than silently deleted.
 - Users and knowledge use lifecycle/moderation states for soft removal.
 - Authentication sessions and verification records expire logically; no TTL deletion policy is

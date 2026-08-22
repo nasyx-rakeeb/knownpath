@@ -80,6 +80,25 @@ const runtimeEnvironmentSchema = z.object({
   LOG_LEVEL: logLevelSchema,
 });
 
+const optionalSecretEnvironmentSchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().trim().min(1).optional(),
+);
+
+const githubEnvironmentSchema = z.object({
+  GITHUB_API_VERSION: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/u)
+    .default("2026-03-10"),
+  GITHUB_INCREMENTAL_OVERLAP_HOURS: z.coerce.number().int().min(1).max(720).default(24),
+  GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS: z.coerce.number().int().min(0).max(900).default(120),
+  GITHUB_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+  GITHUB_SOURCE_REGISTRY_PATH: z.string().trim().min(1).default("config/sources/github.json"),
+  GITHUB_TOKEN: optionalSecretEnvironmentSchema,
+  GITHUB_USER_AGENT: z.string().trim().min(1).max(256).default("knownpath/0.0.0"),
+  LOG_LEVEL: logLevelSchema,
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -110,6 +129,17 @@ export interface MongoConfig {
   readonly minPoolSize: number;
   readonly serverSelectionTimeoutMs: number;
   readonly uri: string;
+}
+
+export interface GitHubConfig {
+  readonly apiVersion: string;
+  readonly incrementalOverlapMs: number;
+  readonly logLevel: LogLevel;
+  readonly maxRateLimitWaitSeconds: number;
+  readonly requestTimeoutMs: number;
+  readonly sourceRegistryPath: string;
+  readonly token?: string;
+  readonly userAgent: string;
 }
 
 export interface RuntimeConfig {
@@ -164,6 +194,21 @@ export function loadMongoConfig(environment: NodeJS.ProcessEnv = process.env): M
     minPoolSize: parsed.MONGODB_MIN_POOL_SIZE,
     serverSelectionTimeoutMs: parsed.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
     uri: parsed.MONGODB_URI,
+  };
+}
+
+export function loadGitHubConfig(environment: NodeJS.ProcessEnv = process.env): GitHubConfig {
+  const parsed = parseEnvironment(githubEnvironmentSchema, environment);
+
+  return {
+    apiVersion: parsed.GITHUB_API_VERSION,
+    incrementalOverlapMs: parsed.GITHUB_INCREMENTAL_OVERLAP_HOURS * 60 * 60 * 1_000,
+    logLevel: parsed.LOG_LEVEL,
+    maxRateLimitWaitSeconds: parsed.GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS,
+    requestTimeoutMs: parsed.GITHUB_REQUEST_TIMEOUT_MS,
+    sourceRegistryPath: parsed.GITHUB_SOURCE_REGISTRY_PATH,
+    ...(parsed.GITHUB_TOKEN === undefined ? {} : { token: parsed.GITHUB_TOKEN }),
+    userAgent: parsed.GITHUB_USER_AGENT,
   };
 }
 

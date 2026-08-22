@@ -228,6 +228,14 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         key: { sourceRegistryId: 1, "provenance.sourceItemIdentity": 1, capturedAt: -1 },
         name: "ix_source_items_registry_identity_captured_at",
       },
+      {
+        key: {
+          sourceRegistryId: 1,
+          itemType: 1,
+          "provenance.observedAt": -1,
+        },
+        name: "ix_source_items_registry_type_observed_at",
+      },
     ],
   },
   {

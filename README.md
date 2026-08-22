@@ -4,10 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 3 provides the versioned domain,
-> MongoDB, closed-registration authentication, API-key, and secure HTTP foundations. Ingestion, AI
-> extraction, knowledge search, MCP tools, dashboards, Agent Skill installation, public signup, and
-> contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 4 adds bounded, incremental
+> GitHub collection for configured Expo and React Native sources on top of the domain, MongoDB, and
+> secure API foundations. AI extraction, knowledge search, MCP tools, dashboards, Agent Skill
+> installation, public signup, and contribution workflows are not implemented yet.
 
 ## Prerequisites
 
@@ -53,6 +53,16 @@ Create the first local user or administrator through the masked CLI (registratio
 pnpm auth:user:create
 ```
 
+Optionally set `GITHUB_TOKEN` in `.env` for the normal 5,000-request authenticated REST limit and
+GitHub Discussions access. Then preview or run a bounded collection:
+
+```sh
+pnpm ingest:github -- --source expo-core --types issues --limit 5 --dry-run
+pnpm ingest:github -- --source expo-core --types issues --limit 5
+```
+
+See [the GitHub ingestion guide](docs/GITHUB_INGESTION.md) before running a backfill.
+
 Start all application and package development processes:
 
 ```sh
@@ -87,6 +97,7 @@ pnpm dev:infra:down
 | `pnpm db:inspect`       | Print current collection validators and indexes                            |
 | `pnpm db:verify`        | Run and clean up a repository-layer persistence round trip                 |
 | `pnpm auth:user:create` | Safely provision a user/admin with a masked password prompt                |
+| `pnpm ingest:github`    | Collect a bounded configured GitHub source through official APIs           |
 
 ## Structure
 
@@ -96,7 +107,7 @@ apps/
   cli/             Future installer command boundary
   mcp-server/      MCP protocol process without KnownPath tools
   web/             Next.js application shell
-  worker/          Future background processing runtime
+  worker/          GitHub ingestion and future background processing runtime
 packages/
   agent-adapters/  Future per-agent integration boundary
   ai/              Future provider-neutral extraction boundary
@@ -104,6 +115,7 @@ packages/
   config/          Typed environment parsing
   database/        MongoDB lifecycle, repositories, validators, and indexes
   domain/          Versioned domain schemas and canonicalization helpers
+  github-ingestion/ GitHub API collection and source normalization
   search/          Future retrieval boundary
   typescript-config/ Shared strict compiler configurations
 ```

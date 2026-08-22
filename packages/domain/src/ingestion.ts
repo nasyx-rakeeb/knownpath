@@ -20,6 +20,17 @@ export const ingestionRunStatusSchema = z.enum([
 
 export const ingestionTriggerSchema = z.enum(["manual", "scheduled", "webhook", "retry"]);
 
+export const ingestionCountersSchema = z
+  .object({
+    discovered: z.int().nonnegative().default(0),
+    created: z.int().nonnegative().default(0),
+    updated: z.int().nonnegative().default(0),
+    unchanged: z.int().nonnegative().default(0),
+    failed: z.int().nonnegative().default(0),
+    rateLimited: z.int().nonnegative().default(0),
+  })
+  .catchall(z.int().nonnegative());
+
 export const ingestionRunSchema = z.strictObject({
   _id: ingestionRunIdSchema,
   schemaVersion: schemaVersionSchema,
@@ -34,7 +45,14 @@ export const ingestionRunSchema = z.strictObject({
   leaseExpiresAt: timestampSchema.optional(),
   startedAt: timestampSchema.optional(),
   completedAt: timestampSchema.optional(),
-  counters: z.record(z.string(), z.int().nonnegative()).default({}),
+  counters: ingestionCountersSchema.default({
+    discovered: 0,
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    failed: 0,
+    rateLimited: 0,
+  }),
   failure: z
     .strictObject({
       code: shortStringSchema,
@@ -46,3 +64,4 @@ export const ingestionRunSchema = z.strictObject({
 });
 
 export type IngestionRun = z.infer<typeof ingestionRunSchema>;
+export type IngestionCounters = z.infer<typeof ingestionCountersSchema>;
