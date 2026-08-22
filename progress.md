@@ -645,8 +645,23 @@ and the approved design are in [`docs/DECISIONS.md`](docs/DECISIONS.md) and
   deterministic error fingerprint, step-level source IDs, official-support label candidate, and
   reported token usage. An unchanged repeat reused it with one total call; candidate, attempt,
   source, and registry cleanup were all confirmed.
-- Shell inspection confirmed neither `GEMINI_API_KEY` nor `GOOGLE_API_KEY` was available and no
-  populated `.env` file existed. No live Gemini result is claimed.
+- Initial shell inspection confirmed no key was available. A later local key was added only to the
+  ignored `.env`, after which bounded live Gemini verification completed successfully.
+- Live extraction created grounded candidates from an official Expo EAS troubleshooting document and
+  a closed Expo issue with a maintainer response. Exact source IDs, excerpts, URLs, model usage,
+  prompt/schema versions, and candidate labels were inspected directly.
+- A public zero-comment Expo issue was classified `insufficient_evidence` instead of becoming fake
+  knowledge. Its unchanged rerun reported `providerCalls: 0` and `reused: 1`.
+- Live output exposed two boundary mismatches: empty optional strings and excerpts drawn from
+  structured blocks. Response schema version 2 now normalizes empty optional strings to absence,
+  still rejects missing reusable fields, and validates exact excerpts against either persisted text
+  representation. Reprocessing then produced valid grounded candidates.
+- A temporary public source containing a harmless instruction-like sentence was processed by live
+  Gemini. It remained `reusable`, cited only the technical problem/solution/verification text, and
+  ignored the embedded classification instruction. Its unchanged rerun reported `providerCalls: 0`;
+  its candidate, attempt, source item, and registry were then removed and confirmed absent.
+- Observed pnpm 11 execution showed that root scripts must receive arguments without an extra `--`.
+  CLI usage output and contributor documentation were corrected to the executable command form.
 
 No automated tests were created or run, as required for this phase.
 
@@ -654,21 +669,14 @@ No automated tests were created or run, as required for this phase.
 
 - Use the pinned Node.js 24/pnpm 11 toolchain, copy `.env.example` to `.env`, start MongoDB, and run
   `pnpm db:init`.
-- Create a Gemini development key in the official console and set only `GEMINI_API_KEY` in the
-  ignored `.env`/deployment secret manager. Keep `AI_DATA_HANDLING=public_only`; do not submit
-  private, team, sensitive, confidential, or personal source material to unpaid Gemini.
-- With that real key, run bounded extraction for a useful solved public Expo/React Native thread, a
-  noisy/non-solution record, and a temporary public injection-like sample. Inspect evidence and
-  classifications, repeat unchanged work to observe zero additional Gemini calls, then clean up the
-  temporary sample. Exact steps are in `docs/AI_EXTRACTION.md`.
+- Configure `GEMINI_API_KEY` only in an ignored local environment file or deployment secret manager.
+  Keep `AI_DATA_HANDLING=public_only`; do not submit private, team, sensitive, confidential, or
+  personal source material to unpaid Gemini.
 - Review current project/model rate limits in AI Studio before increasing the conservative command
   budgets. Free-tier quotas are project/model-specific and can change.
 
 ### Known limitations intentionally left for later phases
 
-- Live Gemini extraction was not executed because no key was available. Static/provider-boundary
-  checks do not prove live model classification, evidence quality, prompt-injection resistance, or
-  Gemini-side idempotency.
 - Candidate labels are evidence-grounded but intentionally `unverified`; no numeric trust score,
   freshness calculation, contradiction resolution, semantic deduplication, or canonical promotion
   exists yet.

@@ -350,11 +350,11 @@ same provider request/output contracts and attempt lifecycle rather than bypassi
 The root exposes one extraction command routed through the worker:
 
 ```sh
-pnpm extract -- one --source-item <uuid>
-pnpm extract -- pending --limit 5
-pnpm extract -- batch --source expo-core --limit 10
-pnpm extract -- inspect --candidate <uuid>
-pnpm extract -- inspect --attempt <uuid>
+pnpm extract one --source-item <uuid>
+pnpm extract pending --limit 5
+pnpm extract batch --source expo-core --limit 10
+pnpm extract inspect --candidate <uuid>
+pnpm extract inspect --attempt <uuid>
 ```
 
 `one` resolves a comment to its root. `pending` selects bounded latest public targets without a

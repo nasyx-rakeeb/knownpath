@@ -39,14 +39,14 @@ configured high-signal candidates. This keeps routine collection focused and ine
 Every indexed page remains available on demand:
 
 ```sh
-pnpm ingest:sources -- sync --source expo-documentation \
+pnpm ingest:sources sync --source expo-documentation \
   --page https://docs.expo.dev/versions/latest/sdk/camera --limit 1
 ```
 
 An explicit full-catalog operation is supported but remains bounded:
 
 ```sh
-pnpm ingest:sources -- sync --source react-native-documentation --scope all --limit 25 --dry-run
+pnpm ingest:sources sync --source react-native-documentation --scope all --limit 25 --dry-run
 ```
 
 Do not schedule `--scope all` as the normal Phase 5 behavior. Raise limits gradually while observing
@@ -64,27 +64,27 @@ pnpm db:init
 Discover and classify candidates without writing registry, run, snapshot, state, or cursor records:
 
 ```sh
-pnpm ingest:sources -- discover --source expo-documentation --limit 20
-pnpm ingest:sources -- discover --all --limit 10
+pnpm ingest:sources discover --source expo-documentation --limit 20
+pnpm ingest:sources discover --all --limit 10
 ```
 
 Preview selected content fetches without persistence:
 
 ```sh
-pnpm ingest:sources -- sync --source react-native-documentation --limit 5 --dry-run
+pnpm ingest:sources sync --source react-native-documentation --limit 5 --dry-run
 ```
 
 Synchronize one source or all enabled official sources:
 
 ```sh
-pnpm ingest:sources -- sync --source expo-changelog --limit 5
-pnpm ingest:sources -- sync --all --limit 5
+pnpm ingest:sources sync --source expo-changelog --limit 5
+pnpm ingest:sources sync --all --limit 5
 ```
 
 Filter candidates carrying a deterministically detected version:
 
 ```sh
-pnpm ingest:sources -- sync --source react-native-releases --version 0.87 --limit 5
+pnpm ingest:sources sync --source react-native-releases --version 0.87 --limit 5
 ```
 
 `--page` requires one `--source`; it cannot be combined with `--all`. A targeted indexed page

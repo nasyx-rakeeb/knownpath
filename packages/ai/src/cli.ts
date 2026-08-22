@@ -23,11 +23,11 @@ export type ExtractionCommand =
 export function extractionUsage(): string {
   return [
     "KnownPath AI extraction:",
-    "  pnpm extract -- one --source-item <uuid> [--force]",
-    "  pnpm extract -- pending [--limit <n>] [--force]",
-    "  pnpm extract -- batch --source <source-key> [--limit <n>] [--force]",
-    "  pnpm extract -- inspect --candidate <uuid>",
-    "  pnpm extract -- inspect --attempt <uuid>",
+    "  pnpm extract one --source-item <uuid> [--force]",
+    "  pnpm extract pending [--limit <n>] [--force]",
+    "  pnpm extract batch --source <source-key> [--limit <n>] [--force]",
+    "  pnpm extract inspect --candidate <uuid>",
+    "  pnpm extract inspect --attempt <uuid>",
   ].join("\n");
 }
 

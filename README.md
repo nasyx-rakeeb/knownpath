@@ -57,8 +57,8 @@ Optionally set `GITHUB_TOKEN` in `.env` for the normal 5,000-request authenticat
 GitHub Discussions access. Then preview or run a bounded collection:
 
 ```sh
-pnpm ingest:github -- --source expo-core --types issues --limit 5 --dry-run
-pnpm ingest:github -- --source expo-core --types issues --limit 5
+pnpm ingest:github --source expo-core --types issues --limit 5 --dry-run
+pnpm ingest:github --source expo-core --types issues --limit 5
 ```
 
 See [the GitHub ingestion guide](docs/GITHUB_INGESTION.md) before running a backfill.
@@ -67,9 +67,9 @@ Discover the current curated official-document set without writing source record
 a bounded source or one indexed page:
 
 ```sh
-pnpm ingest:sources -- discover --source expo-documentation --limit 20
-pnpm ingest:sources -- sync --source expo-documentation --limit 5 --dry-run
-pnpm ingest:sources -- sync --source expo-documentation \
+pnpm ingest:sources discover --source expo-documentation --limit 20
+pnpm ingest:sources sync --source expo-documentation --limit 5 --dry-run
+pnpm ingest:sources sync --source expo-documentation \
   --page https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough --limit 1
 ```
 
@@ -80,10 +80,10 @@ With a Gemini development key in the ignored `.env`, process or inspect a bounde
 candidate:
 
 ```sh
-pnpm extract -- one --source-item <uuid>
-pnpm extract -- pending --limit 5
-pnpm extract -- inspect --attempt <uuid>
-pnpm extract -- inspect --candidate <uuid>
+pnpm extract one --source-item <uuid>
+pnpm extract pending --limit 5
+pnpm extract inspect --attempt <uuid>
+pnpm extract inspect --candidate <uuid>
 ```
 
 The unpaid Gemini path hard-rejects private/team source records before any provider call. Read

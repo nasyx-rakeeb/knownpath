@@ -2,6 +2,11 @@ import { z } from "zod";
 
 const evidenceIdSchema = z.uuidv4();
 const evidenceIdsSchema = z.array(evidenceIdSchema).min(1).max(32);
+const optionalNonEmptyString = (maximum: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+    z.string().trim().min(1).max(maximum).optional(),
+  );
 
 const modelEvidenceSchema = z.strictObject({
   sourceItemId: evidenceIdSchema,
@@ -25,7 +30,7 @@ export const extractionOutputSchema = z
       "conflicting_evidence",
     ]),
     conciseReason: z.string().trim().min(1).max(2_000),
-    problemStatement: z.string().trim().min(1).max(10_000).optional(),
+    problemStatement: optionalNonEmptyString(10_000),
     ecosystems: z.array(z.string().trim().min(1).max(256)).max(16).default([]),
     packages: z
       .array(
@@ -67,7 +72,7 @@ export const extractionOutputSchema = z
       )
       .max(32)
       .default([]),
-    solutionSummary: z.string().trim().min(1).max(10_000).optional(),
+    solutionSummary: optionalNonEmptyString(10_000),
     solutionSteps: z
       .array(
         z.strictObject({
@@ -113,7 +118,7 @@ export const extractionOutputSchema = z
     }
   });
 
-export const EXTRACTION_OUTPUT_SCHEMA_VERSION = 1;
+export const EXTRACTION_OUTPUT_SCHEMA_VERSION = 2;
 
 const stringArray = { type: "array", items: { type: "string" } } as const;
 const evidenceReferenceJsonSchema = {

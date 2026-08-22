@@ -193,9 +193,9 @@ remain visible in ingestion-run counts and do not skip unfinished pages in later
 The worker exposes source-neutral commands through a root script:
 
 ```text
-pnpm ingest:sources -- discover --source <source-key>
-pnpm ingest:sources -- sync --source <source-key>
-pnpm ingest:sources -- sync --all
+pnpm ingest:sources discover --source <source-key>
+pnpm ingest:sources sync --source <source-key>
+pnpm ingest:sources sync --all
 ```
 
 Supported controls include:

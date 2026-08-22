@@ -67,9 +67,11 @@ function validateEvidence(output: ExtractionOutput, items: readonly SourceItem[]
   }
   for (const reference of [...output.evidence, ...output.conflicts]) {
     const item = byId.get(reference.sourceItemId);
-    const text =
-      item?.content.text ?? item?.structuredBlocks?.map((block) => block.text).join("\n") ?? "";
-    if (item !== undefined && !text.includes(reference.excerpt)) {
+    const evidenceTexts = [
+      item?.content.text,
+      item?.structuredBlocks?.map((block) => block.text).join("\n"),
+    ].filter((value): value is string => value !== undefined);
+    if (item !== undefined && !evidenceTexts.some((text) => text.includes(reference.excerpt))) {
       issues.push({
         code: "evidence_excerpt_mismatch",
         message: `Excerpt is not present in ${reference.sourceItemId}`,

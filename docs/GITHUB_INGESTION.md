@@ -84,13 +84,13 @@ comments, replies, and reactions are still collected so a thread remains useful.
 
 ```sh
 # Inspect one configured source without writes.
-pnpm ingest:github -- --source expo-core --types issues --limit 5 --dry-run
+pnpm ingest:github --source expo-core --types issues --limit 5 --dry-run
 
 # Collect one configured repository.
-pnpm ingest:github -- --repository react/react-native --types issues --limit 20
+pnpm ingest:github --repository react/react-native --types issues --limit 20
 
 # Collect every enabled source with each source's normal incremental cursor.
-pnpm ingest:github -- --all --limit 20
+pnpm ingest:github --all --limit 20
 ```
 
 `--types` accepts `issues`, `discussions`, or both as a comma-separated value and must be supported
@@ -108,7 +108,7 @@ Use small incremental limits initially. Historical collection must be deliberate
 explicit lower bound:
 
 ```sh
-pnpm ingest:github -- \
+pnpm ingest:github \
   --source expo-core \
   --types issues \
   --since 2026-01-01T00:00:00Z \

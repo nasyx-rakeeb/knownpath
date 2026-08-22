@@ -59,8 +59,11 @@ caveats, conflicts, and candidate verification labels. It cannot assign numeric 
 The SDK's structured output is only the first boundary. KnownPath then:
 
 - parses JSON and validates the complete strict Zod schema;
+- normalizes empty optional model strings to absence while still requiring populated problem and
+  solution fields for `reusable` output;
 - rejects unknown source item IDs;
-- requires every quoted excerpt to be an exact substring of the cited snapshot;
+- requires every quoted excerpt to be an exact substring of the cited snapshot's normalized text or
+  structured blocks;
 - resolves URLs and content hashes from deterministic source records;
 - canonicalizes ecosystem, package, platform, version, symptom, and error-fingerprint projections;
 - keeps author/maintainer/official support labels explicitly `unverified` for Phase 7.
@@ -97,11 +100,11 @@ The key, Authorization material, prompts, source text, and raw model output are 
 ## Commands
 
 ```sh
-pnpm extract -- one --source-item <uuid>
-pnpm extract -- pending --limit 5
-pnpm extract -- batch --source expo-core --limit 10
-pnpm extract -- inspect --candidate <uuid>
-pnpm extract -- inspect --attempt <uuid>
+pnpm extract one --source-item <uuid>
+pnpm extract pending --limit 5
+pnpm extract batch --source expo-core --limit 10
+pnpm extract inspect --candidate <uuid>
+pnpm extract inspect --attempt <uuid>
 ```
 
 Use `--force` only for an intentional new attempt. Inspection prints candidate fields and bounded

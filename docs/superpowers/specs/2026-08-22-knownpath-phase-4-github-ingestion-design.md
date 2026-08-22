@@ -223,9 +223,9 @@ introduced in a later phase.
 The root command delegates to the worker and supports:
 
 ```text
-pnpm ingest:github -- --source <source-key>
-pnpm ingest:github -- --repository <owner/name>
-pnpm ingest:github -- --all
+pnpm ingest:github --source <source-key>
+pnpm ingest:github --repository <owner/name>
+pnpm ingest:github --all
 ```
 
 Common options:

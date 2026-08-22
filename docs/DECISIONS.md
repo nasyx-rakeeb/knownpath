@@ -428,6 +428,11 @@ provider/model/capability, prompts, schema, and generation settings. Invalid out
 irrelevant/insufficient/conflicting classifications remain attempt outcomes; only grounded reusable
 output creates a candidate.
 
+The versioned response contract normalizes an empty optional string to an absent value, but still
+requires non-empty problem and solution fields for `reusable` output. Exact excerpt grounding checks
+both the persisted normalized text and persisted structured blocks because either representation may
+be supplied to the model; paraphrased evidence remains quarantined.
+
 **Why:** Operational attempts have a different lifecycle and retention need from candidate
 knowledge. Persisting prompt/model/usage/latency/status provenance makes charged work reproducible
 without storing raw invalid responses. Keeping numeric trust and freshness exclusively on KnownPaths
