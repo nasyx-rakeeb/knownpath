@@ -1,2 +1,10 @@
 // Extraction contracts are intentionally deferred to a later phase.
-export {};
+export * from "./batch.js";
+export * from "./cli.js";
+export * from "./context.js";
+export * from "./gemini-provider.js";
+export * from "./inspection.js";
+export * from "./output-schema.js";
+export * from "./prompts.js";
+export * from "./provider.js";
+export * from "./service.js";

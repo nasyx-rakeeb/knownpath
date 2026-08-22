@@ -376,3 +376,67 @@ and broaden the allowed source surface.
 [Marked lexer documentation](https://marked.js.org/using_pro#lexer),
 [html-to-text](https://github.com/html-to-text/node-html-to-text),
 [robots-parser](https://github.com/samclarke/robots-parser)
+
+## 2026-08-22 — Use Gemini Interactions with stable 3.5 Flash-Lite by default
+
+**Decision:** Implement the real Phase 6 provider with Google's official `@google/genai` 2.18 SDK
+and Interactions API. Default to configurable stable `gemini-3.5-flash-lite`, `store: false`, no
+tools, minimal thinking, no thinking summaries, and strict JSON-schema output. Pin the SDK below its
+announced Node-22-requiring 3.0 change until that release is deliberately reviewed.
+
+**Why:** Google recommends Interactions for new applications. The stable Flash-Lite model supports a
+large context window, structured output, Batch API compatibility, and free-tier development suited
+to high-volume extraction. Explicit storage/thinking/tool settings minimize retained data,
+unnecessary tokens, and prompt-injection surface. The model remains environment-configurable.
+
+**Rejected:** The legacy `@google/generative-ai` package is not actively maintained. Hardcoding a
+preview or remembered model name would make availability drift an application change. Async Batch
+API adds a separate file/job lifecycle and is deferred until measured volume justifies it.
+
+**References:** [Google Gen AI SDK](https://googleapis.github.io/js-genai/),
+[Interactions API](https://ai.google.dev/gemini-api/docs/interactions),
+[Gemini 3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite),
+[structured output](https://ai.google.dev/gemini-api/docs/structured-output),
+[Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+
+## 2026-08-22 — Make unpaid Gemini public-only before provider construction
+
+**Decision:** Model provider capability as `public_only` or future `approved_private`. Phase 6
+configuration accepts only `AI_DATA_HANDLING=public_only`. The extraction service rejects any
+private/team registry, requested source, or selected context item before constructing the provider
+or issuing a request. The whole attempt is blocked with `ai_private_data_not_approved`; force,
+fallback, and silent downgrade cannot bypass it.
+
+**Why:** Google's unpaid-service terms permit submitted content to be used for service improvement
+and human review. Visibility enforcement therefore belongs in provider-neutral orchestration, not
+inside one SDK adapter. A future paid Gemini account, other provider, or self-hosted implementation
+can be approved explicitly without rewriting ingestion or candidate construction.
+
+**Rejected:** Redacting or partially sending private threads can still leak context and create
+misleading candidates. Treating a missing policy as public is unsafe. Automatically falling back to
+free Gemini violates the user's hard privacy boundary.
+
+**References:** [Gemini API terms](https://ai.google.dev/gemini-api/terms),
+[pricing and free tier](https://ai.google.dev/gemini-api/docs/pricing),
+[API-key guidance](https://ai.google.dev/gemini-api/docs/api-key)
+
+## 2026-08-22 — Separate extraction attempts from candidate knowledge
+
+**Decision:** Add an independent `extraction_attempts` collection and remove final confidence/
+freshness fields from candidate experiences. Attempt idempotency covers source/context hashes,
+provider/model/capability, prompts, schema, and generation settings. Invalid output is quarantined;
+irrelevant/insufficient/conflicting classifications remain attempt outcomes; only grounded reusable
+output creates a candidate.
+
+**Why:** Operational attempts have a different lifecycle and retention need from candidate
+knowledge. Persisting prompt/model/usage/latency/status provenance makes charged work reproducible
+without storing raw invalid responses. Keeping numeric trust and freshness exclusively on KnownPaths
+prevents Gemini from becoming the deterministic scorer reserved for Phase 7.
+
+**Rejected:** Storing every model call as a candidate conflates non-solutions and malformed output
+with knowledge. A single source-hash key would miss prompt/model/schema changes. Embedding attempt
+history inside candidates loses failed and blocked processing records.
+
+**References:** [MongoDB schema design](https://www.mongodb.com/docs/manual/data-modeling/),
+[unique indexes](https://www.mongodb.com/docs/manual/core/index-unique/),
+[Gemini token usage](https://ai.google.dev/gemini-api/docs/tokens)

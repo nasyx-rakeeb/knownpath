@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 5. A boundary appearing here does not mean its future product behavior is
+established through Phase 6. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -18,8 +18,8 @@ database.
   network security policy, and API process lifecycle. Phase 3 exposes operational health,
   closed-registration session routes, account inspection, and API-key lifecycle routes under
   `/api/v1`.
-- `@knownpath/worker` owns ingestion and background-process lifecycle. It exposes bounded GitHub and
-  official-document source commands; it is not yet a scheduler or queue consumer.
+- `@knownpath/worker` owns ingestion and background-process lifecycle. It composes bounded GitHub,
+  official-document, and AI extraction commands; it is not yet a scheduler or queue consumer.
 - `@knownpath/mcp-server` owns MCP protocol and transport adaptation. It uses the official SDK but
   registers no tools, prompts, or resources in Phase 1.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
@@ -42,7 +42,9 @@ database.
   provider-neutral normalization, incremental cursors, and ingestion-run orchestration.
 - `@knownpath/source-ingestion` owns the shared source manifest plus safe official documentation and
   release-feed discovery, conditional fetching, normalization, and synchronization orchestration.
-- `@knownpath/ai` will hold provider-neutral extraction contracts and provider implementations.
+- `@knownpath/ai` owns provider-neutral extraction contracts, privacy enforcement, context assembly,
+  versioned prompts, structured validation, Gemini integration, processing budgets, and candidate
+  construction.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
@@ -70,6 +72,10 @@ apps/worker --> packages/source-ingestion --> packages/domain
                        +---------------------> packages/database
 
 packages/github-ingestion --> packages/source-ingestion (shared manifest contracts only)
+
+apps/worker --> packages/ai --> packages/domain
+                  |          --> packages/database
+                  +-----------> official Gemini SDK
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -118,7 +124,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 14 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 15 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -129,13 +135,17 @@ indexes, and feedback aggregation before implementing this complete flow.
    registry. GitHub graphs and curated official documents become immutable source items. Mutable
    source-item state holds fetch validators and the latest snapshot pointer without rewriting
    provenance history.
-8. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+8. The worker can assemble bounded public-only evidence contexts and invoke the configured Gemini
+   provider. Strict output and provenance validation either create a candidate, record an objective
+   non-solution classification, quarantine invalid output, or block disallowed visibility before any
+   outbound call.
+9. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
    OpenAPI JSON, and optional Swagger UI. MCP, dashboard, and installer product behavior remains
    deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 5. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 6. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -148,6 +158,10 @@ configuration explicitly.
 `GITHUB_TOKEN` has no committed default and is never logged. Public REST collection can operate
 without it at GitHub's lower limit. Discussions require authenticated GraphQL and are reported as a
 skipped capability when the token is absent.
+
+`GEMINI_API_KEY` has no committed default and is never logged. Phase 6's provider capability and
+environment policy are both `public_only`; private/team input blocks before provider construction.
+Model, request, retry, spacing, and token/call/target budgets are centralized configuration.
 
 ## Phase 2 persistence boundary
 
@@ -227,6 +241,25 @@ latest snapshot pointers, lifecycle, content hashes, validators, and fetch/chang
 registry metadata classifies official documents as first-party evidence; GitHub author association
 classifies maintainer versus community evidence without LLM inference. See
 [`docs/OFFICIAL_SOURCE_INGESTION.md`](OFFICIAL_SOURCE_INGESTION.md).
+
+## Phase 6 AI extraction boundary
+
+Extraction starts from immutable source snapshots, never directly from network responses. GitHub
+comments are reassembled around their latest thread root while official documents retain normalized
+block structure. Complete evidence items are selected deterministically within a configured context
+budget; roots and high-signal confirmations are never silently truncated. Context, prompt, schema,
+provider, model, and generation settings are all versioned or digested for reproducible idempotency.
+
+The real provider is Gemini through Google's official SDK and Interactions API. Requests disable
+server-side interaction storage, tools, and thinking summaries. All source text is labeled untrusted
+quoted evidence. The free/public provider path rejects a private/team registry, requested item, or
+selected context item before provider creation, with no fallback.
+
+Gemini returns a strict structured classification and candidate interpretation. Zod validation,
+known-ID checks, exact-excerpt matching, and deterministic canonicalization run before persistence.
+Only a grounded `reusable` result creates a candidate. Confidence/freshness scoring and verification
+labels remain uncalculated/unverified for Phase 7. Operational history lives in the independent
+`extraction_attempts` collection. See [`docs/AI_EXTRACTION.md`](AI_EXTRACTION.md).
 
 ## Technology fit
 

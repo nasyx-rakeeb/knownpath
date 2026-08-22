@@ -1,12 +1,22 @@
 import { fileURLToPath } from "node:url";
 
 import {
+  loadAiExtractionConfig,
   loadGitHubConfig,
   loadMongoConfig,
   loadSourceIngestionConfig,
   type LogLevel,
 } from "@knownpath/config";
 import { connectToMongo } from "@knownpath/database";
+import {
+  ExtractionBatchRunner,
+  ExtractionService,
+  GeminiExtractionProvider,
+  extractionUsage,
+  inspectAttempt,
+  inspectCandidate,
+  parseExtractionArgs,
+} from "@knownpath/ai";
 import {
   GitHubIngestionService,
   githubIngestionUsage,
@@ -24,7 +34,69 @@ const command = process.argv[2];
 async function main(): Promise<void> {
   if (command === "github") return runGitHub();
   if (command === "sources") return runOfficialSources();
-  console.info(`${githubIngestionUsage()}\n\n${sourceIngestionUsage()}`);
+  if (command === "extract") return runExtraction();
+  console.info(`${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}`);
+}
+
+async function runExtraction(): Promise<void> {
+  const request = parseExtractionArgs(process.argv.slice(3));
+  const database = await connectToMongo(loadMongoConfig());
+  try {
+    if (request.action === "inspect") {
+      const output =
+        "candidateId" in request
+          ? await inspectCandidate(database, request.candidateId)
+          : await inspectAttempt(database, request.attemptId);
+      console.info(output);
+      return;
+    }
+    const config = loadAiExtractionConfig();
+    const service = new ExtractionService(database, {
+      dataHandling: config.dataHandling,
+      maxEstimatedInputTokens: config.maxEstimatedInputTokens,
+      maxOutputTokens: config.maxOutputTokens,
+      maxRetries: config.maxRetries,
+      model: config.model,
+      providerCapability: "public_only",
+      providerIdentifier: config.provider,
+      providerFactory: () =>
+        new GeminiExtractionProvider({
+          apiKey: config.geminiApiKey ?? "",
+          model: config.model,
+          requestTimeoutMs: config.requestTimeoutMs,
+        }),
+    });
+    const runner = new ExtractionBatchRunner(database, service, {
+      maxActualTotalTokens: config.maxActualTotalTokens,
+      maxEstimatedInputTokens: config.maxEstimatedInputTokens,
+      maxProviderCalls: config.maxProviderCalls,
+      maxTargets: config.maxTargets,
+      minRequestSpacingMs: config.minRequestSpacingMs,
+    });
+    const summary = await runner.run(request);
+    createLogger("info").info("KnownPath extraction command completed", {
+      attempts: summary.attempts.map((attempt) => ({
+        attemptId: attempt._id,
+        status: attempt.status,
+        candidateExperienceId: attempt.candidateExperienceId ?? null,
+        failureCode: attempt.failureCode ?? null,
+      })),
+      estimatedInputTokens: summary.estimatedInputTokens,
+      providerCalls: summary.providerCalls,
+      reused: summary.reused,
+      totalTokens: summary.totalTokens,
+    });
+    const failure = summary.attempts.find((attempt) => attempt.status === "failed");
+    if (failure !== undefined) {
+      const error = new Error(failure.failureMessage ?? "Extraction failed") as Error & {
+        code: string;
+      };
+      error.code = failure.failureCode ?? "extraction_failed";
+      throw error;
+    }
+  } finally {
+    await database.close();
+  }
 }
 
 async function runGitHub(): Promise<void> {
@@ -144,6 +216,7 @@ main().catch((error: unknown) => {
     typeof error === "object" && error !== null && "code" in error
       ? String((error as { readonly code: unknown }).code)
       : "worker_failed";
-  createLogger("error").error("KnownPath worker failed", { code });
+  const message = error instanceof Error ? error.message : "Worker command failed";
+  createLogger("error").error("KnownPath worker failed", { code, message });
   process.exitCode = 1;
 });

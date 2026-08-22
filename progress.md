@@ -538,6 +538,156 @@ provenance, bounded processing lifecycle, and deterministic output validation.**
 canonical promotion, search/retrieval, MCP knowledge tools, Agent Skill distribution, contribution
 workflows, or dashboards until their designated later phases.
 
+## Phase 6 — Gemini structured experience extraction
+
+### Phase goal
+
+Convert immutable public GitHub and official-source records into strictly validated candidate
+experiences while keeping deterministic provenance separate from model interpretation and blocking
+all private/team material from the unpaid Gemini path.
+
+### Research performed
+
+Current official documentation and release metadata were checked on 2026-08-22 before
+implementation:
+
+- [Google Gen AI JavaScript SDK](https://googleapis.github.io/js-genai/) and the
+  [official repository](https://github.com/googleapis/js-genai)
+- [Gemini Interactions API](https://ai.google.dev/gemini-api/docs/interactions)
+- [Gemini 3.5 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
+- [structured output](https://ai.google.dev/gemini-api/docs/structured-output)
+- [token counting/context guidance](https://ai.google.dev/gemini-api/docs/tokens)
+- [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) and
+  [troubleshooting/status behavior](https://ai.google.dev/gemini-api/docs/troubleshooting)
+- [Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+- [API-key guidance](https://ai.google.dev/gemini-api/docs/api-key),
+  [pricing/free tier](https://ai.google.dev/gemini-api/docs/pricing), and
+  [Gemini API terms](https://ai.google.dev/gemini-api/terms)
+
+Registry/package metadata confirmed `@google/genai` 2.18.0 as the current official release, its Node
+compatibility, and the announced 3.0 Node 22 floor. The legacy `@google/generative-ai` package is
+not actively maintained. Official model documentation confirmed stable `gemini-3.5-flash-lite`,
+1,048,576 input tokens, 65,536 output tokens, structured output, Batch API support, and a usable
+free tier. Interactions documentation confirmed that storage defaults on, usage metadata fields, and
+explicit `store: false`; terms confirmed that unpaid-service content can be used for
+improvement/human review, making public-only enforcement mandatory.
+
+### Architecture and technology decisions
+
+- `@knownpath/ai` defines provider/config contracts but implements only the real Gemini provider.
+  Provider identity, model, capability, timeouts, retries, spacing, output bounds, and command
+  budgets are configuration-driven.
+- The Interactions request disables storage, tools, and thought summaries, uses minimal thinking,
+  and requires JSON-schema output. KnownPath never requests or stores hidden chain-of-thought.
+- Provider capabilities distinguish `public_only` from future `approved_private`. Phase 6 config
+  accepts only public-only. Registry/requested/context visibility is checked before provider
+  construction; private/team work records `ai_private_data_not_approved` and fails with no fallback.
+- Versioned shared/GitHub/official prompt source files treat evidence JSON as quoted untrusted data.
+  GitHub and official documents share one candidate output schema but use distinct strategies.
+- GitHub context resolves the latest root/comment revisions and selects complete records by root,
+  accepted-answer, maintainer, author-follow-up, reaction, and chronological signals. Root and
+  high-signal confirmation text is never silently truncated. Official source blocks and
+  deterministic metadata retain structure.
+- A strict Zod boundary plus known-ID/exact-excerpt checks quarantines malformed or ungrounded
+  output. URLs, hashes, visibility, normalized metadata, and error fingerprints come from
+  deterministic code. Candidate authority labels remain unverified for Phase 7.
+- `extraction_attempts` has an independent lifecycle and idempotency across source/context hashes,
+  provider/model/capability, prompt digests, schema, and generation config. Only `reusable` creates
+  a candidate; other classifications remain attempt outcomes.
+- Candidate experiences no longer contain numeric confidence/freshness. Those remain canonical
+  KnownPath fields for Phase 7 deterministic scoring.
+- Requests are serial with bounded retry/backoff and target/call/input/actual-token budgets. The
+  async Batch API is deliberately deferred until measured operational volume justifies it.
+
+Detailed behavior and operations are in [`docs/AI_EXTRACTION.md`](docs/AI_EXTRACTION.md); decisions
+and the approved design are in [`docs/DECISIONS.md`](docs/DECISIONS.md) and
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-6-gemini-extraction-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-6-gemini-extraction-design.md).
+
+### Collections, schemas, commands, and files created or evolved
+
+- Added the official `@google/genai` 2.18.0 dependency and its audited pnpm build-script policy.
+- Added versioned extraction attempt IDs/statuses, prompt/usage/validation records, provider
+  capabilities, candidate root cause/attempt/caveat/conflict/label provenance, and per-symptom/step
+  evidence IDs in `@knownpath/domain`.
+- Added `extraction_attempts`, its repository lifecycle, source thread/target queries, idempotent
+  validator initialization, and four named indexes. MongoDB now has 15 declared collections and 56
+  named indexes, excluding automatic `_id_` indexes.
+- Added provider contracts, Gemini Interactions adapter, versioned prompt sources, deterministic
+  prompt/context/config digests, GitHub/official context assembly, strict output schema, provenance
+  validation, canonical candidate construction, privacy gating, retry/budget controls, batch
+  selection, CLI parsing, and inspection formatting in `@knownpath/ai`.
+- Added `pnpm extract` with `one`, `pending`, `batch`, and candidate/attempt `inspect` operations to
+  the worker. Sensitive data and raw provider output are absent from operational logs.
+- Added typed Phase 6 environment configuration, `.env.example` placeholders, this progress entry,
+  the AI extraction guide, and architecture/data-model/decision/README updates.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` completed across all 16 workspace projects and installed the pinned official Gemini
+  SDK.
+- `pnpm typecheck` — 21 tasks successful across 15 packages.
+- `pnpm lint` — 14 tasks successful.
+- `pnpm format` and `pnpm format:check` completed successfully.
+- `pnpm build` — 14 tasks successful; the Next.js shell compiled and prerendered `/`.
+- The built worker booted and printed the complete GitHub, official-source, and extraction command
+  contracts.
+- `pnpm db:init` completed twice. The second run reported `created: false` for all 15 collections.
+  Direct inspection found the strict extraction validator, all four declared extraction indexes, and
+  56 named indexes overall.
+- A temporary private source containing a harmless prompt-injection-like sentence was processed
+  through the service boundary. It produced a `blocked` attempt, the provider factory call count
+  remained exactly zero, the attempt repository update/read round trip succeeded, and the attempt,
+  source, and registry were all removed and confirmed absent.
+- A temporary public source passed through a local malformed provider-boundary response. It became
+  `quarantined` with `schema_validation_failed`; an unchanged repeat reused the attempt with one
+  total provider-boundary call. All temporary records were removed and confirmed absent.
+- A grounded local structured-response boundary created a `succeeded` attempt and candidate with a
+  deterministic error fingerprint, step-level source IDs, official-support label candidate, and
+  reported token usage. An unchanged repeat reused it with one total call; candidate, attempt,
+  source, and registry cleanup were all confirmed.
+- Shell inspection confirmed neither `GEMINI_API_KEY` nor `GOOGLE_API_KEY` was available and no
+  populated `.env` file existed. No live Gemini result is claimed.
+
+No automated tests were created or run, as required for this phase.
+
+### Environment and manual setup still required
+
+- Use the pinned Node.js 24/pnpm 11 toolchain, copy `.env.example` to `.env`, start MongoDB, and run
+  `pnpm db:init`.
+- Create a Gemini development key in the official console and set only `GEMINI_API_KEY` in the
+  ignored `.env`/deployment secret manager. Keep `AI_DATA_HANDLING=public_only`; do not submit
+  private, team, sensitive, confidential, or personal source material to unpaid Gemini.
+- With that real key, run bounded extraction for a useful solved public Expo/React Native thread, a
+  noisy/non-solution record, and a temporary public injection-like sample. Inspect evidence and
+  classifications, repeat unchanged work to observe zero additional Gemini calls, then clean up the
+  temporary sample. Exact steps are in `docs/AI_EXTRACTION.md`.
+- Review current project/model rate limits in AI Studio before increasing the conservative command
+  budgets. Free-tier quotas are project/model-specific and can change.
+
+### Known limitations intentionally left for later phases
+
+- Live Gemini extraction was not executed because no key was available. Static/provider-boundary
+  checks do not prove live model classification, evidence quality, prompt-injection resistance, or
+  Gemini-side idempotency.
+- Candidate labels are evidence-grounded but intentionally `unverified`; no numeric trust score,
+  freshness calculation, contradiction resolution, semantic deduplication, or canonical promotion
+  exists yet.
+- Context selection is bounded at complete source-item boundaries while preserving document blocks.
+  Multi-call synthesis and the asynchronous Batch API are deferred; an oversized root or high-signal
+  confirmation fails rather than being silently truncated.
+- No private/team AI provider is enabled. The provider capability boundary can accept one later only
+  after an account/provider is explicitly approved for private data.
+- No vector/lexical indexing, public retrieval, MCP knowledge tools, Agent Skill/installer,
+  contribution processing, dashboard controls, scheduler, distributed limiter, or queue exists.
+- No automated tests, by explicit Phase 6 requirement.
+
+### Exact next phase
+
+**Phase 7: deterministically verify candidate evidence/authority signals, calculate versioned
+confidence and freshness scores, resolve or surface contradictions, and promote eligible candidates
+into canonical KnownPaths.** Do not begin search/retrieval, MCP knowledge tools, Agent Skill
+distribution, contribution workflows, or dashboards until their designated later phases.
+
 ## Phase 5 — Official Expo and React Native knowledge sources
 
 ### Phase goal

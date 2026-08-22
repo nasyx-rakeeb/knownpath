@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 5 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 6 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -39,6 +39,7 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `source_items`          | Immutable captured snapshot; references one source registry.                                   |
 | `source_item_states`    | Mutable latest/fetch projection; one per registry and source-native identity.                  |
 | `ingestion_runs`        | Mutable operational attempt history; references one source registry.                           |
+| `extraction_attempts`   | Independent AI lifecycle keyed by source/context/prompt/provider versions.                     |
 | `candidate_experiences` | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.    |
 | `known_paths`           | Canonical reusable knowledge record with embedded solution, evidence, score, and search state. |
 | `agent_contributions`   | Independent proposed lesson/correction; may reference a KnownPath and source items.            |
@@ -46,8 +47,8 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 
 Source registries, immutable source snapshots, processing runs, candidates, canonical records,
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
-metadata, solution steps, score components, evidence references, visibility, moderation, freshness,
-and search state are embedded for read locality.
+metadata, solution steps, evidence references, visibility, and moderation are embedded for read
+locality. Score components, freshness, and search state exist only on canonical KnownPaths.
 
 ### Identity, sessions, and API keys
 
@@ -122,17 +123,24 @@ Symptoms contain original summaries and normalized text. Error signatures retain
 and normalized material plus a versioned fingerprint. Solutions contain a summary and ordered,
 bounded steps with optional code, language, and verification guidance.
 
+Phase 6 candidates can additionally retain an evidence-grounded root cause, failed/partial attempted
+approaches, caveats, conflicting references, and unverified author/maintainer/official-support label
+candidates. These are model interpretations with validated provenance, not verified facts or final
+scoring inputs.
+
 ### Evidence
 
 Evidence is a bounded array of references to immutable source items. A reference describes whether
-the item supports the problem, supports the solution, verifies an outcome, or supplies context. It
-may include a locator, bounded excerpt, URL, and content digest; it does not duplicate the source
-document.
+the item supports the problem, supports the solution, verifies an outcome, conflicts, or supplies
+context. It may include a locator, bounded excerpt, URL, and content digest; it does not duplicate
+the source document.
 
 ### Confidence, freshness, and search state
 
 Confidence contains an aggregate from 0 to 1, named components, `scoreVersion`, calculation time,
-and bounded verification signals. Phase 2 stores these values but does not calculate them.
+and bounded verification signals. It belongs only to canonical KnownPaths. Phase 6 candidates do not
+contain numeric confidence or freshness, preventing model interpretation from becoming a final trust
+score before Phase 7.
 
 Freshness records last verification, next review, and stale-after timestamps. Search metadata is
 provider-neutral and records lexical/embedding processing status, model identifier, dimensions,
@@ -140,20 +148,35 @@ content digest, and generation time. No vectors or vector indexes exist in Phase
 
 ## Lifecycle values
 
-| Entity               | Values                                                       |
-| -------------------- | ------------------------------------------------------------ |
-| User                 | `active`, `suspended`, `deleted`                             |
-| API key              | `active`, `revoked`, `expired`                               |
-| Ingestion run        | `queued`, `running`, `succeeded`, `failed`, `cancelled`      |
-| Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`    |
-| KnownPath            | `draft`, `published`, `deprecated`, `superseded`, `archived` |
-| Contribution         | `pending`, `accepted`, `rejected`, `superseded`              |
-| Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`              |
-| Agent outcome        | `helpful`, `not_helpful`, `partially_helpful`, `unknown`     |
-| Source item state    | `active`, `deprecated`, `deleted`                            |
+| Entity               | Values                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| User                 | `active`, `suspended`, `deleted`                                                                                                    |
+| API key              | `active`, `revoked`, `expired`                                                                                                      |
+| Ingestion run        | `queued`, `running`, `succeeded`, `failed`, `cancelled`                                                                             |
+| Extraction attempt   | `queued`, `running`, `succeeded`, `irrelevant`, `insufficient_evidence`, `conflicting_evidence`, `quarantined`, `blocked`, `failed` |
+| Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`                                                                           |
+| KnownPath            | `draft`, `published`, `deprecated`, `superseded`, `archived`                                                                        |
+| Contribution         | `pending`, `accepted`, `rejected`, `superseded`                                                                                     |
+| Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`                                                                                     |
+| Agent outcome        | `helpful`, `not_helpful`, `partially_helpful`, `unknown`                                                                            |
+| Source item state    | `active`, `deprecated`, `deleted`                                                                                                   |
 
 Source registries use an `enabled` flag because disabling a configured source is distinct from a
 processing lifecycle transition. Source items are immutable and therefore have no processing status.
+
+## Extraction attempts
+
+`extraction_attempts` is the durable operational ledger for Phase 6. It records target and selected
+source IDs/hashes, context version/digest, strategy, provider/model/data capability, prompt
+identifiers/versions/digests, output-schema version, generation-config digest, estimated input
+tokens, status/timestamps, retry count, latency, provider interaction ID, reported token usage,
+optional candidate ID, response digest, and bounded validation/failure metadata.
+
+The unique idempotency key covers every input or configuration dimension that can alter model
+behavior. Terminal matches are reused without another provider call. Attempts have an independent
+lifecycle because they can be reprocessed, inspected, quarantined, or retained when no candidate
+exists. Blocked privacy attempts contain no source body/provider response, and raw invalid output is
+not retained.
 
 ## Index inventory
 
@@ -233,6 +256,14 @@ and is omitted below.
 - `ix_candidate_experiences_ecosystem_package`: ecosystem/package lookup.
 - `ix_candidate_experiences_error_fingerprints`: normalized error lookup.
 
+### `extraction_attempts`
+
+- `uq_extraction_attempts_idempotency_key`: prevents duplicate charged work for identical inputs and
+  extraction configuration.
+- `ix_extraction_attempts_status_created_at`: processing, quarantine, and operational inspection.
+- `ix_extraction_attempts_target_created_at`: chronological history for one source target.
+- `ix_extraction_attempts_registry_status_created_at`: source-scoped operational triage.
+
 ### `known_paths`
 
 - `uq_known_paths_canonical_key`: unique canonical identity.
@@ -259,7 +290,7 @@ and is omitted below.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
 parallel-array multikey restriction. No text, TTL, wildcard, geospatial, or vector indexes are
-created through Phase 5. Source ingestion adds no text or vector index.
+created through Phase 6. Source ingestion/extraction adds no text or vector index.
 
 ## Initialization and inspection
 
@@ -298,10 +329,12 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Audit events are retained until a future compliance/privacy policy defines archival or deletion.
 - Failed operational runs may later receive a TTL/archive policy, but Phase 2 has insufficient usage
   evidence to choose one.
+- Extraction attempts and candidates are retained for reproducibility and review until measured
+  volume and privacy requirements justify an explicit archive/purge policy.
 
 ## Deferred model behavior
 
-The schemas do not imply that ingestion, extraction, scoring, verification, search, MCP,
-contribution promotion, public registration, recovery, OAuth, team membership, or dashboards are
-implemented. Team IDs remain opaque until the team/workspace model exists. Semantic deduplication
-and vector storage/indexing belong to later phases.
+The schemas do not imply that scoring, canonical promotion, verification, search, MCP, contribution
+promotion, public registration, recovery, OAuth, team membership, or dashboards are implemented.
+Team IDs remain opaque until the team/workspace model exists. Semantic deduplication and vector
+storage/indexing belong to later phases.

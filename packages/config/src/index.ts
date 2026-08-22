@@ -108,6 +108,21 @@ const sourceIngestionEnvironmentSchema = z.object({
   SOURCE_USER_AGENT: z.string().trim().min(1).max(256).default("knownpath/0.0.0"),
 });
 
+const aiExtractionEnvironmentSchema = z.object({
+  AI_PROVIDER: z.literal("gemini").default("gemini"),
+  AI_DATA_HANDLING: z.literal("public_only").default("public_only"),
+  AI_MAX_TARGETS: z.coerce.number().int().min(1).max(1_000).default(10),
+  AI_MAX_PROVIDER_CALLS: z.coerce.number().int().min(1).max(10_000).default(20),
+  AI_MAX_ESTIMATED_INPUT_TOKENS: z.coerce.number().int().min(1_000).max(1_000_000).default(250_000),
+  AI_MAX_ACTUAL_TOTAL_TOKENS: z.coerce.number().int().min(1_000).max(10_000_000).default(300_000),
+  GEMINI_API_KEY: optionalSecretEnvironmentSchema,
+  GEMINI_MODEL: z.string().trim().min(1).max(256).default("gemini-3.5-flash-lite"),
+  GEMINI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(256).max(65_536).default(8_192),
+  GEMINI_MAX_RETRIES: z.coerce.number().int().min(0).max(10).default(3),
+  GEMINI_MIN_REQUEST_SPACING_MS: z.coerce.number().int().min(0).max(60_000).default(1_000),
+  GEMINI_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -158,6 +173,21 @@ export interface SourceIngestionConfig {
   readonly requestTimeoutMs: number;
   readonly sourceRegistryPath: string;
   readonly userAgent: string;
+}
+
+export interface AiExtractionConfig {
+  readonly dataHandling: "public_only";
+  readonly geminiApiKey?: string;
+  readonly maxActualTotalTokens: number;
+  readonly maxEstimatedInputTokens: number;
+  readonly maxOutputTokens: number;
+  readonly maxProviderCalls: number;
+  readonly maxRetries: number;
+  readonly maxTargets: number;
+  readonly minRequestSpacingMs: number;
+  readonly model: string;
+  readonly provider: "gemini";
+  readonly requestTimeoutMs: number;
 }
 
 export interface RuntimeConfig {
@@ -241,6 +271,26 @@ export function loadSourceIngestionConfig(
     requestTimeoutMs: parsed.SOURCE_REQUEST_TIMEOUT_MS,
     sourceRegistryPath: parsed.SOURCE_REGISTRY_PATH,
     userAgent: parsed.SOURCE_USER_AGENT,
+  };
+}
+
+export function loadAiExtractionConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): AiExtractionConfig {
+  const parsed = parseEnvironment(aiExtractionEnvironmentSchema, environment);
+  return {
+    dataHandling: parsed.AI_DATA_HANDLING,
+    ...(parsed.GEMINI_API_KEY === undefined ? {} : { geminiApiKey: parsed.GEMINI_API_KEY }),
+    maxActualTotalTokens: parsed.AI_MAX_ACTUAL_TOTAL_TOKENS,
+    maxEstimatedInputTokens: parsed.AI_MAX_ESTIMATED_INPUT_TOKENS,
+    maxOutputTokens: parsed.GEMINI_MAX_OUTPUT_TOKENS,
+    maxProviderCalls: parsed.AI_MAX_PROVIDER_CALLS,
+    maxRetries: parsed.GEMINI_MAX_RETRIES,
+    maxTargets: parsed.AI_MAX_TARGETS,
+    minRequestSpacingMs: parsed.GEMINI_MIN_REQUEST_SPACING_MS,
+    model: parsed.GEMINI_MODEL,
+    provider: parsed.AI_PROVIDER,
+    requestTimeoutMs: parsed.GEMINI_REQUEST_TIMEOUT_MS,
   };
 }
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   auditMetadataSchema,
   candidateExperienceIdSchema,
+  extractionAttemptIdSchema,
   knownPathIdSchema,
   moderationStateSchema,
   nonEmptyStringSchema,
@@ -53,6 +54,7 @@ export const symptomSchema = z.strictObject({
   summary: nonEmptyStringSchema,
   normalizedText: nonEmptyStringSchema,
   category: shortStringSchema.optional(),
+  evidenceSourceItemIds: z.array(sourceItemIdSchema).max(32).default([]),
 });
 
 export const errorSignatureSchema = z.strictObject({
@@ -68,11 +70,18 @@ export const solutionStepSchema = z.strictObject({
   code: z.string().max(50_000).optional(),
   language: shortStringSchema.optional(),
   verification: z.string().trim().min(1).max(10_000).optional(),
+  evidenceSourceItemIds: z.array(sourceItemIdSchema).max(32).default([]),
 });
 
 export const evidenceReferenceSchema = z.strictObject({
   sourceItemId: sourceItemIdSchema,
-  relationship: z.enum(["supports_problem", "supports_solution", "verifies_outcome", "context"]),
+  relationship: z.enum([
+    "supports_problem",
+    "supports_solution",
+    "verifies_outcome",
+    "conflicts",
+    "context",
+  ]),
   canonicalUrl: z.url().optional(),
   contentDigest: sha256Schema.optional(),
   locator: z.string().trim().min(1).max(1_000).optional(),
@@ -108,13 +117,30 @@ export const searchMetadataSchema = z.strictObject({
 });
 
 export const extractionProvenanceSchema = z.strictObject({
+  attemptId: extractionAttemptIdSchema,
   extractorIdentifier: shortStringSchema,
   extractorVersion: shortStringSchema,
-  modelIdentifier: shortStringSchema.optional(),
+  modelIdentifier: shortStringSchema,
+  promptVersion: z.int().positive(),
+  schemaVersion: z.int().positive(),
+  sourceContentHashes: z.array(sha256Schema).min(1).max(256),
   extractedAt: timestampSchema,
 });
 
-const experienceCoreShape = {
+export const attemptedApproachSchema = z.strictObject({
+  summary: nonEmptyStringSchema,
+  outcome: z.enum(["failed", "partial", "unknown"]),
+  reason: z.string().trim().min(1).max(10_000).optional(),
+  evidenceSourceItemIds: z.array(sourceItemIdSchema).min(1).max(32),
+});
+
+export const candidateVerificationLabelSchema = z.strictObject({
+  label: z.enum(["author_confirmed", "maintainer_confirmed", "official_doc_supported"]),
+  evidenceSourceItemIds: z.array(sourceItemIdSchema).min(1).max(32),
+  verificationStatus: z.literal("unverified"),
+});
+
+const knowledgeContentShape = {
   problemSummary: nonEmptyStringSchema,
   symptoms: z.array(symptomSchema).min(1).max(64),
   errorSignatures: z.array(errorSignatureSchema).max(64),
@@ -123,8 +149,6 @@ const experienceCoreShape = {
   solutionSteps: z.array(solutionStepSchema).min(1).max(64),
   metadata: knowledgeMetadataSchema,
   evidence: z.array(evidenceReferenceSchema).min(1).max(128),
-  confidence: confidenceSchema,
-  freshness: freshnessSchema,
   visibility: visibilitySchema,
   moderation: moderationStateSchema,
   audit: auditMetadataSchema,
@@ -144,7 +168,17 @@ export const candidateExperienceSchema = z
     schemaVersion: schemaVersionSchema,
     status: candidateExperienceStatusSchema,
     deduplicationKey: versionedKeySchema,
-    ...experienceCoreShape,
+    ...knowledgeContentShape,
+    rootCause: z
+      .strictObject({
+        summary: nonEmptyStringSchema,
+        evidenceSourceItemIds: z.array(sourceItemIdSchema).min(1).max(32),
+      })
+      .optional(),
+    attemptedApproaches: z.array(attemptedApproachSchema).max(32).default([]),
+    caveats: z.array(nonEmptyStringSchema).max(64).default([]),
+    conflicts: z.array(evidenceReferenceSchema).max(64).default([]),
+    candidateVerificationLabels: z.array(candidateVerificationLabelSchema).max(32).default([]),
     extraction: extractionProvenanceSchema,
   })
   .superRefine(validateErrorFingerprintProjection);
@@ -164,7 +198,9 @@ export const knownPathSchema = z
     canonicalKey: versionedKeySchema,
     status: knownPathStatusSchema,
     title: shortStringSchema,
-    ...experienceCoreShape,
+    ...knowledgeContentShape,
+    confidence: confidenceSchema,
+    freshness: freshnessSchema,
     search: searchMetadataSchema,
     supersededByKnownPathId: knownPathIdSchema.optional(),
   })

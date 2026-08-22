@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "extract": "tsx --env-file-if-exists=../../.env src/index.ts extract",
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
     "ingest:sources": "tsx --env-file-if-exists=../../.env src/index.ts sources",
     "lint": "eslint src",
@@ -15,6 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@knownpath/ai": "workspace:*",
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/github-ingestion": "workspace:*",

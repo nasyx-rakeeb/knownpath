@@ -6,7 +6,9 @@ scoped Better Auth MongoDB adapter factory over the managed connection. Raw data
 collections remain inside this package.
 
 Immutable source snapshots and mutable per-item fetch state have separate repositories so ETag,
-Last-Modified, lifecycle, and last-fetched updates never rewrite provenance history.
+Last-Modified, lifecycle, and last-fetched updates never rewrite provenance history. Extraction
+attempts also have an independent repository/lifecycle so blocked, irrelevant, failed, and
+quarantined processing remains inspectable without fabricating candidate knowledge.
 
 From the repository root with MongoDB and `.env` configured:
 

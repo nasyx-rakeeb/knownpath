@@ -4,6 +4,7 @@ import {
   apiKeySchema,
   auditEventSchema,
   candidateExperienceSchema,
+  extractionAttemptSchema,
   ingestionRunSchema,
   knownPathSchema,
   sourceItemSchema,
@@ -20,6 +21,8 @@ import {
   type AuditEventId,
   type CandidateExperience,
   type CandidateExperienceId,
+  type ExtractionAttempt,
+  type ExtractionAttemptId,
   type IngestionRun,
   type IngestionRunId,
   type KnownPath,
@@ -183,6 +186,12 @@ export class SourceRegistryRepository
 
   public async findByIdentityKey(identityKey: VersionedKey): Promise<SourceRegistry | null> {
     return this.findOne({ "identityKey.value": identityKey.value });
+  }
+
+  public async findBySourceKey(sourceKey: string): Promise<SourceRegistry | null> {
+    const documents = await this.collection.find({ enabled: true }).toArray();
+    const match = documents.find((document) => document.configuration["source.key"] === sourceKey);
+    return match === undefined ? null : sourceRegistrySchema.parse(match);
   }
 
   public async setEnabled(id: SourceRegistryId, enabled: boolean): Promise<SourceRegistry | null> {
@@ -349,6 +358,115 @@ export class SourceItemRepository
       throw error;
     }
   }
+
+  public async removeVerificationRecord(id: SourceItemId): Promise<boolean> {
+    const result = await this.collection.deleteOne({ _id: id });
+    return result.deletedCount === 1;
+  }
+
+  public async listLatestForRoot(
+    sourceRegistryId: SourceRegistryId,
+    rootSourceItemIdentity: string,
+  ): Promise<SourceItem[]> {
+    const documents = await this.collection
+      .aggregate<SourceItem>([
+        {
+          $match: {
+            sourceRegistryId,
+            $or: [
+              { "provenance.sourceItemIdentity": rootSourceItemIdentity },
+              { "provenance.rootSourceItemIdentity": rootSourceItemIdentity },
+            ],
+          },
+        },
+        { $sort: { capturedAt: -1 } },
+        { $group: { _id: "$provenance.sourceItemIdentity", item: { $first: "$$ROOT" } } },
+        { $replaceRoot: { newRoot: "$item" } },
+        { $sort: { "provenance.publishedAt": 1, capturedAt: 1 } },
+      ])
+      .toArray();
+    return documents.map((document) => sourceItemSchema.parse(document));
+  }
+
+  public async listLatestExtractionTargets(
+    limit: number,
+    sourceRegistryId?: SourceRegistryId,
+  ): Promise<SourceItem[]> {
+    const match: Filter<SourceItem> = {
+      itemType: { $in: ["issue", "discussion", "documentation_page", "release_note"] },
+      ...(sourceRegistryId === undefined ? {} : { sourceRegistryId }),
+    };
+    const documents = await this.collection
+      .aggregate<SourceItem>([
+        { $match: match },
+        { $sort: { capturedAt: -1 } },
+        {
+          $group: {
+            _id: { registry: "$sourceRegistryId", identity: "$provenance.sourceItemIdentity" },
+            item: { $first: "$$ROOT" },
+          },
+        },
+        { $replaceRoot: { newRoot: "$item" } },
+        { $sort: { capturedAt: 1 } },
+        { $limit: limit },
+      ])
+      .toArray();
+    return documents.map((document) => sourceItemSchema.parse(document));
+  }
+}
+
+export class ExtractionAttemptRepository
+  extends MongoEntityRepository<ExtractionAttempt, ExtractionAttemptId>
+  implements EntityRepository<ExtractionAttempt, ExtractionAttemptId>
+{
+  public constructor(collection: Collection<ExtractionAttempt>) {
+    super(collection, extractionAttemptSchema);
+  }
+
+  public async createIfAbsent(entity: ExtractionAttempt): Promise<ExtractionAttempt | null> {
+    const parsed = extractionAttemptSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<ExtractionAttempt | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async updateResult(
+    id: ExtractionAttemptId,
+    update: Partial<
+      Pick<
+        ExtractionAttempt,
+        | "candidateExperienceId"
+        | "classification"
+        | "classificationReason"
+        | "completedAt"
+        | "failureCode"
+        | "failureMessage"
+        | "latencyMs"
+        | "providerInteractionId"
+        | "responseDigest"
+        | "retryCount"
+        | "startedAt"
+        | "status"
+        | "usage"
+        | "validationIssues"
+      >
+    >,
+  ): Promise<ExtractionAttempt | null> {
+    return this.updateOne({ _id: id }, update as MatchKeysAndValues<ExtractionAttempt>);
+  }
+
+  public async removeVerificationRecord(id: ExtractionAttemptId): Promise<boolean> {
+    const result = await this.collection.deleteOne({ _id: id });
+    return result.deletedCount === 1;
+  }
 }
 
 export class IngestionRunRepository
@@ -414,11 +532,27 @@ export class CandidateExperienceRepository
     return this.findOne({ "deduplicationKey.value": key.value });
   }
 
+  public async createIfAbsent(entity: CandidateExperience): Promise<CandidateExperience | null> {
+    const parsed = candidateExperienceSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
   public async updateStatus(
     id: CandidateExperienceId,
     status: CandidateExperience["status"],
   ): Promise<CandidateExperience | null> {
     return this.updateOne({ _id: id }, { status });
+  }
+
+  public async removeVerificationRecord(id: CandidateExperienceId): Promise<boolean> {
+    const result = await this.collection.deleteOne({ _id: id });
+    return result.deletedCount === 1;
   }
 }
 
@@ -481,6 +615,7 @@ export interface KnownPathRepositories {
   readonly apiKeys: ApiKeyRepository;
   readonly auditEvents: AuditEventRepository;
   readonly candidateExperiences: CandidateExperienceRepository;
+  readonly extractionAttempts: ExtractionAttemptRepository;
   readonly ingestionRuns: IngestionRunRepository;
   readonly knownPaths: KnownPathRepository;
   readonly sourceItems: SourceItemRepository;
@@ -496,6 +631,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     apiKeys: new ApiKeyRepository(collections.apiKeys),
     auditEvents: new AuditEventRepository(collections.auditEvents),
     candidateExperiences: new CandidateExperienceRepository(collections.candidateExperiences),
+    extractionAttempts: new ExtractionAttemptRepository(collections.extractionAttempts),
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),
     knownPaths: new KnownPathRepository(collections.knownPaths),
     sourceItems: new SourceItemRepository(collections.sourceItems),

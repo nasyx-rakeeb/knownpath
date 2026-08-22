@@ -21,6 +21,7 @@
     "dev:infra:down": "docker compose down",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "extract": "pnpm --filter @knownpath/worker extract",
     "ingest:github": "pnpm --filter @knownpath/worker ingest:github",
     "ingest:sources": "pnpm --filter @knownpath/worker ingest:sources",
     "lint": "turbo run lint",

@@ -4,9 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 5 adds curated, incremental
-> collection from official Expo and React Native documentation and release feeds alongside the
-> existing GitHub collector. AI extraction, knowledge search, MCP tools, dashboards, Agent Skill
+> [!IMPORTANT] KnownPath is under active phased development. Phase 6 adds public-only Gemini
+> extraction into validated candidate experiences on top of the GitHub and official-source
+> collectors. Deterministic scoring/promotion, knowledge search, MCP tools, dashboards, Agent Skill
 > installation, public signup, and contribution workflows are not implemented yet.
 
 ## Prerequisites
@@ -76,6 +76,19 @@ pnpm ingest:sources -- sync --source expo-documentation \
 See [the official source ingestion guide](docs/OFFICIAL_SOURCE_INGESTION.md) before changing
 curation or requesting a bounded full-catalog run.
 
+With a Gemini development key in the ignored `.env`, process or inspect a bounded public-source
+candidate:
+
+```sh
+pnpm extract -- one --source-item <uuid>
+pnpm extract -- pending --limit 5
+pnpm extract -- inspect --attempt <uuid>
+pnpm extract -- inspect --candidate <uuid>
+```
+
+The unpaid Gemini path hard-rejects private/team source records before any provider call. Read
+[the AI extraction guide](docs/AI_EXTRACTION.md) before configuring the key or expanding a batch.
+
 Start all application and package development processes:
 
 ```sh
@@ -112,6 +125,7 @@ pnpm dev:infra:down
 | `pnpm auth:user:create` | Safely provision a user/admin with a masked password prompt                |
 | `pnpm ingest:github`    | Collect a bounded configured GitHub source through official APIs           |
 | `pnpm ingest:sources`   | Discover or sync configured official documentation and release feeds       |
+| `pnpm extract`          | Extract or inspect bounded public-source candidate experiences             |
 
 ## Structure
 
@@ -124,7 +138,7 @@ apps/
   worker/          Source ingestion and future background processing runtime
 packages/
   agent-adapters/  Future per-agent integration boundary
-  ai/              Future provider-neutral extraction boundary
+  ai/              Gemini provider, privacy gate, prompts, validation, and extraction lifecycle
   auth/            Sessions, API keys, principals, authorization, and audit
   config/          Typed environment parsing
   database/        MongoDB lifecycle, repositories, validators, and indexes

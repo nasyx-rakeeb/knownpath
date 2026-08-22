@@ -30,6 +30,7 @@ export const sourceRegistryIdSchema = brandedIdSchema<"SourceRegistryId">();
 export const sourceItemIdSchema = brandedIdSchema<"SourceItemId">();
 export const sourceItemStateIdSchema = brandedIdSchema<"SourceItemStateId">();
 export const ingestionRunIdSchema = brandedIdSchema<"IngestionRunId">();
+export const extractionAttemptIdSchema = brandedIdSchema<"ExtractionAttemptId">();
 export const candidateExperienceIdSchema = brandedIdSchema<"CandidateExperienceId">();
 export const knownPathIdSchema = brandedIdSchema<"KnownPathId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
@@ -42,6 +43,7 @@ export type SourceRegistryId = z.infer<typeof sourceRegistryIdSchema>;
 export type SourceItemId = z.infer<typeof sourceItemIdSchema>;
 export type SourceItemStateId = z.infer<typeof sourceItemStateIdSchema>;
 export type IngestionRunId = z.infer<typeof ingestionRunIdSchema>;
+export type ExtractionAttemptId = z.infer<typeof extractionAttemptIdSchema>;
 export type CandidateExperienceId = z.infer<typeof candidateExperienceIdSchema>;
 export type KnownPathId = z.infer<typeof knownPathIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
@@ -73,6 +75,10 @@ export function createSourceItemStateId(): SourceItemStateId {
 
 export function createIngestionRunId(): IngestionRunId {
   return ingestionRunIdSchema.parse(randomUUID());
+}
+
+export function createExtractionAttemptId(): ExtractionAttemptId {
+  return extractionAttemptIdSchema.parse(randomUUID());
 }
 
 export function createCandidateExperienceId(): CandidateExperienceId {
