@@ -6,8 +6,7 @@ async function main(): Promise<void> {
   console.info(
     JSON.stringify({
       level: config.logLevel,
-      message:
-        "KnownPath worker scaffold is ready; processing is intentionally disabled in Phase 1.",
+      message: "KnownPath worker scaffold is ready; processing remains intentionally disabled.",
       service: "knownpath-worker",
     }),
   );

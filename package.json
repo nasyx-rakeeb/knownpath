@@ -12,6 +12,9 @@
   },
   "scripts": {
     "build": "turbo run build",
+    "db:init": "pnpm --filter @knownpath/database db:init",
+    "db:inspect": "pnpm --filter @knownpath/database db:inspect",
+    "db:verify": "pnpm --filter @knownpath/database db:verify",
     "dev": "turbo run dev",
     "dev:infra": "docker compose up -d mongodb",
     "dev:infra:down": "docker compose down",

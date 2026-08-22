@@ -1,4 +1,6 @@
 # `@knownpath/domain`
 
-Framework-independent KnownPath domain contracts belong here. Phase 1 intentionally defines no
-knowledge schema; that work starts in Phase 2.
+Framework-independent, versioned Zod contracts and inferred TypeScript types for KnownPath. This
+package owns entity IDs, lifecycle values, embedded knowledge structures, and deterministic
+canonicalization/fingerprint helpers. It does not import persistence, HTTP, UI, MCP, or provider
+SDKs.

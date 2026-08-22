@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established in Phase 1. A boundary appearing here does not mean its future product behavior is
+established through Phase 2. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -27,11 +27,12 @@ database.
 
 ### Reusable packages
 
-- `@knownpath/domain` is the framework-independent center. Domain entities, value objects,
-  invariants, and public contracts belong here once specified.
+- `@knownpath/domain` is the framework-independent center. It owns versioned runtime schemas, domain
+  entities, value objects, lifecycle values, and deterministic canonicalization helpers.
 - `@knownpath/config` is the sole environment-to-typed-config translation boundary.
-- `@knownpath/database` owns MongoDB client construction and lifecycle. Collection schemas and
-  repositories are deferred to Phase 2.
+- `@knownpath/database` owns MongoDB connection lifecycle, collection validators, named indexes,
+  idempotent initialization, and repository implementations. Raw collections do not escape this
+  package.
 - `@knownpath/ai` will hold provider-neutral extraction contracts and provider implementations.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
@@ -52,7 +53,7 @@ apps/cli ---------+              |
 apps/web ---------+              +-------------> packages/config
                                  +-------------> packages/database
 
-packages/domain ---> no internal dependencies
+packages/domain ---> no workspace dependencies
 packages/* -------> never depend on apps/*
 ```
 
@@ -89,27 +90,44 @@ AI extraction boundary ---> deterministic scoring and verification
              usefulness/contribution feedback
 ```
 
-Later phases must define trust boundaries, provenance, idempotency, verification evidence, indexes,
-and feedback semantics before implementing this flow.
+Later phases must define trust enforcement, processing behavior, scoring, retrieval-specific
+indexes, and feedback aggregation before implementing this complete flow.
 
-## Phase 1 runtime flow
+## Current runtime and persistence flow
 
 1. Docker Compose starts only MongoDB and binds it to loopback.
-2. Applications parse their own subset of environment variables through `@knownpath/config`.
-3. The API starts Fastify and exposes a liveness response.
-4. The worker and MCP server start their process/transport boundaries without product work.
-5. The web application serves a statically rendered status page.
-6. The CLI reports that installation is unavailable and exits without side effects.
+2. Applications and database commands parse their environment through `@knownpath/config`.
+3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
+   closes the client during shutdown.
+4. Database initialization creates/reconciles nine collections, critical-envelope validators, and
+   named indexes idempotently.
+5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
+   not access raw collections.
+6. The API still exposes only liveness, while worker, MCP, web, and installer boundaries remain
+   Phase 1 scaffolds without product behavior.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known in Phase 1. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 2. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. No secret
 has a committed default. Production authentication, deployment topology, and secret storage are
-deliberately outside Phase 1.
+deliberately outside Phase 2.
 
 Invalid configuration fails before an application starts. Database callers supply a validated
-`MongoConfig` to `createMongoClient`; the database package does not read process globals directly.
+`MongoConfig`; only command entry points read process globals. The reusable database layer receives
+configuration explicitly.
+
+## Phase 2 persistence boundary
+
+MongoDB contains separate collections for users, API keys, source registries, immutable source
+items, ingestion runs, candidate experiences, KnownPaths, agent contributions, and agent outcomes.
+Bounded evidence, solution, ecosystem/environment, score, visibility, moderation, freshness, and
+search metadata are embedded for locality. Entities with independent growth or lifecycle remain
+referenced.
+
+Zod schemas are the full runtime authority. MongoDB validators enforce critical stored envelopes as
+defense in depth. Provider-neutral embedding state exists in the domain, but vectors and vector
+indexes do not. See [`docs/DATA_MODEL.md`](DATA_MODEL.md).
 
 ## Technology fit
 

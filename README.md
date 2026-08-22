@@ -4,9 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 1 provides the repository and
-> architecture foundation only. Ingestion, AI extraction, search, MCP tools, dashboards, Agent Skill
-> installation, and contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 2 provides the versioned domain
+> model and MongoDB repository/index foundation. Ingestion, AI extraction, search, MCP tools,
+> dashboards, Agent Skill installation, and contribution workflows are not implemented yet.
 
 ## Prerequisites
 
@@ -24,12 +24,25 @@ cp .env.example .env
 
 The committed environment example contains development-only local values and no credentials.
 
-## Start the Phase 1 environment
+## Start the current development environment
 
 Start MongoDB:
 
 ```sh
 pnpm dev:infra
+```
+
+Create/reconcile the Phase 2 collections, validators, and indexes:
+
+```sh
+pnpm db:init
+```
+
+Optional persistence inspection and repository round-trip validation:
+
+```sh
+pnpm db:inspect
+pnpm db:verify
 ```
 
 Start all application and package development processes:
@@ -49,17 +62,20 @@ pnpm dev:infra:down
 
 ## Repository commands
 
-| Command               | Purpose                                                   |
-| --------------------- | --------------------------------------------------------- |
-| `pnpm install`        | Install the pinned workspace dependencies                 |
-| `pnpm dev`            | Run workspace development tasks                           |
-| `pnpm build`          | Build every compilable application and package            |
-| `pnpm typecheck`      | Run strict TypeScript validation across the workspace     |
-| `pnpm lint`           | Run the ESLint flat configuration across the workspace    |
-| `pnpm format`         | Format supported files with Prettier                      |
-| `pnpm format:check`   | Validate formatting without changing files                |
-| `pnpm dev:infra`      | Start the required local MongoDB container                |
-| `pnpm dev:infra:down` | Stop the local container while preserving its data volume |
+| Command               | Purpose                                                                    |
+| --------------------- | -------------------------------------------------------------------------- |
+| `pnpm install`        | Install the pinned workspace dependencies                                  |
+| `pnpm dev`            | Run workspace development tasks                                            |
+| `pnpm build`          | Build every compilable application and package                             |
+| `pnpm typecheck`      | Run strict TypeScript validation across the workspace                      |
+| `pnpm lint`           | Run the ESLint flat configuration across the workspace                     |
+| `pnpm format`         | Format supported files with Prettier                                       |
+| `pnpm format:check`   | Validate formatting without changing files                                 |
+| `pnpm dev:infra`      | Start the required local MongoDB container                                 |
+| `pnpm dev:infra:down` | Stop the local container while preserving its data volume                  |
+| `pnpm db:init`        | Idempotently create/reconcile MongoDB collections, validators, and indexes |
+| `pnpm db:inspect`     | Print current collection validators and indexes                            |
+| `pnpm db:verify`      | Run and clean up a repository-layer persistence round trip                 |
 
 ## Structure
 
@@ -74,14 +90,15 @@ packages/
   agent-adapters/  Future per-agent integration boundary
   ai/              Future provider-neutral extraction boundary
   config/          Typed environment parsing
-  database/        MongoDB client lifecycle
-  domain/          Framework-independent domain contracts
+  database/        MongoDB lifecycle, repositories, validators, and indexes
+  domain/          Versioned domain schemas and canonicalization helpers
   search/          Future retrieval boundary
   typescript-config/ Shared strict compiler configurations
 ```
 
-See [the architecture guide](docs/ARCHITECTURE.md), [decision log](docs/DECISIONS.md), and
-[phase progress](progress.md) for the current boundaries and delivery status.
+See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
+[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
+delivery status.
 
 ## License
 

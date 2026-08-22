@@ -247,6 +247,9 @@ importers:
       '@knownpath/config':
         specifier: workspace:*
         version: link:../config
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
       mongodb:
         specifier: 'catalog:'
         version: 7.5.0
@@ -257,11 +260,18 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.12
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
 
   packages/domain:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*

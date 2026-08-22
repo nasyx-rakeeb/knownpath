@@ -108,3 +108,84 @@ Neither should own domain or retrieval behavior. The open Agent Skills conventio
 **References:**
 [official MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
 [Agent Skills specification](https://agentskills.io/specification)
+
+## 2026-08-22 — Use lifecycle-oriented MongoDB collections
+
+**Decision:** Use nine collections for users, API keys, source registries, immutable source items,
+ingestion runs, candidate experiences, KnownPaths, agent contributions, and agent outcomes. Embed
+bounded evidence, problem/solution, environment, scoring, visibility, moderation, freshness, and
+search metadata.
+
+**Why:** These top-level entities grow or change independently, while their embedded structures are
+normally read with their owner. This follows MongoDB's access-pattern-first modeling guidance
+without fragmenting documents into relational-style tables.
+
+**Rejected:** Embedding snapshots, runs, contributions, or outcomes into parent documents would
+create unbounded arrays and update contention. A collection per small value object would require
+avoidable lookups and weaken read locality.
+
+**References:** [MongoDB data modeling](https://www.mongodb.com/docs/manual/data-modeling/),
+[embedding](https://www.mongodb.com/docs/manual/data-modeling/embedding/),
+[referencing](https://www.mongodb.com/docs/manual/data-modeling/referencing/)
+
+## 2026-08-22 — Use versioned Zod contracts plus minimal MongoDB validators
+
+**Decision:** Every important entity has a strict Zod 4 runtime schema and `schemaVersion: 1`.
+Persisted timestamps are BSON dates, while the schemas accept ISO timestamps at external boundaries.
+MongoDB validators enforce only critical document-envelope invariants with strict/error validation.
+
+**Why:** One expressive Zod contract prevents TypeScript types and runtime validation from drifting.
+Minimal database validation protects direct writes without maintaining a second complete schema that
+would compete with Zod or mishandle BSON-specific values.
+
+**Rejected:** TypeScript-only interfaces do not validate external or stored data. Generating full
+MongoDB validators directly from Zod is not selected because Zod JSON Schema and MongoDB's BSON
+draft-4 dialect differ, particularly for `Date`.
+
+**References:** [Zod schemas](https://zod.dev/api), [Zod JSON Schema](https://zod.dev/json-schema),
+[MongoDB JSON Schema validation](https://www.mongodb.com/docs/manual/core/schema-validation/specify-json-schema/)
+
+## 2026-08-22 — Use branded UUID strings and conservative versioned canonicalization
+
+**Decision:** Store branded UUID v4 strings as entity `_id` values. Store deterministic identity,
+deduplication, canonical, and error keys as versioned SHA-256 digests of ordered, conservatively
+normalized inputs.
+
+**Why:** String IDs keep domain contracts independent from MongoDB's `ObjectId` and cross protocol
+boundaries without conversion. Explicit timestamps, not IDs, provide chronology. Versioned helpers
+make normalization changes migratable and avoid claiming semantic equivalence prematurely.
+
+**Rejected:** `ObjectId` would couple core contracts to MongoDB. Time-ordered IDs are unnecessary
+because chronological queries already require explicit indexed timestamps. Aggressive error/version
+rewriting is semantic deduplication and belongs to a later phase.
+
+## 2026-08-22 — Keep MongoDB access behind named repositories
+
+**Decision:** `@knownpath/database` creates one reusable client per process and exposes named
+repositories. Initialization creates missing collections, reapplies validators with `collMod`, and
+requests explicitly named indexes in an idempotent routine. Index conflicts fail visibly.
+
+**Why:** A process-scoped client uses the driver's connection pools correctly. Repositories prevent
+driver calls from spreading across HTTP, workers, and future transports. Explicit names and an
+inspect command make index intent auditable.
+
+**Rejected:** Exporting collections would make validation and access patterns optional. An ODM would
+duplicate the selected Zod schema layer. Automatically dropping/replacing conflicting indexes is too
+destructive for an initialization command.
+
+**References:**
+[MongoDB connection pools](https://www.mongodb.com/docs/drivers/node/current/connect/connection-options/connection-pools/),
+[create indexes](https://www.mongodb.com/docs/manual/core/indexes/create-index/),
+[partial indexes](https://www.mongodb.com/docs/manual/core/index-partial/),
+[ESR guideline](https://www.mongodb.com/docs/v8.0/tutorial/equality-sort-range-guideline/)
+
+## 2026-08-22 — Defer vector and automatic retention indexes
+
+**Decision:** Store provider-neutral search/embedding state but no vector values or vector indexes.
+Create no TTL index until retention requirements are known.
+
+**Why:** Phase 2 must preserve future provider flexibility without selecting retrieval
+infrastructure or deleting operational history before real retention needs exist.
+
+**Rejected:** Adding a vector index now would prematurely design a later search phase. Adding Redis,
+Valkey, a vector database, or TTL policy has no Phase 2 requirement.

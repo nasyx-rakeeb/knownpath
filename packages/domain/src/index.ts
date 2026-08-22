@@ -1,2 +1,7 @@
-// Domain contracts are introduced in Phase 2 after their invariants are specified.
-export {};
+export * from "./canonicalization.js";
+export * from "./common.js";
+export * from "./feedback.js";
+export * from "./identity.js";
+export * from "./ingestion.js";
+export * from "./knowledge.js";
+export * from "./sources.js";

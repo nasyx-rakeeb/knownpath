@@ -11,7 +11,16 @@ const apiEnvironmentSchema = z.object({
 });
 
 const mongoEnvironmentSchema = z.object({
+  MONGODB_APP_NAME: z.string().trim().min(1).default("knownpath"),
   MONGODB_DATABASE: z.string().trim().min(1).default("knownpath"),
+  MONGODB_MAX_POOL_SIZE: z.coerce.number().int().min(1).max(1_000).default(20),
+  MONGODB_MIN_POOL_SIZE: z.coerce.number().int().min(0).max(1_000).default(0),
+  MONGODB_SERVER_SELECTION_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .min(100)
+    .max(120_000)
+    .default(10_000),
   MONGODB_URI: z
     .string()
     .trim()
@@ -31,7 +40,11 @@ export interface ApiConfig {
 }
 
 export interface MongoConfig {
+  readonly appName: string;
   readonly databaseName: string;
+  readonly maxPoolSize: number;
+  readonly minPoolSize: number;
+  readonly serverSelectionTimeoutMs: number;
   readonly uri: string;
 }
 
@@ -53,7 +66,11 @@ export function loadMongoConfig(environment: NodeJS.ProcessEnv = process.env): M
   const parsed = parseEnvironment(mongoEnvironmentSchema, environment);
 
   return {
+    appName: parsed.MONGODB_APP_NAME,
     databaseName: parsed.MONGODB_DATABASE,
+    maxPoolSize: parsed.MONGODB_MAX_POOL_SIZE,
+    minPoolSize: parsed.MONGODB_MIN_POOL_SIZE,
+    serverSelectionTimeoutMs: parsed.MONGODB_SERVER_SELECTION_TIMEOUT_MS,
     uri: parsed.MONGODB_URI,
   };
 }
