@@ -2,6 +2,7 @@ import {
   agentContributionSchema,
   agentOutcomeSchema,
   apiKeySchema,
+  auditEventSchema,
   candidateExperienceSchema,
   ingestionRunSchema,
   knownPathSchema,
@@ -14,6 +15,8 @@ import {
   type AgentOutcomeId,
   type ApiKey,
   type ApiKeyId,
+  type AuditEvent,
+  type AuditEventId,
   type CandidateExperience,
   type CandidateExperienceId,
   type IngestionRun,
@@ -40,9 +43,6 @@ import type { KnownPathCollections } from "./collections.js";
 
 interface StoredEntity {
   readonly _id: string;
-  readonly audit: {
-    readonly updatedAt: Date;
-  };
 }
 
 interface RuntimeSchema<Entity> {
@@ -58,6 +58,7 @@ class MongoEntityRepository<Entity extends StoredEntity, Id extends string> {
   public constructor(
     protected readonly collection: Collection<Entity>,
     private readonly schema: RuntimeSchema<Entity>,
+    private readonly updatedAtPath = "audit.updatedAt",
   ) {}
 
   public async create(entity: Entity): Promise<Entity> {
@@ -81,7 +82,7 @@ class MongoEntityRepository<Entity extends StoredEntity, Id extends string> {
   ): Promise<Entity | null> {
     const result = await this.collection.findOneAndUpdate(
       filter,
-      { $set: { ...update, "audit.updatedAt": new Date() } },
+      { $set: { ...update, [this.updatedAtPath]: new Date() } },
       { returnDocument: "after" },
     );
 
@@ -98,7 +99,7 @@ export class UserRepository
   implements EntityRepository<User, UserId>
 {
   public constructor(collection: Collection<User>) {
-    super(collection, userSchema);
+    super(collection, userSchema, "updatedAt");
   }
 
   public async findByNormalizedEmail(normalizedEmail: string): Promise<User | null> {
@@ -107,6 +108,15 @@ export class UserRepository
 
   public async updateStatus(id: UserId, status: User["status"]): Promise<User | null> {
     return this.updateOne({ _id: id }, { status });
+  }
+}
+
+export class AuditEventRepository
+  extends MongoEntityRepository<AuditEvent, AuditEventId>
+  implements EntityRepository<AuditEvent, AuditEventId>
+{
+  public constructor(collection: Collection<AuditEvent>) {
+    super(collection, auditEventSchema, "occurredAt");
   }
 }
 
@@ -120,6 +130,38 @@ export class ApiKeyRepository
 
   public async findByHash(keyHash: string): Promise<ApiKey | null> {
     return this.findOne({ keyHash });
+  }
+
+  public async findByPrefix(prefix: string): Promise<ApiKey | null> {
+    return this.findOne({ prefix });
+  }
+
+  public async listByUserId(userId: UserId): Promise<ApiKey[]> {
+    const documents = await this.collection
+      .find({ userId })
+      .sort({ "audit.createdAt": -1 })
+      .toArray();
+    return documents.map((document) => apiKeySchema.parse(document));
+  }
+
+  public async replaceSecret(
+    id: ApiKeyId,
+    keyHash: string,
+    prefix: string,
+  ): Promise<ApiKey | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: id, status: "active" },
+      {
+        $set: { keyHash, prefix, "audit.updatedAt": new Date() },
+        $unset: { lastUsedAt: "" },
+      },
+      { returnDocument: "after" },
+    );
+    return result === null ? null : apiKeySchema.parse(result);
+  }
+
+  public async recordLastUsed(id: ApiKeyId, usedAt: Date): Promise<ApiKey | null> {
+    return this.updateOne({ _id: id, status: "active" }, { lastUsedAt: usedAt });
   }
 
   public async revoke(id: ApiKeyId, revokedAt = new Date()): Promise<ApiKey | null> {
@@ -261,6 +303,7 @@ export interface KnownPathRepositories {
   readonly agentContributions: AgentContributionRepository;
   readonly agentOutcomes: AgentOutcomeRepository;
   readonly apiKeys: ApiKeyRepository;
+  readonly auditEvents: AuditEventRepository;
   readonly candidateExperiences: CandidateExperienceRepository;
   readonly ingestionRuns: IngestionRunRepository;
   readonly knownPaths: KnownPathRepository;
@@ -274,6 +317,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     agentContributions: new AgentContributionRepository(collections.agentContributions),
     agentOutcomes: new AgentOutcomeRepository(collections.agentOutcomes),
     apiKeys: new ApiKeyRepository(collections.apiKeys),
+    auditEvents: new AuditEventRepository(collections.auditEvents),
     candidateExperiences: new CandidateExperienceRepository(collections.candidateExperiences),
     ingestionRuns: new IngestionRunRepository(collections.ingestionRuns),
     knownPaths: new KnownPathRepository(collections.knownPaths),

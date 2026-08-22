@@ -25,6 +25,7 @@ function brandedIdSchema<Brand extends string>() {
 
 export const userIdSchema = brandedIdSchema<"UserId">();
 export const apiKeyIdSchema = brandedIdSchema<"ApiKeyId">();
+export const auditEventIdSchema = brandedIdSchema<"AuditEventId">();
 export const sourceRegistryIdSchema = brandedIdSchema<"SourceRegistryId">();
 export const sourceItemIdSchema = brandedIdSchema<"SourceItemId">();
 export const ingestionRunIdSchema = brandedIdSchema<"IngestionRunId">();
@@ -35,6 +36,7 @@ export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
 
 export type UserId = z.infer<typeof userIdSchema>;
 export type ApiKeyId = z.infer<typeof apiKeyIdSchema>;
+export type AuditEventId = z.infer<typeof auditEventIdSchema>;
 export type SourceRegistryId = z.infer<typeof sourceRegistryIdSchema>;
 export type SourceItemId = z.infer<typeof sourceItemIdSchema>;
 export type IngestionRunId = z.infer<typeof ingestionRunIdSchema>;
@@ -49,6 +51,10 @@ export function createUserId(): UserId {
 
 export function createApiKeyId(): ApiKeyId {
   return apiKeyIdSchema.parse(randomUUID());
+}
+
+export function createAuditEventId(): AuditEventId {
+  return auditEventIdSchema.parse(randomUUID());
 }
 
 export function createSourceRegistryId(): SourceRegistryId {

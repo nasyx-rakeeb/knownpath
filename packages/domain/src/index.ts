@@ -1,4 +1,5 @@
 export * from "./canonicalization.js";
+export * from "./audit-events.js";
 export * from "./common.js";
 export * from "./feedback.js";
 export * from "./identity.js";

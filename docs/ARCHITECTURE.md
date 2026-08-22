@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 2. A boundary appearing here does not mean its future product behavior is
+established through Phase 3. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -14,8 +14,10 @@ database.
 
 ### Applications
 
-- `@knownpath/api` owns Fastify HTTP transport, route composition, and API process lifecycle. Its
-  only Phase 1 behavior is `GET /health`.
+- `@knownpath/api` owns Fastify HTTP transport, route composition, request validation, OpenAPI,
+  network security policy, and API process lifecycle. Phase 3 exposes operational health,
+  closed-registration session routes, account inspection, and API-key lifecycle routes under
+  `/api/v1`.
 - `@knownpath/worker` owns future ingestion and background-processing process lifecycle. It does no
   processing in Phase 1.
 - `@knownpath/mcp-server` owns MCP protocol and transport adaptation. It uses the official SDK but
@@ -33,6 +35,9 @@ database.
 - `@knownpath/database` owns MongoDB connection lifecycle, collection validators, named indexes,
   idempotent initialization, and repository implementations. Raw collections do not escape this
   package.
+- `@knownpath/auth` owns Better Auth composition, API-key cryptography and lifecycle services,
+  principal resolution, authorization policies, audit-event creation, and framework-neutral
+  rate-limit policy contracts. It does not depend on Fastify.
 - `@knownpath/ai` will hold provider-neutral extraction contracts and provider implementations.
 - `@knownpath/search` will hold indexing and hybrid/semantic retrieval contracts and
   implementations.
@@ -54,6 +59,7 @@ apps/web ---------+              +-------------> packages/config
                                  +-------------> packages/database
 
 packages/domain ---> no workspace dependencies
+packages/auth ----> packages/domain + packages/database + packages/config
 packages/* -------> never depend on apps/*
 ```
 
@@ -99,19 +105,24 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles nine collections, critical-envelope validators, and
-   named indexes idempotently.
+4. Database initialization creates/reconciles 13 collections, critical validators, and named indexes
+   idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
-6. The API still exposes only liveness, while worker, MCP, web, and installer boundaries remain
-   Phase 1 scaffolds without product behavior.
+6. The API constructs Better Auth and KnownPath auth services over that same database boundary,
+   resolves either HttpOnly cookie sessions or bearer API keys into reusable principals, and applies
+   route-specific authorization.
+7. Fastify exposes `/health/live`, `/health/ready`, versioned account/API-key/session routes,
+   OpenAPI JSON, and optional Swagger UI. Worker, MCP, web, and installer product behavior remains
+   deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 2. `.env` and variant files are ignored.
-MongoDB runs without authentication only in the loopback-bound local Compose environment. No secret
-has a committed default. Production authentication, deployment topology, and secret storage are
-deliberately outside Phase 2.
+`.env.example` documents all variables known through Phase 3. `.env` and variant files are ignored.
+MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
+Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
+an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
+cookie security, and rate-limit settings are explicit configuration rather than framework defaults.
 
 Invalid configuration fails before an application starts. Database callers supply a validated
 `MongoConfig`; only command entry points read process globals. The reusable database layer receives
@@ -128,6 +139,32 @@ referenced.
 Zod schemas are the full runtime authority. MongoDB validators enforce critical stored envelopes as
 defense in depth. Provider-neutral embedding state exists in the domain, but vectors and vector
 indexes do not. See [`docs/DATA_MODEL.md`](DATA_MODEL.md).
+
+## Phase 3 authentication and HTTP boundary
+
+Human identity uses Better Auth with its official MongoDB adapter and database-backed cookie
+sessions. Public registration is disabled. The only user provisioning path is the masked
+`pnpm auth:user:create` CLI, which calls Better Auth's server-side creation service so password
+hashing and persistence hooks are identical to future framework-managed flows. Public signup,
+verification, reset, OAuth, and administrative user-management routes are not mounted.
+
+KnownPath owns agent/MCP API keys because their capability vocabulary and lifecycle belong to the
+product domain. Keys have a public `kp_...` identifier plus 32 random secret bytes. The full value
+is returned once; MongoDB stores only the identifier and an HMAC-SHA-256 digest protected by a
+required pepper. Key management requires a human session. Bearer keys can authenticate allowed
+machine routes only when their owner is active and the required scope is present.
+
+Authentication produces an anonymous, session, or API-key principal. Framework-neutral policy
+functions implement authenticated, session-only, scoped, and administrator checks so future MCP and
+CLI transports can reuse the same decisions. Team/workspace context remains an additive future
+principal field rather than a route-layer redesign.
+
+Fastify supplies server-generated request IDs, Zod request/response schemas, a stable error
+envelope, credential-safe structured logs, CORS allowlists, explicit proxy trust, security headers,
+and a patched per-process rate limiter. The limiter boundary can receive distributed storage later;
+Phase 3 intentionally adds no Redis or Valkey. Sensitive actions append bounded `audit_events`
+without credentials. OpenAPI 3.1 is generated from route schemas at `/api/v1/openapi.json`; Swagger
+UI is configuration-controlled at `/docs`.
 
 ## Technology fit
 

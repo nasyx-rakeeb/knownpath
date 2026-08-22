@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 2 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 3 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -11,10 +11,12 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 
 ## Conventions
 
-- Every entity uses a branded UUID v4 string as `_id` and carries `schemaVersion: 1`.
+- KnownPath-owned entities use branded UUID v4 string IDs and `schemaVersion: 1`. Better Auth core
+  session/account/verification records use UUID string IDs but retain the framework's own schema.
 - Persisted timestamps are BSON `Date` values. Runtime schemas also accept ISO 8601 timestamps at
   external boundaries and normalize them to `Date`.
-- `audit.createdAt` and `audit.updatedAt` are required on every entity.
+- Domain aggregates normally use `audit.createdAt` and `audit.updatedAt`. Better Auth-compatible
+  users use root `createdAt`/`updatedAt`; append-only audit events use `occurredAt`.
 - Zod is the authoritative complete runtime validator. MongoDB uses strict/error envelope validators
   for critical identifiers, versions, timestamps, lifecycle values, and ownership fields.
 - Deterministic keys contain `{ value, version }`, where `value` is a SHA-256 digest of a versioned,
@@ -29,6 +31,10 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | ----------------------- | ---------------------------------------------------------------------------------------------- |
 | `users`                 | Independent account identity referenced by API keys and optional audit/ownership fields.       |
 | `api_keys`              | Independent credential lifecycle; references one user and stores a hash, never the raw key.    |
+| `auth_sessions`         | Better Auth server-side sessions; independently revocable and expiring.                        |
+| `auth_accounts`         | Better Auth provider credentials; Phase 3 stores only scrypt password accounts.                |
+| `auth_verifications`    | Better Auth verification primitives reserved for deliberately enabled future flows.            |
+| `audit_events`          | Append-only sensitive-action history without credential material.                              |
 | `source_registries`     | Independently managed source identity/configuration and ingestion cursor.                      |
 | `source_items`          | Immutable captured snapshot; references one source registry.                                   |
 | `ingestion_runs`        | Mutable operational attempt history; references one source registry.                           |
@@ -41,6 +47,29 @@ Source registries, immutable source snapshots, processing runs, candidates, cano
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
 metadata, solution steps, score components, evidence references, visibility, moderation, freshness,
 and search state are embedded for read locality.
+
+### Identity, sessions, and API keys
+
+`users` is the single identity source for both KnownPath authorization and Better Auth. It retains a
+UUID string `_id`, normalized email, display name, email-verification placeholder, `user`/`admin`
+role, active/suspended/deleted status, optional soft-ban fields, and root timestamps. A custom
+Better Auth ID function preserves UUIDs as strings; its MongoDB adapter's built-in `"uuid"` mode
+would store BSON UUID values and is intentionally not used.
+
+Password material lives only in `auth_accounts` and is hashed by Better Auth with scrypt. Session
+tokens live only in `auth_sessions` and HttpOnly cookies. `auth_verifications` exists because it is
+a core framework lifecycle with independent expiration, although Phase 3 exposes no email
+verification or password-reset flow.
+
+API keys store `prefix`, keyed SHA-256 digest, digest version, fixed scopes, lifecycle status,
+optional expiration/revocation, and throttled last-use time. A plaintext key has the form
+`kp_<public-id>_<random-secret>` and is returned only on issuance or rotation. The key digest is an
+HMAC using a server-held pepper, not a password hash: the credential already contains 256 bits of
+random secret entropy and needs deterministic verification.
+
+Audit events record type/time, actor, target, outcome, optional request ID/network address, and
+bounded string metadata. Passwords, cookies, session tokens, plaintext keys, digests, and
+Authorization headers are forbidden audit metadata.
 
 ## Important embedded structures
 
@@ -102,13 +131,38 @@ and is omitted below.
 
 ### `users`
 
+- `uq_users_email`: Better Auth's unique canonical email lookup.
 - `uq_users_normalized_email`: unique normalized-email lookup.
-- `ix_users_status_updated_at`: lifecycle administration ordered by latest update.
+- `ix_users_status_updated_at_v2`: lifecycle administration ordered by root update timestamp.
 
 ### `api_keys`
 
+- `uq_api_keys_prefix`: unique public key-identifier lookup before digest comparison.
 - `uq_api_keys_key_hash`: unique authentication lookup by key digest.
 - `ix_api_keys_user_status_created_at`: a user's keys by status and creation time.
+
+### `auth_sessions`
+
+- `uq_auth_sessions_token`: unique session-token lookup.
+- `ix_auth_sessions_user_expires_at`: active-session listing for one user.
+- `ix_auth_sessions_expires_at`: expiration maintenance lookup; not a TTL index.
+
+### `auth_accounts`
+
+- `auth_accounts_issuer_accountId_uidx`: Better Auth's required unique provider identity.
+- `ix_auth_accounts_user_provider`: credential/provider lookup for one user.
+
+### `auth_verifications`
+
+- `ix_auth_verifications_identifier`: verification lookup.
+- `ix_auth_verifications_expires_at`: expiration maintenance lookup; not a TTL index.
+
+### `audit_events`
+
+- `ix_audit_actor_time`: actor history in reverse chronology.
+- `ix_audit_target_time`: target history in reverse chronology.
+- `ix_audit_event_type_time`: action-category history.
+- `ix_audit_request_id`: partial correlation lookup when a request ID exists.
 
 ### `source_registries`
 
@@ -175,8 +229,9 @@ pnpm db:verify
 ```
 
 `db:init` creates missing collections, reapplies current validators with `collMod`, and requests all
-named indexes. A same-spec repeated initialization is safe. Index-name/specification conflicts are
-allowed to fail visibly rather than silently mutating production indexes.
+named indexes. A same-spec repeated initialization is safe. Phase 3 includes one explicit,
+name-bounded migration from the pre-integration auth-account index name to Better Auth's required
+generated name; other index-name/specification conflicts still fail visibly.
 
 `db:verify` uses `SourceRegistryRepository` for a uniquely marked insert/read/update/read/delete
 round trip and confirms cleanup. It does not seed production knowledge.
@@ -188,12 +243,15 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Source items are immutable; corrections create a new snapshot.
 - API keys are revoked/expired rather than silently deleted.
 - Users and knowledge use lifecycle/moderation states for soft removal.
+- Authentication sessions and verification records expire logically; no TTL deletion policy is
+  imposed before operational retention requirements exist.
+- Audit events are retained until a future compliance/privacy policy defines archival or deletion.
 - Failed operational runs may later receive a TTL/archive policy, but Phase 2 has insufficient usage
   evidence to choose one.
 
 ## Deferred model behavior
 
 The schemas do not imply that ingestion, extraction, scoring, verification, search, MCP,
-contribution promotion, authentication, authorization, or dashboards are implemented. Team IDs are
-opaque until the authentication model exists. Semantic deduplication and vector storage/indexing
-belong to later phases.
+contribution promotion, public registration, recovery, OAuth, team membership, or dashboards are
+implemented. Team IDs remain opaque until the team/workspace model exists. Semantic deduplication
+and vector storage/indexing belong to later phases.

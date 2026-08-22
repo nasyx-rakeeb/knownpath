@@ -5,10 +5,27 @@ import { collectionNames } from "./collections.js";
 interface CollectionDefinition {
   readonly indexes: readonly IndexDescription[];
   readonly name: (typeof collectionNames)[keyof typeof collectionNames];
+  readonly obsoleteIndexes?: readonly string[];
   readonly validator: Document;
 }
 
 const numericBsonTypes = ["int", "long", "double", "decimal"] as const;
+
+function plainValidator(
+  required: readonly string[],
+  properties: Readonly<Record<string, Document>>,
+): Document {
+  return {
+    $jsonSchema: {
+      bsonType: "object",
+      required: ["_id", ...required],
+      properties: {
+        _id: { bsonType: "string" },
+        ...properties,
+      },
+    },
+  };
+}
 
 function envelopeValidator(
   required: readonly string[],
@@ -38,13 +55,34 @@ function envelopeValidator(
 export const collectionDefinitions: readonly CollectionDefinition[] = [
   {
     name: collectionNames.users,
-    validator: envelopeValidator(["normalizedEmail", "status"], {
-      normalizedEmail: { bsonType: "string" },
-      status: { enum: ["active", "suspended", "deleted"] },
-    }),
+    validator: plainValidator(
+      [
+        "schemaVersion",
+        "email",
+        "normalizedEmail",
+        "emailVerified",
+        "displayName",
+        "role",
+        "status",
+        "createdAt",
+        "updatedAt",
+      ],
+      {
+        schemaVersion: { bsonType: numericBsonTypes, enum: [1] },
+        email: { bsonType: "string" },
+        normalizedEmail: { bsonType: "string" },
+        emailVerified: { bsonType: "bool" },
+        displayName: { bsonType: "string" },
+        role: { enum: ["user", "admin"] },
+        status: { enum: ["active", "suspended", "deleted"] },
+        createdAt: { bsonType: "date" },
+        updatedAt: { bsonType: "date" },
+      },
+    ),
     indexes: [
+      { key: { email: 1 }, name: "uq_users_email", unique: true },
       { key: { normalizedEmail: 1 }, name: "uq_users_normalized_email", unique: true },
-      { key: { status: 1, "audit.updatedAt": -1 }, name: "ix_users_status_updated_at" },
+      { key: { status: 1, updatedAt: -1 }, name: "ix_users_status_updated_at_v2" },
     ],
   },
   {
@@ -55,11 +93,88 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
       status: { enum: ["active", "revoked", "expired"] },
     }),
     indexes: [
+      { key: { prefix: 1 }, name: "uq_api_keys_prefix", unique: true },
       { key: { keyHash: 1 }, name: "uq_api_keys_key_hash", unique: true },
       {
         key: { userId: 1, status: 1, "audit.createdAt": -1 },
         name: "ix_api_keys_user_status_created_at",
       },
+    ],
+  },
+  {
+    name: collectionNames.auditEvents,
+    validator: plainValidator(
+      ["schemaVersion", "eventType", "occurredAt", "actor", "target", "outcome"],
+      {
+        schemaVersion: { bsonType: numericBsonTypes, enum: [1] },
+        eventType: { bsonType: "string" },
+        occurredAt: { bsonType: "date" },
+        actor: { bsonType: "object", required: ["kind"] },
+        target: { bsonType: "object", required: ["kind", "id"] },
+        outcome: { enum: ["success", "failure"] },
+      },
+    ),
+    indexes: [
+      { key: { "actor.userId": 1, occurredAt: -1 }, name: "ix_audit_actor_time" },
+      { key: { "target.kind": 1, "target.id": 1, occurredAt: -1 }, name: "ix_audit_target_time" },
+      { key: { eventType: 1, occurredAt: -1 }, name: "ix_audit_event_type_time" },
+      {
+        key: { requestId: 1 },
+        name: "ix_audit_request_id",
+        partialFilterExpression: { requestId: { $exists: true } },
+      },
+    ],
+  },
+  {
+    name: collectionNames.authSessions,
+    validator: plainValidator(["token", "userId", "expiresAt", "createdAt", "updatedAt"], {
+      token: { bsonType: "string" },
+      userId: { bsonType: "string" },
+      expiresAt: { bsonType: "date" },
+      createdAt: { bsonType: "date" },
+      updatedAt: { bsonType: "date" },
+    }),
+    indexes: [
+      { key: { token: 1 }, name: "uq_auth_sessions_token", unique: true },
+      { key: { userId: 1, expiresAt: -1 }, name: "ix_auth_sessions_user_expires_at" },
+      { key: { expiresAt: 1 }, name: "ix_auth_sessions_expires_at" },
+    ],
+  },
+  {
+    name: collectionNames.authAccounts,
+    obsoleteIndexes: ["uq_auth_accounts_issuer_account"],
+    validator: plainValidator(
+      ["providerId", "issuer", "accountId", "userId", "createdAt", "updatedAt"],
+      {
+        providerId: { bsonType: "string" },
+        issuer: { bsonType: "string" },
+        accountId: { bsonType: "string" },
+        userId: { bsonType: "string" },
+        createdAt: { bsonType: "date" },
+        updatedAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      {
+        key: { issuer: 1, accountId: 1 },
+        name: "auth_accounts_issuer_accountId_uidx",
+        unique: true,
+      },
+      { key: { userId: 1, providerId: 1 }, name: "ix_auth_accounts_user_provider" },
+    ],
+  },
+  {
+    name: collectionNames.authVerifications,
+    validator: plainValidator(["identifier", "value", "expiresAt", "createdAt", "updatedAt"], {
+      identifier: { bsonType: "string" },
+      value: { bsonType: "string" },
+      expiresAt: { bsonType: "date" },
+      createdAt: { bsonType: "date" },
+      updatedAt: { bsonType: "date" },
+    }),
+    indexes: [
+      { key: { identifier: 1 }, name: "ix_auth_verifications_identifier" },
+      { key: { expiresAt: 1 }, name: "ix_auth_verifications_expires_at" },
     ],
   },
   {
@@ -296,6 +411,18 @@ export async function initializeDatabase(database: Db): Promise<InitializationRe
     }
 
     const collection = database.collection(definition.name);
+    if (definition.obsoleteIndexes !== undefined) {
+      const existingIndexNames = new Set(
+        (await collection.indexes())
+          .map((index) => index.name)
+          .filter((name) => name !== undefined),
+      );
+      for (const obsoleteIndex of definition.obsoleteIndexes) {
+        if (existingIndexNames.has(obsoleteIndex)) {
+          await collection.dropIndex(obsoleteIndex);
+        }
+      }
+    }
     const indexes = await collection.createIndexes([...definition.indexes]);
     initializedCollections.push({ created, indexes, name: definition.name });
   }

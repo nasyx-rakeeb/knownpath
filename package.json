@@ -11,6 +11,7 @@
     "pnpm": ">=11.22.0 <12"
   },
   "scripts": {
+    "auth:user:create": "pnpm --filter @knownpath/auth auth:user:create",
     "build": "turbo run build",
     "db:init": "pnpm --filter @knownpath/database db:init",
     "db:inspect": "pnpm --filter @knownpath/database db:inspect",

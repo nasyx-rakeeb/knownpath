@@ -4,9 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 2 provides the versioned domain
-> model and MongoDB repository/index foundation. Ingestion, AI extraction, search, MCP tools,
-> dashboards, Agent Skill installation, and contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 3 provides the versioned domain,
+> MongoDB, closed-registration authentication, API-key, and secure HTTP foundations. Ingestion, AI
+> extraction, knowledge search, MCP tools, dashboards, Agent Skill installation, public signup, and
+> contribution workflows are not implemented yet.
 
 ## Prerequisites
 
@@ -22,7 +23,8 @@ pnpm install
 cp .env.example .env
 ```
 
-The committed environment example contains development-only local values and no credentials.
+Generate independent `BETTER_AUTH_SECRET` and `API_KEY_PEPPER` values as described in
+`.env.example`. The committed example contains no credential defaults.
 
 ## Start the current development environment
 
@@ -32,7 +34,7 @@ Start MongoDB:
 pnpm dev:infra
 ```
 
-Create/reconcile the Phase 2 collections, validators, and indexes:
+Create/reconcile the Phase 3 collections, validators, and indexes:
 
 ```sh
 pnpm db:init
@@ -45,14 +47,22 @@ pnpm db:inspect
 pnpm db:verify
 ```
 
+Create the first local user or administrator through the masked CLI (registration is closed):
+
+```sh
+pnpm auth:user:create
+```
+
 Start all application and package development processes:
 
 ```sh
 pnpm dev
 ```
 
-The current web shell is served at <http://127.0.0.1:3000>. The API health endpoint is available at
-<http://127.0.0.1:3001/health>.
+The current web shell is served at <http://127.0.0.1:3000>. API liveness and readiness are available
+at <http://127.0.0.1:3001/health/live> and <http://127.0.0.1:3001/health/ready>. OpenAPI JSON is at
+<http://127.0.0.1:3001/api/v1/openapi.json>; development Swagger UI is at
+<http://127.0.0.1:3001/docs/>.
 
 Stop MongoDB without deleting its named development volume:
 
@@ -62,20 +72,21 @@ pnpm dev:infra:down
 
 ## Repository commands
 
-| Command               | Purpose                                                                    |
-| --------------------- | -------------------------------------------------------------------------- |
-| `pnpm install`        | Install the pinned workspace dependencies                                  |
-| `pnpm dev`            | Run workspace development tasks                                            |
-| `pnpm build`          | Build every compilable application and package                             |
-| `pnpm typecheck`      | Run strict TypeScript validation across the workspace                      |
-| `pnpm lint`           | Run the ESLint flat configuration across the workspace                     |
-| `pnpm format`         | Format supported files with Prettier                                       |
-| `pnpm format:check`   | Validate formatting without changing files                                 |
-| `pnpm dev:infra`      | Start the required local MongoDB container                                 |
-| `pnpm dev:infra:down` | Stop the local container while preserving its data volume                  |
-| `pnpm db:init`        | Idempotently create/reconcile MongoDB collections, validators, and indexes |
-| `pnpm db:inspect`     | Print current collection validators and indexes                            |
-| `pnpm db:verify`      | Run and clean up a repository-layer persistence round trip                 |
+| Command                 | Purpose                                                                    |
+| ----------------------- | -------------------------------------------------------------------------- |
+| `pnpm install`          | Install the pinned workspace dependencies                                  |
+| `pnpm dev`              | Run workspace development tasks                                            |
+| `pnpm build`            | Build every compilable application and package                             |
+| `pnpm typecheck`        | Run strict TypeScript validation across the workspace                      |
+| `pnpm lint`             | Run the ESLint flat configuration across the workspace                     |
+| `pnpm format`           | Format supported files with Prettier                                       |
+| `pnpm format:check`     | Validate formatting without changing files                                 |
+| `pnpm dev:infra`        | Start the required local MongoDB container                                 |
+| `pnpm dev:infra:down`   | Stop the local container while preserving its data volume                  |
+| `pnpm db:init`          | Idempotently create/reconcile MongoDB collections, validators, and indexes |
+| `pnpm db:inspect`       | Print current collection validators and indexes                            |
+| `pnpm db:verify`        | Run and clean up a repository-layer persistence round trip                 |
+| `pnpm auth:user:create` | Safely provision a user/admin with a masked password prompt                |
 
 ## Structure
 
@@ -89,6 +100,7 @@ apps/
 packages/
   agent-adapters/  Future per-agent integration boundary
   ai/              Future provider-neutral extraction boundary
+  auth/            Sessions, API keys, principals, authorization, and audit
   config/          Typed environment parsing
   database/        MongoDB lifecycle, repositories, validators, and indexes
   domain/          Versioned domain schemas and canonicalization helpers

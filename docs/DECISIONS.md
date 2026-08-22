@@ -189,3 +189,79 @@ infrastructure or deleting operational history before real retention needs exist
 
 **Rejected:** Adding a vector index now would prematurely design a later search phase. Adding Redis,
 Valkey, a vector database, or TTL policy has no Phase 2 requirement.
+
+## 2026-08-22 — Resequence authentication as Phase 3
+
+**Decision:** Treat the current approved phase instruction as authoritative and implement the secure
+authentication/API-key foundation in Phase 3. The source ingestion work named as Phase 2's exact
+next phase becomes Phase 4.
+
+**Why:** `progress.md` truthfully preserves what Phase 2 expected at completion, while the later
+explicit user instruction intentionally changes sequencing. Appending this decision avoids silently
+rewriting historical phase records.
+
+## 2026-08-22 — Use Better Auth with one closed-registration user identity
+
+**Decision:** Use Better Auth 1.7 with its official MongoDB adapter for scrypt password credentials
+and database-backed HttpOnly cookie sessions. Better Auth and KnownPath share the existing `users`
+collection. Email/password signup is disabled; public signup, email verification, reset, OAuth,
+email changes, deletion, and HTTP administrative user management are not exposed. Users and admins
+are provisioned only through the masked repository CLI.
+
+**Why:** Better Auth is maintained, open source, framework-neutral, supports Fastify and MongoDB,
+uses memory-hard scrypt hashing, performs origin/CSRF checks, and supplies revocable sessions. A
+single identity avoids synchronization and authorization drift. Better Auth's Mongo adapter treats
+its `"uuid"` mode as BSON UUID storage, so KnownPath supplies a UUID-generating function to preserve
+Phase 2's stable string-ID contract.
+
+**Rejected:** Separate auth/domain users duplicate identity and failure states. A custom password or
+session framework creates an unnecessary security-critical surface. JWT browser sessions weaken
+simple revocation. A paid hosted identity provider conflicts with the open-source/self-hosted goal.
+
+**References:** [Better Auth installation](https://www.better-auth.com/docs/installation),
+[MongoDB adapter](https://better-auth.com/docs/adapters/mongo),
+[session management](https://better-auth.com/docs/concepts/session-management),
+[security](https://better-auth.com/docs/reference/security),
+[Fastify integration](https://better-auth.com/docs/integrations/fastify)
+
+## 2026-08-22 — Keep agent API keys in the KnownPath domain
+
+**Decision:** Retain the Phase 2 `api_keys` aggregate rather than adopt Better Auth's separate
+API-key plugin model. Keys contain a public prefix plus 32 random secret bytes. Only an HMAC-SHA-256
+digest protected by a required, independently managed pepper is persisted. Key management is
+session-only; bearer use is constrained by owner status and a closed scope enum.
+
+**Why:** Agent/MCP capabilities, rotation, audit history, and future contribution semantics are
+KnownPath domain concerns. High-entropy random credentials need deterministic keyed verification,
+not a slow human-password KDF. A non-secret prefix supports indexed identification without exposing
+the secret. Hash versioning permits later migration.
+
+**Rejected:** Plaintext/encrypted key storage increases breach impact. A bare SHA-256 digest lacks
+defense if database contents are stolen. Letting API keys mint or rotate keys expands the impact of
+a leaked agent credential. The Better Auth plugin would create a second key source of truth.
+
+**References:** [Node.js crypto](https://nodejs.org/docs/latest-v24.x/api/crypto.html),
+[OWASP REST Security](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html),
+[Better Auth API-key reference](https://better-auth.com/docs/plugins/api-key/reference)
+
+## 2026-08-22 — Make HTTP security explicit and keep rate limiting process-local
+
+**Decision:** Generate an OpenAPI 3.1 contract from Zod route schemas with Fastify's maintained
+plugins. Use server-generated request IDs, one error envelope, credential-redacted Pino logging,
+explicit CORS origins, explicit proxy addresses, environment-aware secure cookies/HSTS, and
+`@fastify/rate-limit` 11.2 or newer. Phase 3 uses its in-memory per-process store behind reusable
+policy contracts and adds no auxiliary service.
+
+**Why:** These controls make the API inspectable and safe by default while the project still runs as
+a single local process. The selected rate-limit release contains the official IPv6 normalization
+security fix. A separate distributed store is unjustified until deployment topology requires one.
+
+**Rejected:** Wildcard credentialed CORS, blindly trusting all forwarded headers, request-body
+logging, and caller-controlled request IDs create avoidable security ambiguity. Redis/Valkey would
+violate the phase's infrastructure restraint.
+
+**References:** [Fastify logging](https://fastify.dev/docs/latest/Reference/Logging/),
+[Fastify server options](https://fastify.dev/docs/latest/Reference/Server/),
+[Fastify Swagger](https://github.com/fastify/fastify-swagger),
+[Fastify rate limit](https://github.com/fastify/fastify-rate-limit),
+[OWASP Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)

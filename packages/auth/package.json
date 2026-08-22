@@ -1,8 +1,8 @@
 {
-  "name": "@knownpath/database",
+  "name": "@knownpath/auth",
   "version": "0.0.0",
   "private": true,
-  "description": "MongoDB persistence and repository boundary for KnownPath.",
+  "description": "Reusable authentication, API-key, authorization, and audit services for KnownPath.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -15,19 +15,18 @@
     "dist"
   ],
   "scripts": {
+    "auth:user:create": "tsx src/cli/create-user.ts",
     "build": "tsc -p tsconfig.build.json",
-    "db:init": "tsx src/cli/initialize.ts",
-    "db:inspect": "tsx src/cli/inspect.ts",
-    "db:verify": "tsx src/cli/verify.ts",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@better-auth/mongo-adapter": "catalog:",
+    "@inquirer/prompts": "catalog:",
     "@knownpath/config": "workspace:*",
+    "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
-    "mongodb": "catalog:"
+    "better-auth": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

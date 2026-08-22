@@ -13,8 +13,18 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@fastify/cors": "catalog:",
+    "@fastify/helmet": "catalog:",
+    "@fastify/rate-limit": "catalog:",
+    "@fastify/swagger": "catalog:",
+    "@fastify/swagger-ui": "catalog:",
+    "@knownpath/auth": "workspace:*",
     "@knownpath/config": "workspace:*",
-    "fastify": "catalog:"
+    "@knownpath/database": "workspace:*",
+    "@knownpath/domain": "workspace:*",
+    "fastify": "catalog:",
+    "fastify-type-provider-zod": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

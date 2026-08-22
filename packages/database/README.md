@@ -1,8 +1,9 @@
 # `@knownpath/database`
 
 This package owns MongoDB connection lifecycle, collection access, named repositories, critical
-envelope validators, index declarations, and idempotent initialization. Raw collections remain
-inside this package.
+envelope validators, index declarations, and idempotent initialization. It also supplies a narrowly
+scoped Better Auth MongoDB adapter factory over the managed connection. Raw databases and
+collections remain inside this package.
 
 From the repository root with MongoDB and `.env` configured:
 

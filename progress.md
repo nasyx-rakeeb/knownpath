@@ -239,3 +239,161 @@ including immutable source snapshot capture, provenance, idempotent ingestion ru
 processing-state transitions through the Phase 2 repositories.** Do not begin AI extraction,
 semantic search, MCP knowledge tools, Agent Skill distribution, contributions, or dashboards until
 their designated later phases.
+
+## Phase 3 — Secure authentication and backend API foundation
+
+### Phase goal
+
+Establish closed-registration human identity and sessions, secure machine API keys, reusable
+authorization/audit/rate-policy primitives, and a versioned, validated, documented Fastify API that
+future web, CLI, MCP, contribution, and private/team knowledge clients can share.
+
+This phase was deliberately resequenced by the later explicit Phase 3 instruction. The ingestion
+phase named above remains historical Phase 2 intent and moves to Phase 4.
+
+### Research performed
+
+Official documentation and registries were checked on 2026-08-22 before implementation:
+
+- [Fastify documentation](https://fastify.dev/docs/latest/),
+  [logging/redaction](https://fastify.dev/docs/latest/Reference/Logging/),
+  [server/proxy configuration](https://fastify.dev/docs/latest/Reference/Server/), and the Fastify 5
+  full-JSON-schema guidance
+- Official Fastify plugins for [CORS](https://github.com/fastify/fastify-cors),
+  [security headers](https://github.com/fastify/fastify-helmet),
+  [OpenAPI](https://github.com/fastify/fastify-swagger), and
+  [rate limiting](https://github.com/fastify/fastify-rate-limit); the selected limiter is 11.2.0 or
+  newer because that is the official IPv6-normalization security fix boundary
+- [Better Auth installation](https://www.better-auth.com/docs/installation),
+  [options](https://better-auth.com/docs/reference/options),
+  [MongoDB adapter](https://better-auth.com/docs/adapters/mongo),
+  [Fastify integration](https://better-auth.com/docs/integrations/fastify),
+  [session management](https://better-auth.com/docs/concepts/session-management),
+  [database schema/hooks](https://better-auth.com/docs/concepts/database),
+  [admin plugin](https://better-auth.com/docs/plugins/admin),
+  [email/password](https://better-auth.com/docs/authentication/email-password), and
+  [security](https://better-auth.com/docs/reference/security)
+- Better Auth documentation for passwordless/OAuth options and the API-key plugin; those flows were
+  assessed but intentionally not enabled in this closed-registration phase
+- [OWASP REST Security](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html),
+  [Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html),
+  and
+  [Password Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+- [Node.js 24 crypto](https://nodejs.org/docs/latest-v24.x/api/crypto.html) for secure random bytes,
+  HMAC, and constant-time comparison
+- Current package versions and peer compatibility through the public npm registry, including Better
+  Auth 1.7.1, Fastify 5.12.1, Fastify Type Provider Zod 7.0.0, and the official Fastify plugin lines
+
+The approved implementation design is
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-3-auth-api-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-3-auth-api-design.md).
+
+### Architecture and technology decisions
+
+- Better Auth with the official MongoDB adapter owns scrypt password credentials and revocable,
+  database-backed cookie sessions. It shares the single `users` identity source with KnownPath.
+- Registration is closed. A masked `pnpm auth:user:create` CLI is the only user/admin provisioning
+  path. Signup, verification, reset, OAuth, email mutation/deletion, and HTTP admin-user routes are
+  absent.
+- Better Auth's MongoDB `"uuid"` mode stores BSON UUIDs, so a UUID-generating function preserves the
+  Phase 2 string-ID contract.
+- KnownPath retains its domain API-key model. Keys use `kp_<public-id>_<32-byte-secret>`, return
+  plaintext only on issue/rotation, and persist only an HMAC-SHA-256 digest protected by an
+  independent required pepper.
+- API-key scopes are closed/versioned: `account:read`, `api-keys:read`, `api-keys:write`,
+  `knowledge:read`, and `knowledge:contribute`. Phase 3 exposes no knowledge route.
+- Human sessions alone may list, issue, rotate, or revoke keys. Bearer keys may access scoped routes
+  only while both key and owner remain active.
+- Framework-neutral principals and public/authenticated/session/scoped/admin policies live in
+  `@knownpath/auth`, not Fastify routes.
+- Sensitive actions write append-only, credential-free audit events. Key last-use writes are
+  throttled.
+- Fastify provides `/api/v1`, Zod validation/serialization, one error envelope, server request IDs,
+  Pino credential redaction, explicit CORS/proxy/cookie settings, security headers, and OpenAPI 3.1.
+- Rate limiting is intentionally in-process behind reusable policy boundaries. No Redis/Valkey or
+  second database was added.
+
+### Collections, indexes, and files created or evolved
+
+- Evolved `users` for Better Auth-compatible timestamps, email verification placeholder, role, and
+  soft-ban state while preserving string UUID identity and normalized email.
+- Evolved `api_keys` with a unique public prefix, fixed scopes, keyed digest verification, rotation,
+  revocation, and last-use repository operations.
+- Added `auth_sessions`, `auth_accounts`, `auth_verifications`, and `audit_events`, bringing the
+  initialized collection count to 13.
+- Initialization now declares 46 named indexes excluding automatic `_id_`, including auth token,
+  user/expiry, provider identity, verification expiry, actor/target/time, request correlation, API
+  prefix, and user email/status paths.
+- Added `@knownpath/auth` with Better Auth composition, API-key/audit services, authentication,
+  authorization, rate policies, and masked CLI provisioning.
+- Expanded `@knownpath/config`, `@knownpath/database`, and `@knownpath/domain` for secure config,
+  adapter/repository boundaries, identities/scopes, and audit schemas.
+- Expanded `@knownpath/api` with security plugins, centralized errors/logging, health/readiness,
+  explicit auth bridge routes, account/key routes, OpenAPI JSON, and Swagger UI.
+- Updated `.env.example`, root/package READMEs, architecture, data model, decisions, and this
+  progress log.
+
+### Commands and behavior successfully verified
+
+- `pnpm install`
+- `pnpm format` and `pnpm format:check`
+- `pnpm typecheck` — 16 tasks successful
+- `pnpm lint` — 12 tasks successful
+- `pnpm build` — 12 tasks successful; Next.js compiled and prerendered `/`
+- `pnpm dev:infra` started the loopback MongoDB container
+- `pnpm db:init` created all 13 collections and 46 declared indexes; repeated initialization
+  reported `created: false` for every collection and completed successfully
+- Direct `mongosh` inspection confirmed the user/session/account/API-key/audit index names and
+  strict validators
+- `pnpm auth:user:create --email ... --name ... --role admin` prompted twice with masked input and
+  created one valid admin plus a 161-character Better Auth scrypt credential record
+- API booted at `127.0.0.1:3001`; liveness and readiness returned 200 with no secret/config details
+- OpenAPI JSON returned 200 (42,336 bytes during verification), declared OpenAPI 3.1 with 14 paths,
+  documented the account route, and contained no signup route; Swagger UI returned 200
+- An attempted `POST /api/v1/auth/sign-up/email` returned the stable 404 error envelope
+- Email/password sign-in returned 200 and a cookie session; session-authenticated
+  `GET /api/v1/account/me` returned 200
+- API-key issuance returned plaintext once; database inspection confirmed a 64-character digest, no
+  plaintext field, and a recorded last-use timestamp
+- The issued bearer key returned 200 from `/api/v1/account/me`; a random key returned 401
+- Rotation returned a new one-time key, made the old key return 401, and let the new key return 200
+- Key listing returned metadata without plaintext; revocation made the rotated key return 401
+- Sign-out with a trusted Origin returned 200, removed the session, and made the
+  cookie-authenticated account request return 401
+- Captured API logs contained method/path/request ID/status/duration but no Authorization header,
+  cookie, password, session token, plaintext API key, or key digest
+- Bounded cleanup removed the temporary admin, credential account, revoked key, session, and six
+  matching audit events; a direct post-cleanup inspection returned zero for all five categories
+
+No automated tests were created or run, as required for this phase.
+
+### Environment and manual setup still required
+
+- Use the pinned Node.js 24 and pnpm 11 versions, copy `.env.example` to `.env`, and generate
+  independent high-entropy `BETTER_AUTH_SECRET` and `API_KEY_PEPPER` values.
+- Configure the exact externally visible HTTPS Better Auth URL, trusted browser origins, CORS
+  origins, and proxy addresses for each deployment. Production rejects an HTTP auth URL.
+- Start MongoDB and run `pnpm db:init` before provisioning users or starting the API.
+- Run `pnpm auth:user:create` interactively to provision the real first administrator; no committed
+  account remains from verification.
+- Production MongoDB authentication/topology, backups, secret management/rotation, audit retention,
+  and distributed rate limiting still need deployment-specific decisions.
+
+### Known limitations intentionally left for later phases
+
+- No public signup, email verification, password reset/recovery, OAuth, magic links, passkeys, or
+  user-facing authentication UI.
+- No team/workspace membership or team-scoped authorization; the principal model is ready to extend.
+- Rate limits are per process and reset on restart; no distributed limiter/store exists.
+- No automated audit retention, expired session/key cleanup, or administrator management dashboard.
+- No ingestion, extraction, deterministic scoring, search/retrieval, MCP knowledge tools, Agent
+  Skill distribution, automatic installation, contributions, outcomes aggregation, or dashboard
+  features.
+- No automated tests, by explicit Phase 3 requirement.
+
+### Exact next phase
+
+**Phase 4: implement source-registry-driven ingestion for the first approved public source type,
+including immutable source snapshot capture, provenance, idempotent ingestion runs, and bounded
+processing-state transitions through the existing repositories.** Do not begin AI extraction,
+semantic search, MCP knowledge tools, Agent Skill distribution, contributions, or dashboards until
+their designated later phases.

@@ -1,4 +1,5 @@
 import type { MongoConfig } from "@knownpath/config";
+import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { MongoClient, type Db, type MongoClientOptions } from "mongodb";
 
 import { getCollections } from "./collections.js";
@@ -14,6 +15,7 @@ export interface CreateMongoClientOptions {
 export interface KnownPathDatabase {
   readonly repositories: KnownPathRepositories;
   close(): Promise<void>;
+  createAuthAdapter(): ReturnType<typeof mongodbAdapter>;
   ping(): Promise<void>;
 }
 
@@ -44,6 +46,7 @@ export async function connectToMongo(
   return {
     repositories: connection.repositories,
     close: connection.close,
+    createAuthAdapter: connection.createAuthAdapter,
     ping: connection.ping,
   };
 }
@@ -65,6 +68,7 @@ export async function connectMongoInfrastructure(
       database,
       repositories: createRepositories(collections),
       close: async () => client.close(),
+      createAuthAdapter: () => mongodbAdapter(database),
       ping: async () => {
         await database.command({ ping: 1 });
       },
