@@ -1226,16 +1226,34 @@ with operations and ranking behavior in [`docs/RETRIEVAL.md`](docs/RETRIEVAL.md)
   `git diff --check` passed.
 - Direct revision inspection confirmed the original source IDs/URLs/excerpts and immutable Phase 7
   assessment IDs remain attached to both review records. No tests were added or run, as required.
+- Follow-up Atlas verification used the contributor-provided Atlas Free cluster after the Phase 9
+  implementation commit. The existing real database was copied into an initially empty `knownpath`
+  database without losing provenance. Direct inspection found the same 23 collections, 96 ordinary
+  named indexes, two review KnownPaths, two active memberships/revisions, and two active ready
+  search projections.
+- Programmatic Atlas initialization created `knownpath_lexical_v1` (`search`) and
+  `knownpath_vector_v1` (`vectorSearch`, 768-dimensional cosine with scalar quantization). Both
+  reached `READY` and `queryable: true`; a repeat created nothing and reused both ready indexes.
+- A live required-semantic `ERR_INVALID_ARG_VALUE`/Expo 26.7.0 query used exact, MongoDB Search, and
+  MongoDB Vector Search together. The correct record ranked first at 82: exact error 18, lexical 15,
+  semantic 14, metadata 12, exact version 10, trust 8, freshness 5, outcomes 0.
+- A live natural-language EAS/gitignored-file query ranked the correct official-document record at
+  42 above the unrelated record at 27. Repeating the exact query with Expo 999.0.0 remained
+  incompatible and returned zero results at the default threshold even with semantic retrieval.
+- Atlas `pnpm db:init` was repeated with zero collections created, and index status again reported
+  both Search indexes ready/queryable. The Homebrew `mongodb-community` service was then stopped and
+  port 27017 was confirmed not listening; the ignored `.env` now selects Atlas. No Atlas credential
+  was written to tracked files.
 
 ### Environment and manual setup still required
 
-- Use Node.js 24.18.0/pnpm 11, configure the ignored `.env`, start MongoDB, and run `pnpm db:init`.
+- Use Node.js 24.18.0/pnpm 11, configure the ignored `.env`, make the selected MongoDB deployment
+  reachable, and run `pnpm db:init`.
 - Public document/query embeddings require `GEMINI_API_KEY`; review call budgets and rotate the key
   if it has ever been exposed outside the ignored local environment.
-- Atlas semantic retrieval requires a compatible Atlas deployment, `SEARCH_BACKEND=atlas`, and the
-  printed Search/Vector Search indexes. No Atlas connection was available for live Phase 9 index
-  creation or vector-query verification; use `indexes create` or the Atlas UI, then inspect
-  `indexes status` before requiring semantic mode.
+- Atlas semantic retrieval requires `SEARCH_BACKEND=atlas` and ready Search/Vector Search indexes.
+  The current ignored development environment is configured and verified against Atlas; other
+  contributors must supply their own URI/credentials and run `indexes create` or use the Atlas UI.
 - Keep review records opt-in until actual moderation/publication logic justifies a status change.
 
 ### Known limitations intentionally left for later phases
