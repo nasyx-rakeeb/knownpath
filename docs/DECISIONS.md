@@ -658,3 +658,45 @@ support correlation without persisting unrestricted query text.
 **Rejected:** Logging raw queries can retain private incident material. Counting clicks as
 successful outcomes would contaminate future trust scoring. Reusing security audit events mixes
 operational usage with immutable sensitive-action history.
+
+## 2026-08-22 — Use one shared MCP contract with Streamable HTTP and a thin stdio bridge
+
+**Decision:** Build MCP with the official TypeScript SDK v2 and the current `2026-07-28` protocol
+era. Host the production stateless Streamable HTTP endpoint at `/mcp` inside the existing Fastify
+API. Keep `apps/mcp-server` as a lightweight stdio client of the Phase 10 HTTP API, configured only
+by `KNOWNPATH_API_URL`, `KNOWNPATH_API_KEY`, and bounded transport limits. Create both transports
+from the same `@knownpath/mcp` tool contracts/server factory.
+
+**Why:** The backend is already the authority for API-key authentication, lifecycle authorization,
+review auditing, retrieval/ranking, usage, and persistence. A thin bridge makes agent installation
+simple, avoids distributing database/provider secrets, and prevents transport-specific policy drift.
+Streamable HTTP is the current remote transport; stdio retains broad local-client compatibility. SDK
+negotiation keeps the current era and documented 2025 fallback coherent.
+
+**Rejected:** Direct MongoDB/search access from stdio duplicates business logic and broadens secret
+distribution. Separate tool implementations can drift. Legacy HTTP+SSE is superseded. Implementing
+OAuth superficially would misrepresent the current API-key product model; OAuth remains a deliberate
+future deployment/authentication decision.
+
+**References:**
+[MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28),
+[MCP TypeScript SDK v2](https://ts.sdk.modelcontextprotocol.io/v2/),
+[MCP transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports),
+[MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
+
+## 2026-08-22 — Keep the MCP surface compact and progressively disclosed
+
+**Decision:** Advertise only `knownpath_search`, `knownpath_get`, `knownpath_alternatives`, and
+`knownpath_status`. Bound all input arrays/text and output counts/text; return
+match/trust/freshness, safe provenance links, stable error codes, and explicit truncation state.
+Search returns concise summaries; `get` reveals deeper steps/evidence only after selection. Reserve
+contribution/outcome names in documentation but do not register fake write tools.
+
+**Why:** Agents need predictable schemas and high-signal context, not transport-shaped REST calls or
+large source dumps. Progressive disclosure reduces context cost while preserving explainability.
+Passing `searchId` to `get` records selection through the Phase 10 usage boundary without confusing
+it with success.
+
+**Rejected:** Many overlapping tools increase tool-selection ambiguity. Returning raw records leaks
+internal/provider fields and wastes context. Placeholder writes imply behavior the system cannot yet
+honor safely.

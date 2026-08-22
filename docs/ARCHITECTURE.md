@@ -369,6 +369,27 @@ lifecycle set again, builds safe applicability/trust/freshness/provenance views,
 cursors, and records bounded usage. `knowledge_search_events` stores a keyed query digest and the
 returned/selected IDs; a selection never becomes an `agent_outcome`. See [`docs/API.md`](API.md).
 
+## Phase 11 MCP boundary
+
+`@knownpath/mcp` owns four stable, versioned read tools: compact search, selected detail, solution
+alternatives, and safe service/account status. It supplies one server factory, strict input/output
+schemas, bounded projections, and safe protocol-facing errors. The same contract is used by both
+transports, and contribution/outcome names remain unregistered until their persistence and policy
+semantics exist.
+
+The production `/mcp` Streamable HTTP endpoint is hosted by the Fastify API. API-key authentication,
+`knowledge:read`, explicit admin review authorization, audit events, usage recording, retrieval,
+ranking, and database access remain in the backend. The endpoint validates Host/Origin, bounds
+request bodies, applies rate policy, and delegates protocol negotiation/framing to the official MCP
+TypeScript SDK.
+
+`apps/mcp-server` is deliberately only a stdio-to-HTTP bridge. It is configured with
+`KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`, applies network timeout/response-size/cancellation
+bounds, and never imports database, auth persistence, search, or AI providers. This keeps local
+agent installation lightweight and makes the API the single business-logic/security authority.
+Responses remain progressively disclosed: search is concise, while exact steps and evidence are
+returned only after `knownpath_get`. See [`docs/MCP.md`](MCP.md).
+
 ## Technology fit
 
 - Node.js 24 is the current Active LTS production line and supports the modern ESM baseline.

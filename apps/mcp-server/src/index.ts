@@ -1,20 +1,35 @@
-import { McpServer } from "@modelcontextprotocol/server";
-import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
+import { loadMcpBridgeConfig } from "@knownpath/config";
+import { createKnownPathMcpServer, HttpKnowledgeMcpGateway } from "@knownpath/mcp";
+import { serveStdio } from "@modelcontextprotocol/server/stdio";
 
 async function main(): Promise<void> {
-  const server = new McpServer({
-    name: "knownpath",
-    version: "0.0.0",
+  const config = loadMcpBridgeConfig();
+  const gateway = new HttpKnowledgeMcpGateway({
+    apiKey: config.apiKey,
+    apiUrl: config.apiUrl,
+    maxResponseBytes: config.maxResponseBytes,
+    requestTimeoutMs: config.requestTimeoutMs,
   });
-  const transport = new StdioServerTransport();
+  const handle = serveStdio(() => createKnownPathMcpServer(gateway), {
+    onerror: (error) => {
+      process.stderr.write(`KnownPath MCP protocol error: ${safeError(error)}\n`);
+    },
+  });
 
-  process.once("SIGINT", () => void server.close());
-  process.once("SIGTERM", () => void server.close());
+  process.once("SIGINT", () => void handle.close());
+  process.once("SIGTERM", () => void handle.close());
 
-  await server.connect(transport);
+  await new Promise<void>((resolve) => {
+    process.stdin.once("end", resolve);
+    process.stdin.once("close", resolve);
+  });
 }
 
 main().catch((error: unknown) => {
-  console.error("KnownPath MCP server failed to start", error);
+  process.stderr.write(`KnownPath MCP bridge failed to start: ${safeError(error)}\n`);
   process.exitCode = 1;
 });
+
+function safeError(error: unknown): string {
+  return error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";
+}

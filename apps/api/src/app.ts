@@ -30,6 +30,7 @@ import {
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerErrorHandler } from "./error-handler.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
+import { registerMcpRoutes } from "./mcp-routes.js";
 import { registerAccountRoutes, registerApiKeyRoutes, registerSystemRoutes } from "./routes.js";
 
 export interface BuildApiOptions {
@@ -135,7 +136,9 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       request.url.startsWith("/api/v1/account") ||
       request.url.startsWith("/api/v1/api-keys") ||
       request.url.startsWith("/api/v1/knowledge") ||
-      request.url.startsWith("/api/v1/known-paths")
+      request.url.startsWith("/api/v1/known-paths") ||
+      request.url.startsWith("/api/v1/mcp") ||
+      request.url.startsWith("/mcp")
     ) {
       reply.header("cache-control", "no-store");
       reply.header("pragma", "no-cache");
@@ -188,6 +191,15 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     read: rateLimitPolicies.knowledgeRead,
     search: rateLimitPolicies.knowledgeSearch,
     usage: rateLimitPolicies.knowledgeUsage,
+  });
+  registerMcpRoutes(api, {
+    apiConfig: options.apiConfig,
+    authConfig: options.authConfig,
+    authenticator,
+    database: options.database,
+    knowledge,
+    rateLimitPolicy: rateLimitPolicies.knowledgeSearch,
+    searchConfig: options.searchConfig,
   });
   api.get("/api/v1/openapi.json", { schema: { hide: true } }, async (_request, reply) =>
     reply.send(api.swagger()),

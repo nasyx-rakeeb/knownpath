@@ -7,6 +7,11 @@ the reusable authorization and knowledge-access services; route handlers do not 
 implement ranking. The API does not expose anonymous knowledge access, private/team retrieval, raw
 source documents, embeddings, model internals, or agent outcomes.
 
+Phase 11 additionally mounts the authenticated MCP Streamable HTTP endpoint at `/mcp` and a safe
+bridge-status endpoint at `/api/v1/mcp/status`. They reuse the same access service and policies
+rather than reimplementing routes. See [the MCP guide](MCP.md); `/mcp` is intentionally omitted from
+OpenAPI because its wire contract is MCP rather than an ordinary JSON REST route.
+
 OpenAPI 3.1 is available at `/api/v1/openapi.json`. When `API_DOCS_ENABLED=true`, Swagger UI is
 available at `/docs/`.
 

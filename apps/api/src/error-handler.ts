@@ -17,6 +17,9 @@ export function registerErrorHandler(api: FastifyInstance): void {
 
   api.setErrorHandler(async (error, request, reply) => {
     if (error instanceof AuthenticationError) {
+      if (request.url.startsWith("/mcp") || request.url.startsWith("/api/v1/mcp")) {
+        reply.header("www-authenticate", 'Bearer realm="KnownPath", scope="knowledge:read"');
+      }
       return reply.status(401).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof AuthorizationError) {

@@ -26,6 +26,8 @@
     "ingest:github": "pnpm --filter @knownpath/worker ingest:github",
     "ingest:sources": "pnpm --filter @knownpath/worker ingest:sources",
     "lint": "turbo run lint",
+    "mcp:stdio": "pnpm --filter @knownpath/mcp-server start",
+    "mcp:inspect": "pnpm --filter @knownpath/mcp-server inspect",
     "score": "pnpm --filter @knownpath/worker score",
     "search": "pnpm --filter @knownpath/worker run retrieve",
     "typecheck": "turbo run typecheck"

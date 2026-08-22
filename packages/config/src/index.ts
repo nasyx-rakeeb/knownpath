@@ -146,6 +146,18 @@ const searchEnvironmentSchema = z.object({
   SEARCH_INDEX_READY_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(600_000).default(120_000),
 });
 
+const mcpBridgeEnvironmentSchema = z.object({
+  KNOWNPATH_API_KEY: z.string().trim().min(16),
+  KNOWNPATH_API_URL: z.url({ protocol: /^https?$/u }),
+  KNOWNPATH_MCP_MAX_RESPONSE_BYTES: z.coerce
+    .number()
+    .int()
+    .min(1_024)
+    .max(2_000_000)
+    .default(262_144),
+  KNOWNPATH_MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -199,6 +211,13 @@ export interface SearchConfig {
   readonly defaultLimit: number;
   readonly indexReadyTimeoutMs: number;
   readonly minimumScore: number;
+}
+
+export interface McpBridgeConfig {
+  readonly apiKey: string;
+  readonly apiUrl: string;
+  readonly maxResponseBytes: number;
+  readonly requestTimeoutMs: number;
 }
 
 export interface GitHubConfig {
@@ -366,6 +385,28 @@ export function loadSearchConfig(environment: NodeJS.ProcessEnv = process.env): 
     defaultLimit: parsed.SEARCH_DEFAULT_LIMIT,
     indexReadyTimeoutMs: parsed.SEARCH_INDEX_READY_TIMEOUT_MS,
     minimumScore: parsed.SEARCH_MINIMUM_SCORE,
+  };
+}
+
+export function loadMcpBridgeConfig(environment: NodeJS.ProcessEnv = process.env): McpBridgeConfig {
+  const parsed = parseEnvironment(mcpBridgeEnvironmentSchema, environment);
+  const apiUrl = new URL(parsed.KNOWNPATH_API_URL);
+  if (
+    apiUrl.username !== "" ||
+    apiUrl.password !== "" ||
+    apiUrl.search !== "" ||
+    apiUrl.hash !== "" ||
+    (apiUrl.pathname !== "" && apiUrl.pathname !== "/")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: KNOWNPATH_API_URL must be an origin without credentials, path, query, or fragment",
+    );
+  }
+  return {
+    apiKey: parsed.KNOWNPATH_API_KEY,
+    apiUrl: apiUrl.origin,
+    maxResponseBytes: parsed.KNOWNPATH_MCP_MAX_RESPONSE_BYTES,
+    requestTimeoutMs: parsed.KNOWNPATH_MCP_REQUEST_TIMEOUT_MS,
   };
 }
 

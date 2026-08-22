@@ -4,10 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 9 adds explainable hybrid
-> retrieval over canonical KnownPaths, with useful local text/error matching and optional Atlas
-> Vector Search. Public HTTP/MCP search, dashboards, Agent Skill installation, public signup, and
-> contribution workflows are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 11 exposes the authenticated
+> read/search surface through MCP over production Streamable HTTP and a thin local stdio bridge.
+> Agent Skill installation, contribution/outcome tools, dashboards, public signup, and public
+> anonymous access are not implemented yet.
 
 ## Prerequisites
 
@@ -147,6 +147,17 @@ Authenticated knowledge search, canonical detail, alternatives, review-access ru
 examples are documented in [the Knowledge HTTP API guide](docs/API.md). Normal clients receive only
 public published records; review access is explicit, admin-key-only, and audited.
 
+After building, connect an MCP client directly to `http://127.0.0.1:3001/mcp`, or run the thin stdio
+bridge with `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`:
+
+```sh
+pnpm mcp:stdio
+pnpm mcp:inspect --transport stdio
+```
+
+Tool contracts, authentication, security behavior, and current Codex/Claude Code/Cursor/Gemini CLI
+configurations are documented in [the MCP guide](docs/MCP.md).
+
 Stop MongoDB without deleting its named development volume:
 
 ```sh
@@ -176,6 +187,8 @@ pnpm dev:infra:down
 | `pnpm score`            | Verify evidence and create/inspect immutable candidate assessments         |
 | `pnpm canonicalize`     | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
 | `pnpm run search`       | Project, embed, index, inspect, or query canonical KnownPaths              |
+| `pnpm mcp:stdio`        | Run the thin local MCP-to-HTTP bridge over stdio                           |
+| `pnpm mcp:inspect`      | List or invoke MCP tools with the official SDK client                      |
 
 ## Structure
 
@@ -183,7 +196,7 @@ pnpm dev:infra:down
 apps/
   api/             Fastify HTTP process
   cli/             Future installer command boundary
-  mcp-server/      MCP protocol process without KnownPath tools
+  mcp-server/      Thin stdio MCP bridge to the authenticated HTTP API
   web/             Next.js application shell
   worker/          Source ingestion and future background processing runtime
 packages/
@@ -198,13 +211,14 @@ packages/
   source-ingestion/ Official documentation/feed discovery and normalization
   verification/    Deterministic evidence verification and immutable seed scoring
   search/          Embeddings, search projections, hybrid retrieval, and explainable ranking
+  mcp/             Shared MCP tool contracts, projections, server factory, and HTTP gateway
   typescript-config/ Shared strict compiler configurations
 ```
 
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
 [retrieval guide](docs/RETRIEVAL.md), [Knowledge HTTP API guide](docs/API.md),
-[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
-delivery status.
+[MCP guide](docs/MCP.md), [decision log](docs/DECISIONS.md), and [phase progress](progress.md) for
+the current boundaries and delivery status.
 
 ## License
 

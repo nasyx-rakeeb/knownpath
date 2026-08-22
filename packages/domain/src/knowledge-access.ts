@@ -259,6 +259,10 @@ export type KnowledgeSearchResult = z.infer<typeof knowledgeSearchResultSchema>;
 export type KnownPathDetailResponse = z.infer<typeof knownPathDetailResponseSchema>;
 export type KnownPathAlternativesResponse = z.infer<typeof knownPathAlternativesResponseSchema>;
 export type SafeProvenance = z.infer<typeof safeProvenanceSchema>;
+export type SafeApplicability = z.infer<typeof safeApplicabilitySchema>;
+export type SafeTrust = z.infer<typeof safeTrustSchema>;
+export type SafeFreshness = z.infer<typeof safeFreshnessSchema>;
+export type SafeSolutionVariant = z.infer<typeof safeSolutionVariantSchema>;
 export type KnowledgeSearchPrincipal = z.infer<typeof knowledgeSearchPrincipalSchema>;
 export type KnowledgeSearchEvent = z.infer<typeof knowledgeSearchEventSchema>;
 

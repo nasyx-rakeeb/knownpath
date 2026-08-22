@@ -1452,3 +1452,148 @@ The operational contract and curl examples are in [`docs/API.md`](docs/API.md).
 **Phase 11: expose the existing authorization-aware knowledge-access service through the official
 MCP TypeScript SDK with bounded, explainable search/detail tools, without starting Agent Skill
 installation, contribution/outcome collection, or dashboard work early.**
+
+## Phase 11 — KnownPath MCP server
+
+### Phase goal
+
+Expose mature read/search knowledge capabilities to coding agents through a compact official MCP
+surface. Keep production authorization, ranking, audit, usage, and persistence in the backend, with
+a thin agent-agnostic stdio bridge that calls the Phase 10 HTTP API and needs no database or AI
+provider secrets.
+
+### Research performed and official references consulted
+
+- Verified the current MCP specification release is `2026-07-28` and reviewed lifecycle, tools,
+  cancellation, authorization, security, stdio, and Streamable HTTP requirements.
+- Verified the stable official TypeScript SDK v2 packages and current split package layout. Phase 11
+  pins `@modelcontextprotocol/server`, `@modelcontextprotocol/client`, and
+  `@modelcontextprotocol/node` at `2.0.0`; the SDK supplies current-era negotiation plus its
+  documented 2025-compatible fallback.
+- Reviewed the current official MCP Inspector. It supports web, CLI, and TUI clients, negotiates
+  modern/legacy protocol eras, and currently requires Node 22.19 or newer.
+- Reviewed official current client documentation for OpenAI Codex, Claude Code, Cursor, and Gemini
+  CLI. All support stdio and remote HTTP MCP paths; exact configuration behavior and environment
+  handling are recorded in `docs/MCP.md`. Codex 0.149.0 and Claude Code 2.1.185 were present in the
+  development environment; Cursor and Gemini CLI were not installed.
+- Rechecked MCP Host/Origin validation, bearer-auth handling, transport migration away from legacy
+  HTTP+SSE, bounded/cancellable requests, and model-oriented tool description guidance.
+
+Official references consulted:
+
+- <https://modelcontextprotocol.io/specification/2026-07-28>
+- <https://modelcontextprotocol.io/specification/2026-07-28/basic/transports>
+- <https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization>
+- <https://ts.sdk.modelcontextprotocol.io/v2/>
+- <https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector>
+- <https://developers.openai.com/codex/mcp/>
+- <https://code.claude.com/docs/en/mcp>
+- <https://docs.cursor.com/en/context/mcp>
+- <https://geminicli.com/docs/tools/mcp-server/>
+
+### Architecture and technology decisions
+
+- Added `@knownpath/mcp` as the one versioned capability contract/server boundary. It owns strict
+  inputs, full runtime-validated outputs, compact projections, safe error mapping, HTTP gateway, and
+  one server factory shared by both transports.
+- Mounted stateless Streamable HTTP at `/mcp` in the Fastify API. Fastify authenticates only bearer
+  API keys with `knowledge:read`, validates Host/Origin, applies body/rate bounds, and supplies a
+  request-scoped gateway backed by the existing `KnowledgeAccessService`.
+- Rebuilt `apps/mcp-server` as a thin stdio bridge. It uses only `KNOWNPATH_API_URL`,
+  `KNOWNPATH_API_KEY`, timeout, and maximum-response settings; it calls Phase 10 routes and imports
+  no database, search implementation, auth persistence, or Gemini provider.
+- Advertised exactly four read tools: `knownpath_search`, `knownpath_get`, `knownpath_alternatives`,
+  and `knownpath_status`. Contribution/outcome names are documentation-only reservations, not fake
+  writes.
+- Search returns bounded summaries and match/trust/freshness/applicability indicators. `get` reveals
+  deeper steps and evidence only after selection; optional `searchId` records usage without creating
+  a successful outcome. Output truncation is explicit.
+- Normal clients remain public/published-only. `includeReview` is explicit and requires an active
+  admin-owned key; the existing central authorization and audit service remain authoritative.
+- Tool discovery advertises only input schemas to reduce client context. Complete output schemas
+  remain versioned and enforced at runtime; discovery fell from 52,999 bytes during initial
+  inspection to 7,709 bytes without changing structured results.
+- Bearer API keys are the deliberate Phase 11 MCP authentication mechanism. OAuth was not
+  superficially added or claimed; it remains a future deployment/authentication decision.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-22-knownpath-phase-11-mcp-server-design.md`](docs/superpowers/specs/2026-08-22-knownpath-phase-11-mcp-server-design.md).
+The operational/client guide is [`docs/MCP.md`](docs/MCP.md).
+
+### Files and packages created or materially updated
+
+- Added `packages/mcp` with shared contracts, server factory, bounded projections, gateway
+  abstraction, and the real Phase 10 HTTP gateway.
+- Added `apps/api/src/mcp-routes.ts` and `apps/api/src/mcp-gateway.ts`; updated API composition,
+  no-store handling, safe authentication errors, dependencies, and OpenAPI status documentation.
+- Replaced the Phase 1 MCP placeholder with the stdio bridge in `apps/mcp-server/src/index.ts` and
+  added `apps/mcp-server/src/inspect.ts`, an official-SDK manual client for both transports.
+- Added root `mcp:stdio` and `mcp:inspect` commands, MCP bridge environment configuration, current
+  SDK catalog entries/lockfile state, and small exported safe-domain helper types.
+- Added `docs/MCP.md`; updated `README.md`, `docs/API.md`, `docs/ARCHITECTURE.md`,
+  `docs/DECISIONS.md`, `.env.example`, and this progress record.
+- Phase 11 changed no MongoDB collection, validator, or index definition.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled 19 workspaces and passed the lockfile supply-chain policy.
+- `pnpm typecheck` completed **28/28** tasks; `pnpm lint` completed **17/17** tasks; `pnpm build`
+  completed **17/17** tasks; `pnpm format` and `pnpm format:check` completed successfully. No tests
+  were created or run.
+- The Atlas-backed API booted and readiness reported MongoDB/auth healthy. The official SDK client
+  negotiated the modern era over both HTTP and stdio and listed exactly the same four tool names.
+  Post-optimization stdio discovery was 7,709 bytes.
+- `knownpath_status` reported ready, Atlas search, one scoped permission, and explicit admin review
+  capability without email, credentials, URI, or provider secrets.
+- Default MCP search used `published` access and returned zero records. Explicit admin review search
+  returned the two existing real records, both still `review`; no record was published or
+  fabricated.
+- MCP detail returned one real solution and one bounded evidence reference with selection recorded;
+  alternatives truthfully returned zero for the one-solution record. The same review detail worked
+  through the stdio bridge. A recursive response-field inspection found zero embedding, digest,
+  key-hash, candidate, assessment, provider-metadata, or Authorization paths.
+- A normal-user key requesting review received model-readable `knowledge_review_access_forbidden`.
+  Empty task input was rejected by the tool schema. Invalid and revoked keys failed connection, an
+  untrusted Origin returned 403, and an unreachable backend returned the safe `backend_unreachable`
+  tool code.
+- Review search/read audit types were present in Atlas and the selected search event persisted.
+  Direct lifecycle inspection still found exactly **2 review and 0 published** KnownPaths.
+- Structured API logs contained request IDs, method, safe URL, status, and latency. Exact generated
+  passwords/API keys and credential-header patterns each had zero matches.
+- All temporary verification keys were revoked and every temporary Phase 11 user created during
+  implementation/diagnosis was suspended. Final inspection found **0 active temporary keys** and no
+  listener on port 3001.
+
+### Environment and manual setup still required
+
+- Run the API with configured ignored MongoDB/auth/search settings, then create an API key through
+  the closed-registration session flow. Agent keys require `knowledge:read`.
+- Configure either the remote `/mcp` URL with a bearer key or the stdio bridge with
+  `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`. Never commit the key or place it in a URL.
+- Cursor and Gemini CLI were not installed in this environment. Their official-doc-based examples
+  are documented, but contributors using those clients must perform the final client-side connection
+  check. The official SDK client verified the server and both transports here.
+- Production deployment should use HTTPS and an explicit public Host/origin configuration. OAuth
+  remains absent rather than partially implemented.
+- Rotate the Gemini and Atlas credentials previously pasted into conversation; tracked files contain
+  neither value, but pasted credentials must be treated as exposed.
+
+### Known limitations intentionally left for later phases
+
+- MCP is read-only. Contribution and outcome-reporting tools, their scopes, validation, persistence,
+  abuse controls, and confidence effects are not implemented.
+- Agent Skill packaging, automatic installer CLI behavior, per-agent adapters, and dashboard/client
+  UX are not implemented.
+- Anonymous/public MCP access, OAuth, private/team authorization, distributed rate limiting, and
+  multi-instance session/event transport are deferred deliberately.
+- The real development corpus remains two unrelated review records with no published knowledge. This
+  verifies authorization and transport behavior but is not a production relevance evaluation.
+- The HTTP endpoint is stateless and currently uses the process-local rate limiter inherited from
+  Phase 3/10. Long-running resumable MCP sessions were unnecessary for the read-only tool set.
+- No tests were added by explicit Phase 11 requirement.
+
+### Exact next phase
+
+**Phase 12 (awaiting its prompt): package the existing MCP capability as an Agent Skill and build
+the safe installer/per-agent adapter foundation, without implementing contribution/outcome writes or
+a dashboard unless the Phase 12 requirements explicitly request them.**

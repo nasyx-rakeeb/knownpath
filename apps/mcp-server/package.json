@@ -7,17 +7,21 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "inspect": "tsx --env-file-if-exists=../../.env src/inspect.ts",
     "lint": "eslint src",
-    "start": "node dist/index.js",
+    "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@knownpath/config": "workspace:*",
+    "@knownpath/mcp": "workspace:*",
     "@modelcontextprotocol/server": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "@modelcontextprotocol/client": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

@@ -22,7 +22,9 @@
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/mcp": "workspace:*",
     "@knownpath/search": "workspace:*",
+    "@modelcontextprotocol/node": "catalog:",
     "fastify": "catalog:",
     "fastify-type-provider-zod": "catalog:",
     "zod": "catalog:"
