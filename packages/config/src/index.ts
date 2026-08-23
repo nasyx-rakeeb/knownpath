@@ -6,6 +6,10 @@ const logLevelSchema = z
 
 const runtimeModeSchema = z.enum(["development", "test", "production"]).default("development");
 const booleanEnvironmentSchema = z.enum(["true", "false"]).transform((value) => value === "true");
+const portEnvironmentSchema = z.preprocess(
+  (value) => (value === "" || value === undefined ? undefined : value),
+  z.coerce.number().int().min(1).max(65_535).optional(),
+);
 
 const commaSeparatedUrlsSchema = z
   .string()
@@ -43,6 +47,7 @@ const apiEnvironmentSchema = z.object({
   API_TRUST_PROXY: z.string().trim().default("false"),
   LOG_LEVEL: logLevelSchema,
   NODE_ENV: runtimeModeSchema,
+  PORT: portEnvironmentSchema,
 });
 
 const authEnvironmentSchema = z.object({
@@ -269,7 +274,7 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
     docsEnabled: parsed.API_DOCS_ENABLED,
     host: parsed.API_HOST,
     logLevel: parsed.LOG_LEVEL,
-    port: parsed.API_PORT,
+    port: parsed.PORT ?? parsed.API_PORT,
     rateLimitMax: parsed.API_RATE_LIMIT_MAX,
     rateLimitWindowMs: parsed.API_RATE_LIMIT_WINDOW_MS,
     runtimeMode: parsed.NODE_ENV,

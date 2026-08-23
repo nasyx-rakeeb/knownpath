@@ -1885,3 +1885,46 @@ Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
 **Phase 14 (awaiting its prompt): continue only with the explicitly requested next capability. Do
 not infer or begin contribution/outcome writes, dashboard behavior, or another roadmap feature from
 Phase 13.**
+
+## Post-Phase 13 — Render API deployment baseline
+
+### Goal and research
+
+Prepare the existing authenticated Fastify API for a reproducible Render deployment so the published
+installer and MCP bridge can use a stable HTTPS backend. Current official Render web service,
+monorepo, Blueprint, Node-version, environment-variable, outbound-IP, and free-instance
+documentation was reviewed on 2026-08-23.
+
+### Architecture and files
+
+- Added `render.yaml` for one Singapore-region `knownpath-api` native Node web service. It builds
+  from the pnpm monorepo root, runs only `@knownpath/api`, checks `/health/ready`, consumes a
+  dashboard-supplied Atlas URI, and generates independent auth/API-key secrets.
+- Added standard hosting-platform `PORT` support with precedence over the local `API_PORT` fallback.
+- Added `docs/DEPLOYMENT.md` with Atlas credential rotation/network allowlisting, Blueprint setup,
+  health checks, closed-registration admin provisioning, and installer doctor instructions.
+- Updated `.env.example`, the README, architecture decision log, and the approved deployment design.
+- Deployed no worker, dashboard, MongoDB service, queue, or later-phase product capability.
+
+### Verification and manual requirements
+
+- `corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build --filter=@knownpath/api`
+  completed with **7/7** dependency-aware build tasks.
+- `pnpm typecheck` completed **29/29** tasks, `pnpm lint` completed **17/17** tasks, `pnpm build`
+  completed **17/17** tasks, and `pnpm format:check` passed.
+- Runtime configuration inspection observed `PORT=10000` taking precedence while the absent-`PORT`
+  path retained `API_PORT=3001`. Ruby's safe YAML parser loaded the Blueprint and found exactly one
+  `knownpath-api` web service with `/health/ready` configured.
+- A production-mode compiled API process bound to `127.0.0.1:10000` with transient, unlogged auth
+  secrets and the configured Atlas database. `/health/live` returned `status: ok`, `/health/ready`
+  returned `status: ready` with MongoDB/auth `ok`, and `/docs/` returned 404 because production
+  Swagger UI was disabled. SIGINT produced the expected graceful-shutdown log.
+- External deployment still requires connecting the GitHub repository to Render, entering a newly
+  rotated Atlas URI, copying Render's outbound ranges into the Atlas access list, and observing the
+  first live readiness result. No live deployment is claimed until those dashboard actions and the
+  HTTPS checks are observed.
+- After readiness, create the first administrator only through `pnpm auth:user:create`, issue a
+  `knowledge:read` key through the authenticated API flow, and run `npx knownpath doctor` with the
+  deployed origin/key in the launching environment.
+- The free service is for bounded verification and has documented idle spin-down/cold starts; an
+  always-on plan is required before treating the MCP backend as reliably available.

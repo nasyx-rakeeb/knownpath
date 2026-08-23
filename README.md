@@ -179,6 +179,14 @@ CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. U
 setup, backups, conflicts, updates, and uninstall behavior are documented in
 [the installer guide](docs/INSTALLER.md).
 
+## Deploy the API
+
+The root `render.yaml` defines one Render web service for the Fastify API and keeps MongoDB Atlas as
+the database. It intentionally does not deploy the worker, dashboard, or another datastore. Rotate
+previously exposed credentials before setup, then follow
+[the Render deployment guide](docs/DEPLOYMENT.md) for the Blueprint, Atlas network access, health
+verification, and post-deploy API-key flow.
+
 Stop MongoDB without deleting its named development volume:
 
 ```sh
@@ -242,6 +250,7 @@ skills/
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
 [retrieval guide](docs/RETRIEVAL.md), [Knowledge HTTP API guide](docs/API.md),
 [MCP guide](docs/MCP.md), [Agent Skill guide](docs/AGENT_SKILL.md),
+[installer guide](docs/INSTALLER.md), [deployment guide](docs/DEPLOYMENT.md),
 [decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
 delivery status.
 

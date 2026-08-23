@@ -1,0 +1,73 @@
+services:
+  - type: web
+    name: knownpath-api
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand:
+      corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build
+      --filter=@knownpath/api
+    startCommand: pnpm --filter @knownpath/api start
+    healthCheckPath: /health/ready
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_DOCS_ENABLED
+        value: "false"
+      - key: API_CORS_ORIGINS
+        value: ""
+      - key: API_TRUST_PROXY
+        value: "false"
+      - key: API_RATE_LIMIT_MAX
+        value: "300"
+      - key: API_RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: LOG_LEVEL
+        value: info
+      - key: BETTER_AUTH_URL
+        fromService:
+          type: web
+          name: knownpath-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: AUTH_TRUSTED_ORIGINS
+        fromService:
+          type: web
+          name: knownpath-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: API_KEY_PEPPER
+        generateValue: true
+      - key: API_KEY_LAST_USED_WRITE_INTERVAL_SECONDS
+        value: "300"
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: knownpath
+      - key: MONGODB_APP_NAME
+        value: knownpath-api
+      - key: MONGODB_MIN_POOL_SIZE
+        value: "0"
+      - key: MONGODB_MAX_POOL_SIZE
+        value: "20"
+      - key: MONGODB_SERVER_SELECTION_TIMEOUT_MS
+        value: "10000"
+      - key: SEARCH_BACKEND
+        value: atlas
+      - key: SEARCH_ATLAS_LEXICAL_INDEX
+        value: knownpath_lexical_v1
+      - key: SEARCH_ATLAS_VECTOR_INDEX
+        value: knownpath_vector_v1
+      - key: SEARCH_DEFAULT_LIMIT
+        value: "10"
+      - key: SEARCH_MINIMUM_SCORE
+        value: "35"
+      - key: SEARCH_CANDIDATE_POOL_MULTIPLIER
+        value: "20"
+      - key: SEARCH_INDEX_READY_TIMEOUT_MS
+        value: "120000"

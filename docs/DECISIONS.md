@@ -766,3 +766,28 @@ depending on preview, extension-specific, or insufficiently stable mechanisms.
 [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/),
 [OpenCode MCP](https://opencode.ai/docs/mcp-servers/),
 [Agent Skills specification](https://agentskills.io/specification)
+
+## 2026-08-23 — Deploy the API as one Render-native monorepo service
+
+**Decision:** Deploy only `@knownpath/api` as a native Node Render web service built from the pnpm
+monorepo root. Keep MongoDB Atlas as the database, use Render's runtime `PORT` with explicit
+`0.0.0.0` binding, and define commands, health checks, non-secret settings, generated auth secrets,
+and the Atlas URI placeholder in a root Blueprint. Use the Singapore region and free instance for
+initial verification; upgrade the same service before relying on it for always-on MCP traffic.
+
+**Why:** The API is already the authority for authentication, authorization, retrieval, auditing,
+and MCP HTTP transport. Deploying it establishes the stable HTTPS origin required by the installer
+without duplicating worker or persistence responsibilities. A repository Blueprint is reproducible
+and reviewable, while a monorepo-root build preserves access to private workspace packages.
+
+**Rejected:** A dashboard-only configuration would hide operational settings from contributors. A
+Docker image adds maintenance without a current isolation need. Deploying MongoDB, the worker, or
+the dashboard now broadens scope and duplicates Atlas or incomplete application surfaces. A
+hardcoded API URL would violate the installer's explicit environment-reference model.
+
+**References:** [Render web services](https://render.com/docs/web-services),
+[monorepo support](https://render.com/docs/monorepo-support),
+[Blueprint specification](https://render.com/docs/blueprint-spec),
+[default environment variables](https://render.com/docs/environment-variables),
+[outbound IP ranges](https://render.com/docs/outbound-ip-addresses),
+[free instance limitations](https://render.com/docs/free)
