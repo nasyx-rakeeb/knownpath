@@ -1,4 +1,5 @@
 # `@knownpath/agent-adapters`
 
-Per-agent installation adapters will live here. Phase 2 does not inspect or modify any agent
-configuration or install an Agent Skill.
+Per-agent automatic installation adapters will live here in Phase 13. Phase 12 ships the canonical
+portable artifact at `skills/knownpath` and documents manual development links, but this package
+still does not inspect or modify agent configuration.

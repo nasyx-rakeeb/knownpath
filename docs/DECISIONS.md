@@ -700,3 +700,30 @@ it with success.
 **Rejected:** Many overlapping tools increase tool-selection ambiguity. Returning raw records leaks
 internal/provider fields and wastes context. Placeholder writes imply behavior the system cannot yet
 honor safely.
+
+## 2026-08-23 — Ship one portable Agent Skill artifact with precise automatic activation
+
+**Decision:** Store the canonical `knownpath` skill at `skills/knownpath` using only open Agent
+Skills frontmatter and portable Markdown instructions. Allow automatic and manual activation, with
+positive triggers for non-trivial debugging, migrations, dependency/build/version/environment
+problems, and unfamiliar errors, plus explicit exclusions for trivial edits and unrelated work. Keep
+detailed Expo/React Native examples in one optional reference. Document client-specific manual links
+separately and defer automatic installation/adapters to Phase 13.
+
+**Why:** A single artifact avoids behavior drift across Codex, Claude Code, Cursor, Gemini CLI, and
+other conforming clients. Precise metadata lets agents consult shared experience before expensive
+rediscovery without turning every code edit into a search. Progressive disclosure keeps activation
+context small. Separating placement from behavior preserves portability while current clients use
+different discovery paths.
+
+**Rejected:** A single large `SKILL.md` would load all examples on every activation. Client-specific
+copies or frontmatter would drift and weaken portability. Executable scripts are unnecessary because
+the capability already exists through MCP. Fake contribution/outcome instructions would advertise
+unimplemented writes.
+
+**References:** [Agent Skills specification](https://agentskills.io/specification),
+[OpenAI Codex skills](https://developers.openai.com/codex/skills/),
+[Claude Code skills](https://code.claude.com/docs/en/skills),
+[Cursor Agent Skills](https://cursor.com/docs/skills),
+[Gemini CLI Agent Skills](https://geminicli.com/docs/cli/using-agent-skills/),
+[GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)

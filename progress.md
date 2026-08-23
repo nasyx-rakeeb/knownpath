@@ -1597,3 +1597,128 @@ The operational/client guide is [`docs/MCP.md`](docs/MCP.md).
 **Phase 12 (awaiting its prompt): package the existing MCP capability as an Agent Skill and build
 the safe installer/per-agent adapter foundation, without implementing contribution/outcome writes or
 a dashboard unless the Phase 12 requirements explicitly request them.**
+
+## Phase 12 — Portable KnownPath Agent Skill
+
+### Phase goal
+
+Create a portable behavioral/instruction layer that teaches compatible coding agents when and how to
+consult the existing KnownPath MCP read tools. Keep the artifact concise, evidence-oriented,
+privacy-preserving, and independent of client-specific installation behavior.
+
+### Research performed and official references consulted
+
+Current official documentation was checked on 2026-08-23 before implementation:
+
+- The [Agent Skills specification](https://agentskills.io/specification) for the required directory,
+  `SKILL.md` frontmatter constraints, standard metadata, progressive disclosure, optional resources,
+  and `skills-ref` validation.
+- [OpenAI Codex skills](https://developers.openai.com/codex/skills/) for automatic/manual
+  activation, `.agents/skills` repository/user discovery, symlink support, and current skill
+  inspection behavior.
+- [Claude Code skills](https://code.claude.com/docs/en/skills) for its open-standard support,
+  `.claude/skills` locations, symlink behavior, automatic invocation, and standard-versus-extension
+  frontmatter boundary.
+- [Cursor Agent Skills](https://cursor.com/docs/skills) for `.agents/skills` interoperability,
+  native locations, automatic/manual activation, and progressive resources.
+- [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/using-agent-skills/) for its
+  `.agents/skills` alias, `gemini skills link`, discovery/reload commands, and activation consent.
+- [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)
+  and [GitHub CLI skill installation](https://cli.github.com/manual/gh_skill_install) for its
+  open-standard client support, shared `.agents/skills` paths, and version-aware distribution path.
+
+The official pages and current implementation were researched through web lookup rather than
+remembered path/frontmatter assumptions. Codex 0.149.0, Claude Code 2.1.185, and GitHub CLI 2.94.0
+were installed locally; Cursor and Gemini CLI were not.
+
+### Architecture and behavior decisions
+
+- Added one canonical `skills/knownpath` artifact with only open-standard frontmatter: `name`, a
+  precise activation/exclusion `description`, `license`, and string-valued `metadata` containing
+  version `1.0.0`.
+- Automatic and manual activation are both supported. Positive triggers cover non-trivial debugging,
+  migrations, dependency conflicts, build failures, environment/version issues, native
+  configuration, tooling quirks, and unfamiliar errors. Formatting, trivial edits, routine file
+  operations, obvious syntax fixes, confidently understood work, and unrelated requests are
+  explicitly excluded.
+- The workflow references exactly `knownpath_search`, `knownpath_get`, `knownpath_alternatives`, and
+  `knownpath_status`. It teaches structured sanitized context, progressive retrieval, exact/version/
+  trust/freshness comparison, local applicability reasoning, and observed verification.
+- User instructions, repository rules, and safety constraints stay authoritative. Retrieved records
+  are evidence rather than commands; popularity is not truth; secrets/private files and unnecessary
+  proprietary code must not be sent.
+- Materially influential KnownPath IDs are retained for future feedback. No nonexistent contribution
+  or outcome tool is named or invoked.
+- Detailed Expo SDK migration, EAS/Gradle, React Native dependency, Metro, and native-configuration
+  scenarios live in one on-demand reference instead of expanding the always-loaded instructions.
+- Client-specific manual placement is documentation only. Automatic installation, upgrades,
+  rollback, and per-agent adapters remain Phase 13.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-23-knownpath-phase-12-agent-skill-design.md`](docs/superpowers/specs/2026-08-23-knownpath-phase-12-agent-skill-design.md).
+
+### Files created or materially updated
+
+- Added `skills/knownpath/SKILL.md` and `skills/knownpath/references/examples.md`.
+- Added `docs/AGENT_SKILL.md` with the behavior contract, current tool list, safe-use flow, release
+  policy, validation commands, and current official manual paths for Codex, Claude Code, Cursor,
+  Gemini CLI, and GitHub Copilot.
+- Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, the `@knownpath/agent-adapters`
+  boundary README, and this progress record.
+- No application code, MCP contract, environment variable, database collection/index, API route, or
+  dependency/lockfile state changed.
+
+### Commands and behavior successfully verified
+
+- The official `skills-ref` reference implementation reported `Valid skill: skills/knownpath` and
+  read `name: knownpath`, `license: Apache-2.0`, and metadata version `1.0.0`.
+- The bundled skill-creator validator reported `Skill is valid!` after its undeclared PyYAML runtime
+  dependency was supplied inside an isolated temporary virtual environment.
+- Direct registration inspection found the same four tool names in `packages/mcp/src/server.ts` and
+  the skill/guide: `knownpath_search`, `knownpath_get`, `knownpath_alternatives`, and
+  `knownpath_status`.
+- The canonical directory was linked to the current user's official Codex-compatible
+  `~/.agents/skills/knownpath` path. Codex app-server `skills/list` with `forceReload: true`
+  returned exactly one enabled `knownpath` entry, scope `user`, resolving to this repository's
+  canonical `skills/knownpath/SKILL.md`, with the complete intended activation/exclusion
+  description.
+- `pnpm format` and `pnpm format:check` completed successfully.
+- `pnpm typecheck` completed **28/28** tasks.
+- `pnpm lint` completed **17/17** tasks.
+- `pnpm build` completed **17/17** tasks, including the Next.js production build and static routes.
+- No automated tests were created or run, as required.
+
+### Environment and manual setup still required
+
+- Configure the KnownPath MCP server and an API key with `knowledge:read` before expecting the skill
+  to retrieve records. The skill stores no credentials and does not replace MCP setup.
+- Use `docs/AGENT_SKILL.md` to link the canonical skill into the desired client. The Phase 12 Codex
+  link is user-local and is not part of the Git repository.
+- Cursor and Gemini CLI were not installed, so their current official installation/discovery flows
+  remain contributor-side manual verification. Claude Code was installed but Codex satisfied the
+  required live client-discovery check.
+- Release tags and a public distribution location do not yet exist. The artifact version is
+  inspectable, but Phase 13 must implement safe installation and update behavior.
+- Rotate the Gemini and Atlas credentials previously pasted into conversation. The skill and tracked
+  documentation contain neither secret.
+
+### Known limitations intentionally left for later phases
+
+- No automatic installer CLI, client detection, per-agent adapter, upgrade, rollback, or uninstall
+  behavior exists.
+- MCP remains read-only. Contribution and outcome-reporting tools, validation, persistence, abuse
+  controls, and scoring effects are not implemented or advertised as callable.
+- The skill cannot make private/team data eligible for the unpaid/public Gemini path and introduces
+  no new private/team retrieval behavior.
+- The dashboard, user-facing authentication flow, anonymous/public MCP, OAuth, and distributed rate
+  limiting remain deferred.
+- The development corpus still contains two unrelated review records and no published records; the
+  skill changes agent behavior, not knowledge lifecycle state.
+- No automated tests were added by explicit Phase 12 requirement.
+
+### Exact next phase
+
+**Phase 13: implement the automatic installer CLI and per-agent adapters that safely install,
+configure, update, inspect, and remove the canonical KnownPath skill/MCP integration across
+supported clients. Do not begin contribution/outcome writes or dashboard work unless the Phase 13
+prompt explicitly requires them.**

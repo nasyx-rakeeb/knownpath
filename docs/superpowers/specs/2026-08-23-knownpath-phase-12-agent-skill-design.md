@@ -2,9 +2,9 @@
 
 ## Goal
 
-Ship a portable, standards-compliant `knownpath` Agent Skill that teaches coding agents when and
-how to consult KnownPath's existing read-only MCP tools. The skill is a behavioral layer, not a
-database client, MCP implementation, installer, or source of authority over the user and repository.
+Ship a portable, standards-compliant `knownpath` Agent Skill that teaches coding agents when and how
+to consult KnownPath's existing read-only MCP tools. The skill is a behavioral layer, not a database
+client, MCP implementation, installer, or source of authority over the user and repository.
 
 ## Research basis
 
@@ -87,12 +87,12 @@ for hidden chain-of-thought.
 
 Add `docs/AGENT_SKILL.md` for manual development installation using current official paths and
 commands. The canonical skill remains independent of those paths. Phase 12 may link the artifact
-into one installed local client for discovery verification, but automatic multi-client
-installation, copying, updates, rollback, and adapter implementation remain Phase 13 work.
+into one installed local client for discovery verification, but automatic multi-client installation,
+copying, updates, rollback, and adapter implementation remain Phase 13 work.
 
 Set the initial skill metadata version to `1.0.0`. Patch releases clarify instructions without
-changing tool expectations; minor releases add compatible behavior or examples; major releases
-cover incompatible activation or MCP workflow changes. Repository tags/releases are the durable
+changing tool expectations; minor releases add compatible behavior or examples; major releases cover
+incompatible activation or MCP workflow changes. Repository tags/releases are the durable
 distribution boundary, while the in-file version lets clients and reviewers inspect the artifact.
 
 ## Verification
@@ -102,8 +102,8 @@ Do not add or run automated tests. Verify instead by:
 - running the official `skills-ref validate` command when available;
 - running the bundled skill-creator validator as a second format check;
 - inspecting that only the four registered Phase 11 MCP tools are presented as callable;
-- checking that examples cover Expo SDK migration, EAS/Gradle, React Native dependencies, Metro,
-  and native configuration without exposing private code;
+- checking that examples cover Expo SDK migration, EAS/Gradle, React Native dependencies, Metro, and
+  native configuration without exposing private code;
 - linking the canonical directory into at least one installed supported client and confirming its
   discovery metadata;
 - running workspace typecheck, lint, formatting validation, and build;

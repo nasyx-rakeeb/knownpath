@@ -4,10 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 11 exposes the authenticated
-> read/search surface through MCP over production Streamable HTTP and a thin local stdio bridge.
-> Agent Skill installation, contribution/outcome tools, dashboards, public signup, and public
-> anonymous access are not implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 12 adds a portable Agent Skill
+> for using the authenticated MCP read/search surface safely. Automatic multi-agent installation,
+> contribution/outcome tools, dashboards, public signup, and public anonymous access are not
+> implemented yet.
 
 ## Prerequisites
 
@@ -158,6 +158,11 @@ pnpm mcp:inspect --transport stdio
 Tool contracts, authentication, security behavior, and current Codex/Claude Code/Cursor/Gemini CLI
 configurations are documented in [the MCP guide](docs/MCP.md).
 
+The portable Agent Skill teaches supported coding agents when and how to consult those MCP tools
+without blindly applying retrieved fixes. Manual development installation and the current behavior
+contract are documented in [the Agent Skill guide](docs/AGENT_SKILL.md). Automatic installation is
+deferred to Phase 13.
+
 Stop MongoDB without deleting its named development volume:
 
 ```sh
@@ -213,12 +218,15 @@ packages/
   search/          Embeddings, search projections, hybrid retrieval, and explainable ranking
   mcp/             Shared MCP tool contracts, projections, server factory, and HTTP gateway
   typescript-config/ Shared strict compiler configurations
+skills/
+  knownpath/        Portable Agent Skill instructions and on-demand examples
 ```
 
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
 [retrieval guide](docs/RETRIEVAL.md), [Knowledge HTTP API guide](docs/API.md),
-[MCP guide](docs/MCP.md), [decision log](docs/DECISIONS.md), and [phase progress](progress.md) for
-the current boundaries and delivery status.
+[MCP guide](docs/MCP.md), [Agent Skill guide](docs/AGENT_SKILL.md),
+[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
+delivery status.
 
 ## License
 

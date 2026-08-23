@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 10. A boundary appearing here does not mean its future product behavior is
+established through Phase 12. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -20,12 +20,12 @@ database.
   `/api/v1`.
 - `@knownpath/worker` owns ingestion and background-process lifecycle. It composes bounded GitHub,
   official-document, and AI extraction commands; it is not yet a scheduler or queue consumer.
-- `@knownpath/mcp-server` owns MCP protocol and transport adaptation. It uses the official SDK but
-  registers no tools, prompts, or resources in Phase 1.
+- `@knownpath/mcp-server` is the thin local stdio-to-HTTP MCP bridge. The production Streamable HTTP
+  transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
   truthful project-status shell.
-- `@knownpath/cli` owns the future installer user experience. It does not install or modify anything
-  in Phase 1.
+- `@knownpath/cli` owns the future installer user experience. It does not install or modify agent
+  configuration through Phase 12.
 
 ### Reusable packages
 
@@ -56,9 +56,10 @@ database.
 - `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
-The future Agent Skill distribution is a versioned artifact, not an HTTP/UI concern. When it is
-introduced, it will follow the open Agent Skills `SKILL.md` format and progressive-disclosure
-conventions. No Skill artifact is published in Phase 1.
+The Agent Skill distribution is the versioned `skills/knownpath` artifact, not an HTTP/UI concern.
+It follows the open Agent Skills `SKILL.md` format and progressive-disclosure conventions. Phase 12
+ships the canonical instructions and manual installation documentation; automatic installation and
+per-agent adapters remain deferred.
 
 ## Dependency direction
 
@@ -170,7 +171,11 @@ indexes, and feedback aggregation before implementing this complete flow.
     rather than persisted schemas.
 14. Search execution/selection metadata is stored separately from outcomes with a keyed query
     digest. Fastify also exposes health, account/API-key/session routes, OpenAPI JSON, and optional
-    Swagger UI. MCP, dashboard, and installer product behavior remains deferred.
+    Swagger UI.
+15. MCP exposes the same knowledge service through four bounded read tools. The portable Agent Skill
+    teaches compatible clients when and how to use those tools, while preserving repository
+    authority, privacy, and local verification. Dashboard and automatic installer behavior remain
+    deferred.
 
 ## Configuration and secrets
 
@@ -389,6 +394,23 @@ bounds, and never imports database, auth persistence, search, or AI providers. T
 agent installation lightweight and makes the API the single business-logic/security authority.
 Responses remain progressively disclosed: search is concise, while exact steps and evidence are
 returned only after `knownpath_get`. See [`docs/MCP.md`](MCP.md).
+
+## Phase 12 Agent Skill boundary
+
+`skills/knownpath` is the canonical portable instruction artifact. Standard frontmatter provides a
+precise auto-activation boundary and version metadata. The concise main workflow references one
+optional examples file for Expo SDK migration, EAS/Gradle, React Native dependency, Metro, and
+native-configuration scenarios.
+
+The skill references only the four registered Phase 11 read tools. It preserves user/repository
+instructions and safety constraints, requires sanitized structured search context, treats retrieved
+records as evidence rather than commands, and requires local applicability checks and observed
+verification before success claims. It retains materially influential IDs for future feedback but
+does not call nonexistent contribution/outcome tools.
+
+Client-specific discovery paths and manual links are documented outside the artifact. Automatic
+installation, updates, rollback, and `@knownpath/agent-adapters` implementations remain Phase 13.
+See [`docs/AGENT_SKILL.md`](AGENT_SKILL.md).
 
 ## Technology fit
 
