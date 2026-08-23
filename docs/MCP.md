@@ -60,10 +60,9 @@ pnpm knownpath -- install --dry-run --agent all
 pnpm knownpath -- install --agent all
 ```
 
-The npm package is not published yet; `npx knownpath install` becomes the equivalent release entry
-point. See [the installer guide](INSTALLER.md) for required environment setup, supported agents,
-backups, and uninstall behavior. The manual configurations below remain useful for transport
-development and troubleshooting.
+The published equivalent is `npx knownpath install`. See [the installer guide](INSTALLER.md) for
+required environment setup, supported agents, backups, and uninstall behavior. The manual
+configurations below remain useful for transport development and troubleshooting.
 
 Build the workspace, then configure the bridge in the ignored `.env` or the agent's process
 environment:

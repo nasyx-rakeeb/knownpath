@@ -1831,7 +1831,7 @@ Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
   configured in the isolated home. Codex `mcp list` recognized the bridge and masked both inherited
   environment values. Claude `mcp get knownpath` showed only `${KNOWNPATH_*}` references. OpenCode's
   runtime config validator accepted `mcp.knownpath` and listed the server; connection failure was
-  expected because the npm package/backend URL are not published/live.
+  expected at that verification point because the npm package and backend URL were not yet live.
 - Cursor and OpenCode JSONC fixtures retained unrelated fields, comments, and trailing commas after
   install/uninstall. Four timestamped backups were created across the two mutations, and neither
   temporary credential value nor URL appeared in final configs. The real user configuration audit
@@ -1842,12 +1842,18 @@ Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
   machine-readable checks/errors. Output contained neither the supplied temporary key nor URL.
 - `install --json --yes` emitted one valid JSON document, non-interactive mutations required
   `--yes`, and invalid/combined `--agent all` usage produced stable safe error codes.
+- Release follow-up connected the clean `main` history to the public
+  [`nasyx-rakeeb/knownpath`](https://github.com/nasyx-rakeeb/knownpath) repository and verified the
+  local/remote commit IDs matched.
+- The exact seven-file release tarball was published as public `knownpath@0.1.0` with the `latest`
+  dist-tag. A fresh registry installation returned CLI version `0.1.0`, included the canonical
+  skill, and ran help successfully. The temporary publish credential was never written to the
+  repository or command output, and the clipboard was cleared after publication.
 
 ### Environment and manual setup still required
 
-- The `knownpath` npm package is implemented and pack-verified but not published. Until a release is
-  made, use `pnpm knownpath -- …` in this checkout; generated `npx -y knownpath mcp` entries cannot
-  connect through npm yet.
+- `knownpath@0.1.0` was published after the Phase 13 implementation commit. End users can run
+  `npx knownpath`; repository development can continue to use `pnpm knownpath -- …`.
 - Set a real operator-selected `KNOWNPATH_API_URL` and active `KNOWNPATH_API_KEY` with
   `knowledge:read` in the shell/process that launches each agent. No active Phase 11 temporary key
   remains, so authenticated live `doctor` backend checks were not claimed in Phase 13.

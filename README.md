@@ -6,7 +6,8 @@ reusable engineering experiences available through agent-native interfaces.
 
 > [!IMPORTANT] KnownPath is under active phased development. Phase 13 adds the portable installer
 > CLI and safe adapters for five coding agents. Contribution/outcome tools, dashboards, public
-> signup, public anonymous access, and a published npm release are not implemented yet.
+> signup, and public anonymous access are not implemented yet. The installer is published as
+> [`knownpath`](https://www.npmjs.com/package/knownpath).
 
 ## Prerequisites
 
@@ -173,10 +174,10 @@ pnpm knownpath -- doctor --agent all
 ```
 
 The CLI stores only references to those variable names and has no URL fallback. It supports Codex
-CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. The package is not
-yet published, so repository development uses `pnpm knownpath --`; the intended released entry point
-is `npx knownpath`. Exact changes, Windows setup, backups, conflicts, updates, and uninstall
-behavior are documented in [the installer guide](docs/INSTALLER.md).
+CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. Users can run
+`npx knownpath install`; repository development can use `pnpm knownpath --`. Exact changes, Windows
+setup, backups, conflicts, updates, and uninstall behavior are documented in
+[the installer guide](docs/INSTALLER.md).
 
 Stop MongoDB without deleting its named development volume:
 

@@ -49,7 +49,7 @@ used IDs for future reporting but never instructs an agent to call an unavailabl
 
 Phase 13 packages this canonical directory into the `knownpath` installer. Configure the required
 environment and use `pnpm knownpath -- install` from this checkout; see the complete
-[installer guide](INSTALLER.md). The intended post-release command is `npx knownpath install`.
+[installer guide](INSTALLER.md). End users can run `npx knownpath install`.
 
 The installer supports Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode without maintaining
 divergent skill text. Manual links remain useful only when editing the skill itself.

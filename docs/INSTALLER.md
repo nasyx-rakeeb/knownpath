@@ -4,9 +4,9 @@ The `knownpath` CLI installs the canonical Agent Skill and a thin stdio MCP brid
 coding agents. Retrieval, authentication, authorization, ranking, and audit behavior remain in the
 KnownPath backend. The installed bridge needs no MongoDB or Gemini configuration.
 
-> KnownPath is under phased development. The npm package has not yet been released. From this
-> checkout, use `pnpm knownpath -- <command>`; after publication the equivalent entry point is
-> `npx knownpath <command>`.
+> KnownPath is under phased development. The installer is published as
+> [`knownpath`](https://www.npmjs.com/package/knownpath). From this checkout,
+> `pnpm knownpath -- <command>` runs the same implementation.
 
 The npm artifact bundles KnownPath workspace implementation code and the canonical skill. Its only
 runtime packages are maintained public dependencies; it does not require unpublished `@knownpath/*`
