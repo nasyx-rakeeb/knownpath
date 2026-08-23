@@ -1931,9 +1931,10 @@ documentation was reviewed on 2026-08-23.
   uninstalled on this machine.
 - The official MCP client invoked `knownpath_status` over the production Streamable HTTP endpoint.
   It reported the backend ready, Atlas search, an active admin owner, published reads, and explicit
-  audited review reads. The macOS login session received the two required environment values without
-  writing either credential into agent or shell configuration; they must be re-supplied after logout
-  or restart.
+  audited review reads. A subsequent explicit review-mode `knownpath_search` returned the two real
+  Expo review records with separate rankings and no semantic requirement. The macOS login session
+  received the two required environment values without writing either credential into agent or shell
+  configuration; they must be re-supplied after logout or restart.
 - Corrected the repository-only `pnpm knownpath` wrapper after live verification showed its trailing
   argument separator reached the CLI as a literal positional argument. The published `npx knownpath`
   command was unaffected.
