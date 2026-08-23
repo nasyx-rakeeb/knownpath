@@ -4,7 +4,32 @@
   "private": false,
   "description": "Install KnownPath MCP access and its Agent Skill across supported coding agents.",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/nasyx-rakeeb/knownpath#readme",
+  "bugs": {
+    "url": "https://github.com/nasyx-rakeeb/knownpath/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nasyx-rakeeb/knownpath.git",
+    "directory": "apps/cli"
+  },
+  "keywords": [
+    "ai-agents",
+    "agent-skills",
+    "coding-agents",
+    "developer-tools",
+    "expo",
+    "mcp",
+    "model-context-protocol",
+    "react-native"
+  ],
   "type": "module",
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "knownpath": "./dist/index.js"
   },
