@@ -1806,8 +1806,8 @@ Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
   orchestration modules.
 - Extracted `runKnownPathStdioBridge` into `@knownpath/mcp`; `apps/mcp-server` and the installer CLI
   now invoke the same bridge implementation.
-- Added esbuild/jsonc-parser catalog and lockfile state, the root `pnpm knownpath -- …` command, and
-  a blank required `KNOWNPATH_API_URL` example rather than a committed fallback.
+- Added esbuild/jsonc-parser catalog and lockfile state, the root `pnpm knownpath …` command, and a
+  blank required `KNOWNPATH_API_URL` example rather than a committed fallback.
 - Added `docs/INSTALLER.md`; updated `README.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_SKILL.md`,
   `docs/MCP.md`, `docs/DECISIONS.md`, the adapter README, the approved design correction, and this
   progress record.
@@ -1853,7 +1853,7 @@ Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
 ### Environment and manual setup still required
 
 - `knownpath@0.1.0` was published after the Phase 13 implementation commit. End users can run
-  `npx knownpath`; repository development can continue to use `pnpm knownpath -- …`.
+  `npx knownpath`; repository development can continue to use `pnpm knownpath …`.
 - Set a real operator-selected `KNOWNPATH_API_URL` and active `KNOWNPATH_API_KEY` with
   `knowledge:read` in the shell/process that launches each agent. No active Phase 11 temporary key
   remains, so authenticated live `doctor` backend checks were not claimed in Phase 13.
@@ -1919,12 +1919,23 @@ documentation was reviewed on 2026-08-23.
   secrets and the configured Atlas database. `/health/live` returned `status: ok`, `/health/ready`
   returned `status: ready` with MongoDB/auth `ok`, and `/docs/` returned 404 because production
   Swagger UI was disabled. SIGINT produced the expected graceful-shutdown log.
-- External deployment still requires connecting the GitHub repository to Render, entering a newly
-  rotated Atlas URI, copying Render's outbound ranges into the Atlas access list, and observing the
-  first live readiness result. No live deployment is claimed until those dashboard actions and the
-  HTTPS checks are observed.
-- After readiness, create the first administrator only through `pnpm auth:user:create`, issue a
-  `knowledge:read` key through the authenticated API flow, and run `npx knownpath doctor` with the
-  deployed origin/key in the launching environment.
+- Render deployed `knownpath-api` at `https://knownpath-api.onrender.com`. Live HTTPS checks
+  returned 200 for liveness, Atlas/auth readiness, and the OpenAPI 3.1 document (19 paths).
+- Created the first production administrator through the masked `pnpm auth:user:create` CLI. The
+  live session flow issued one admin-owned `knowledge:read` key; its full plaintext and the
+  generated administrator password were stored only in the macOS login Keychain and were not logged
+  or added to agent configuration.
+- Installed current MCP entries for detected Codex CLI, Claude Code, and OpenCode clients with
+  backups and non-secret ownership state. The published `npx knownpath doctor` reported success: all
+  three entries, backend readiness, and API-key authorization passed. Cursor and Gemini CLI remain
+  uninstalled on this machine.
+- The official MCP client invoked `knownpath_status` over the production Streamable HTTP endpoint.
+  It reported the backend ready, Atlas search, an active admin owner, published reads, and explicit
+  audited review reads. The macOS login session received the two required environment values without
+  writing either credential into agent or shell configuration; they must be re-supplied after logout
+  or restart.
+- Corrected the repository-only `pnpm knownpath` wrapper after live verification showed its trailing
+  argument separator reached the CLI as a literal positional argument. The published `npx knownpath`
+  command was unaffected.
 - The free service is for bounded verification and has documented idle spin-down/cold starts; an
   always-on plan is required before treating the MCP backend as reliably available.

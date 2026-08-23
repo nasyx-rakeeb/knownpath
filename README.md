@@ -168,14 +168,14 @@ apply the Phase 13 installer plan:
 ```sh
 export KNOWNPATH_API_URL='https://your-knownpath-origin.example'
 read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
-pnpm knownpath -- install --dry-run --agent all
-pnpm knownpath -- install --agent all
-pnpm knownpath -- doctor --agent all
+pnpm knownpath install --dry-run --agent all
+pnpm knownpath install --agent all
+pnpm knownpath doctor --agent all
 ```
 
 The CLI stores only references to those variable names and has no URL fallback. It supports Codex
 CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. Users can run
-`npx knownpath install`; repository development can use `pnpm knownpath --`. Exact changes, Windows
+`npx knownpath install`; repository development can use `pnpm knownpath`. Exact changes, Windows
 setup, backups, conflicts, updates, and uninstall behavior are documented in
 [the installer guide](docs/INSTALLER.md).
 
@@ -218,7 +218,7 @@ pnpm dev:infra:down
 | `pnpm run search`       | Project, embed, index, inspect, or query canonical KnownPaths              |
 | `pnpm mcp:stdio`        | Run the thin local MCP-to-HTTP bridge over stdio                           |
 | `pnpm mcp:inspect`      | List or invoke MCP tools with the official SDK client                      |
-| `pnpm knownpath -- …`   | Run the multi-agent installer CLI from this checkout                       |
+| `pnpm knownpath …`      | Run the multi-agent installer CLI from this checkout                       |
 
 ## Structure
 

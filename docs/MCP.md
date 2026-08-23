@@ -56,8 +56,8 @@ Phase 13's recommended local-client setup is the installer, which configures `np
 and environment-variable references without persisting their values:
 
 ```sh
-pnpm knownpath -- install --dry-run --agent all
-pnpm knownpath -- install --agent all
+pnpm knownpath install --dry-run --agent all
+pnpm knownpath install --agent all
 ```
 
 The published equivalent is `npx knownpath install`. See [the installer guide](INSTALLER.md) for

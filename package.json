@@ -28,7 +28,7 @@
     "lint": "turbo run lint",
     "mcp:stdio": "pnpm --filter @knownpath/mcp-server start",
     "mcp:inspect": "pnpm --filter @knownpath/mcp-server inspect",
-    "knownpath": "pnpm --filter ./apps/cli start --",
+    "knownpath": "pnpm --filter ./apps/cli start",
     "score": "pnpm --filter @knownpath/worker score",
     "search": "pnpm --filter @knownpath/worker run retrieve",
     "typecheck": "turbo run typecheck"

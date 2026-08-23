@@ -6,7 +6,7 @@ KnownPath backend. The installed bridge needs no MongoDB or Gemini configuration
 
 > KnownPath is under phased development. The installer is published as
 > [`knownpath`](https://www.npmjs.com/package/knownpath). From this checkout,
-> `pnpm knownpath -- <command>` runs the same implementation.
+> `pnpm knownpath <command>` runs the same implementation.
 
 The npm artifact bundles KnownPath workspace implementation code and the canonical skill. Its only
 runtime packages are maintained public dependencies; it does not require unpublished `@knownpath/*`
@@ -86,10 +86,10 @@ official documented formats, and the report marks them unverified.
 Recommended first setup:
 
 ```sh
-pnpm knownpath -- install --dry-run --agent all
-pnpm knownpath -- install --agent all
-pnpm knownpath -- status --agent all
-pnpm knownpath -- doctor --agent all
+pnpm knownpath install --dry-run --agent all
+pnpm knownpath install --agent all
+pnpm knownpath status --agent all
+pnpm knownpath doctor --agent all
 ```
 
 `update` reconciles installer-owned artifacts to the bundled skill/config version. `uninstall`
