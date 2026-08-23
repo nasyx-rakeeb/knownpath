@@ -2035,11 +2035,11 @@ Operational/privacy behavior is documented in [`docs/CONTRIBUTIONS.md`](docs/CON
 
 ### Environment and manual setup still required
 
-- Redeploy the Render API from this commit before production clients can see the new HTTP/MCP
-  contracts. Existing `knowledge:read` keys cannot contribute; issue a deliberately scoped key with
+- The Render API has been redeployed and the new HTTP/MCP contracts are live. Existing
+  `knowledge:read` keys still cannot contribute; issue a deliberately scoped key with
   `knowledge:contribute` only for users who enable this feature.
-- Update installed skills/clients after publishing `knownpath@0.2.0` in a future release operation.
-  Phase 14 verified the build artifact but did not publish npm or change user-owned agent configs.
+- Update installed skills/clients to `knownpath@0.2.1` where Phase 14 contribution behavior is
+  wanted. No user-owned agent configuration was changed automatically during the release.
 - No private-safe model/provider is approved or configured. That is intentional: deterministic
   processing works locally, while optional private generalization remains blocked until an operator
   explicitly configures an `approved_private` implementation.
@@ -2068,3 +2068,8 @@ Phase 14.**
 - npm's first 0.2.0 publish preserved pnpm `catalog:` dependency specifiers and therefore failed a
   clean consumer install. It is not considered usable. The binary path was normalized, and 0.2.1 is
   the corrective release built/published through pnpm's manifest transformation.
+- Verified the public registry reports `0.2.1` as `latest` with concrete runtime dependency
+  versions. A clean temporary npm installation ran `knownpath --version` as `0.2.1` and contained
+  skill version 1.1.0 with the five current MCP tool names. The production readiness endpoint
+  reported MongoDB and auth healthy, and production OpenAPI exposed 22 paths including contribution
+  submission, inspection, and account contribution settings.
