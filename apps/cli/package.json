@@ -1,23 +1,36 @@
 {
-  "name": "@knownpath/cli",
-  "version": "0.0.0",
-  "private": true,
-  "description": "Future KnownPath Agent Skill installer CLI.",
+  "name": "knownpath",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Install KnownPath MCP access and its Agent Skill across supported coding agents.",
   "license": "Apache-2.0",
   "type": "module",
   "bin": {
     "knownpath": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json --noEmit && node scripts/build.mjs",
     "dev": "tsx src/index.ts",
     "lint": "eslint src",
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@inquirer/prompts": "catalog:",
+    "@modelcontextprotocol/server": "catalog:",
+    "jsonc-parser": "catalog:",
+    "zod": "catalog:"
+  },
   "devDependencies": {
+    "@knownpath/agent-adapters": "workspace:*",
+    "@knownpath/config": "workspace:*",
+    "@knownpath/mcp": "workspace:*",
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
+    "esbuild": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

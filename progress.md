@@ -1722,3 +1722,160 @@ The approved design is
 configure, update, inspect, and remove the canonical KnownPath skill/MCP integration across
 supported clients. Do not begin contribution/outcome writes or dashboard work unless the Phase 13
 prompt explicitly requires them.**
+
+## Phase 13 — Automatic multi-agent KnownPath installer
+
+### Phase goal
+
+Provide a frictionless, merge-safe, idempotent, and reversible installer for KnownPath MCP access
+and the canonical Agent Skill. Support Codex CLI, Claude Code, Cursor, and Gemini CLI as required,
+plus only additional clients with stable official MCP/skill surfaces. Keep all credentials outside
+agent configuration and all product behavior centralized in the backend.
+
+### Research performed and official references consulted
+
+Current official documentation was checked on 2026-08-23 before implementation:
+
+- [OpenAI Codex MCP configuration](https://developers.openai.com/codex/mcp/) and
+  [Codex Agent Skills](https://developers.openai.com/codex/skills/) for global/project TOML,
+  inherited `env_vars`, `.agents/skills`, and current CLI limitations.
+- [Claude Code MCP](https://code.claude.com/docs/en/mcp) and
+  [Claude Code skills](https://code.claude.com/docs/en/skills) for official mutation commands,
+  user/project scopes, environment interpolation, and `.claude/skills`.
+- [Cursor MCP](https://cursor.com/docs/context/mcp) and
+  [Cursor Agent Skills](https://cursor.com/docs/context/skills) for JSON configuration,
+  `${env:NAME}` references, global/project paths, and open skill discovery.
+- [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/) and
+  [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/using-agent-skills/) for official
+  commands, user/project settings, explicit environment forwarding, and `.agents/skills` support.
+- [OpenCode MCP servers](https://opencode.ai/docs/mcp-servers/) and
+  [OpenCode Agent Skills](https://opencode.ai/docs/skills/) for its stable local MCP structure,
+  `{env:NAME}` references, platform/project configuration, and open skill locations.
+- [Agent Skills specification](https://agentskills.io/specification),
+  [Node.js environment variables](https://nodejs.org/api/environment_variables.html), and
+  Microsoft's [jsonc-parser](https://github.com/microsoft/node-jsonc-parser) for the portable
+  artifact, cross-platform process configuration, and comment-preserving JSON edits.
+
+GitHub Copilot, Cline, and Windsurf were researched but not added: their current combined MCP/skill
+installer surfaces are preview, extension-specific, or insufficiently stable for safe reversible
+ownership. The npm registry returned no published `knownpath` package at research time. Current
+versions were selected from registry/official metadata rather than memory; `jsonc-parser` 3.3.1 and
+esbuild 0.28.2 are maintained MIT dependencies.
+
+### Architecture and technology decisions
+
+- Renamed the private workspace root to `knownpath-monorepo` and made `apps/cli` the publishable
+  `knownpath` 0.1.0 package with the intended `npx knownpath` binary. The artifact bundles private
+  workspace implementation and the canonical skill, while maintained public runtime libraries stay
+  normal pinned dependencies; it does not require unpublished `@knownpath/*` packages.
+- Added `install`, `status`, `update`, `uninstall`, `doctor`, and `mcp`, with global/project scope,
+  repeatable or `all` agent selection, dry-run, explicit non-interactive confirmation, and a single
+  JSON document output mode.
+- `@knownpath/agent-adapters` owns detection, paths, structural configuration, backups, atomic
+  writes, content digests, non-secret ownership state, conflict handling, status, update, doctor,
+  and precise shared-skill removal. The CLI owns interaction/rendering only.
+- All clients launch `npx -y knownpath mcp`. This uses the shared Phase 11 stdio bridge and
+  therefore keeps authentication, authorization, ranking, retrieval, auditing, and future writes in
+  the HTTP backend. Agent installations need no MongoDB, Atlas, Gemini, Better Auth, or pepper
+  secrets.
+- `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` are required both at install/update and agent launch.
+  There is no localhost or production URL fallback. Config files store only each client's documented
+  variable-reference syntax; the state file stores only paths, versions, digests, ownership flags,
+  and timestamps. Phase 13 adds no keychain behavior.
+- Claude Code and Gemini CLI use official MCP mutation commands when available. Codex receives a
+  bounded managed TOML block because its CLI cannot express inherited references. Cursor and
+  OpenCode use JSONC structural edits. Current OpenCode runtime validation confirmed the official
+  `mcp.knownpath` shape.
+- A matching pre-existing artifact is unmanaged; a differing `knownpath` entry is a conflict.
+  Existing configs are backed up before mutation, unknown JSON/JSONC fields and comments are
+  retained, writes are atomic, changed owned content is not overwritten, and uninstall removes only
+  recorded installer ownership. Shared `.agents/skills/knownpath` writes/removals occur once.
+- The canonical `skills/knownpath` text remains client-neutral. Build-time copying supplies the same
+  1.0.0 artifact to every adapter rather than maintaining divergent copies.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-23-knownpath-phase-13-installer-design.md`](docs/superpowers/specs/2026-08-23-knownpath-phase-13-installer-design.md).
+Operational behavior is documented in [`docs/INSTALLER.md`](docs/INSTALLER.md).
+
+### Files and packages created or materially updated
+
+- Implemented the publishable CLI in `apps/cli`, including argument parsing, interactive and JSON
+  output, packaged-skill resolution, bundled build, and the shared `mcp` entry point.
+- Implemented `packages/agent-adapters` with adapters for Codex CLI, Claude Code, Cursor, Gemini
+  CLI, and OpenCode plus environment, filesystem, path, process, configuration, ownership-state, and
+  orchestration modules.
+- Extracted `runKnownPathStdioBridge` into `@knownpath/mcp`; `apps/mcp-server` and the installer CLI
+  now invoke the same bridge implementation.
+- Added esbuild/jsonc-parser catalog and lockfile state, the root `pnpm knownpath -- …` command, and
+  a blank required `KNOWNPATH_API_URL` example rather than a committed fallback.
+- Added `docs/INSTALLER.md`; updated `README.md`, `docs/ARCHITECTURE.md`, `docs/AGENT_SKILL.md`,
+  `docs/MCP.md`, `docs/DECISIONS.md`, the adapter README, the approved design correction, and this
+  progress record.
+- Phase 13 changed no database collection/index, API route, MCP tool name/schema, Agent Skill
+  instruction, knowledge lifecycle state, or production data.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled all 19 workspaces and passed the lockfile supply-chain policy.
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, and `pnpm format:check` completed successfully. No
+  automated tests were created or run.
+- A packed `knownpath-0.1.0.tgz` was installed in an empty temporary npm project. Its binary
+  returned `0.1.0` and help successfully, its canonical skill/reference were present, its package
+  had no runtime dependency on unpublished `@knownpath/*` packages, and no tarball was left in the
+  repo.
+- A fresh isolated home installed all five adapters. `status` reported MCP and skill `current` for
+  every target. Repeated install produced zero changes. The shared open skill was written twice
+  physically—once for `.agents/skills` and once for Claude's `.claude/skills`—not once per agent.
+  Uninstall removed those two owned copies once and returned every target to `absent`.
+- Codex CLI 0.149.0, Claude Code 2.1.185, and OpenCode 1.18.21 were installed on this machine and
+  configured in the isolated home. Codex `mcp list` recognized the bridge and masked both inherited
+  environment values. Claude `mcp get knownpath` showed only `${KNOWNPATH_*}` references. OpenCode's
+  runtime config validator accepted `mcp.knownpath` and listed the server; connection failure was
+  expected because the npm package/backend URL are not published/live.
+- Cursor and OpenCode JSONC fixtures retained unrelated fields, comments, and trailing commas after
+  install/uninstall. Four timestamped backups were created across the two mutations, and neither
+  temporary credential value nor URL appeared in final configs. The real user configuration audit
+  found no Phase 13-owned MCP entry, state file, or backup left behind; the pre-existing Phase 12
+  canonical skill link remained unmanaged.
+- Project-scope dry-run resolved the five documented repository-local config paths without writes.
+  Missing environment, malformed URL, and unreachable backend each returned exit code 1 with clear
+  machine-readable checks/errors. Output contained neither the supplied temporary key nor URL.
+- `install --json --yes` emitted one valid JSON document, non-interactive mutations required
+  `--yes`, and invalid/combined `--agent all` usage produced stable safe error codes.
+
+### Environment and manual setup still required
+
+- The `knownpath` npm package is implemented and pack-verified but not published. Until a release is
+  made, use `pnpm knownpath -- …` in this checkout; generated `npx -y knownpath mcp` entries cannot
+  connect through npm yet.
+- Set a real operator-selected `KNOWNPATH_API_URL` and active `KNOWNPATH_API_KEY` with
+  `knowledge:read` in the shell/process that launches each agent. No active Phase 11 temporary key
+  remains, so authenticated live `doctor` backend checks were not claimed in Phase 13.
+- Cursor and Gemini CLI were not installed here. Their official-doc-based file adapters passed the
+  isolated structural lifecycle, but their final native client discovery/connection checks remain
+  manual on machines with those clients.
+- macOS/Linux/Windows environment setup is documented. Windows path/config behavior is implemented
+  with Node platform APIs but needs final verification on Windows hardware.
+- Rotate the Gemini and Atlas credentials previously pasted into conversation. Tracked files contain
+  neither value, but pasted credentials must be treated as exposed.
+
+### Known limitations intentionally left for later phases
+
+- No OS keychain integration, hosted installer distribution, npm publish automation, signed release,
+  telemetry, or auto-update daemon exists. The stable environment-reference model allows a future
+  keychain adapter without rewriting client configs.
+- GitHub Copilot, Cline, Windsurf, and clients without stable documented MCP plus skill placement
+  are unsupported rather than modified through fragile internals.
+- MCP remains read-only. Contribution/outcome tools, validation, persistence, abuse controls, and
+  scoring effects are not implemented or advertised.
+- The dashboard, user-facing authentication flow, anonymous/public MCP, OAuth, private/team access,
+  and distributed rate limiting remain deferred.
+- No canonical record was published or fabricated. The development corpus remains two unrelated
+  review records and zero published records.
+- No automated tests were added by explicit Phase 13 requirement.
+
+### Exact next phase
+
+**Phase 14 (awaiting its prompt): continue only with the explicitly requested next capability. Do
+not infer or begin contribution/outcome writes, dashboard behavior, or another roadmap feature from
+Phase 13.**

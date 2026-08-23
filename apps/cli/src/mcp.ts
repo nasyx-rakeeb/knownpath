@@ -1,7 +1,7 @@
 import { loadMcpBridgeConfig } from "@knownpath/config";
 import { runKnownPathStdioBridge } from "@knownpath/mcp";
 
-async function main(): Promise<void> {
+export async function runMcpBridge(): Promise<void> {
   const config = loadMcpBridgeConfig();
   await runKnownPathStdioBridge({
     apiKey: config.apiKey,
@@ -14,11 +14,6 @@ async function main(): Promise<void> {
   });
 }
 
-main().catch((error: unknown) => {
-  process.stderr.write(`KnownPath MCP bridge failed to start: ${safeError(error)}\n`);
-  process.exitCode = 1;
-});
-
 function safeError(error: unknown): string {
-  return error instanceof Error ? `${error.name}: ${error.message}` : "Unknown error";
+  return error instanceof Error ? error.name : "Unknown error";
 }

@@ -63,6 +63,9 @@ catalogs:
     better-auth:
       specifier: 1.7.1
       version: 1.7.1
+    esbuild:
+      specifier: 0.28.2
+      version: 0.28.2
     eslint:
       specifier: 10.9.0
       version: 10.9.0
@@ -84,6 +87,9 @@ catalogs:
     html-to-text:
       specifier: 10.0.1
       version: 10.0.1
+    jsonc-parser:
+      specifier: 3.3.1
+      version: 3.3.1
     marked:
       specifier: 18.0.10
       version: 18.0.10
@@ -221,13 +227,38 @@ importers:
         version: 6.0.3
 
   apps/cli:
+    dependencies:
+      '@inquirer/prompts':
+        specifier: 'catalog:'
+        version: 8.6.0(@types/node@24.13.3)
+      '@modelcontextprotocol/server':
+        specifier: 'catalog:'
+        version: 2.0.0
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
+      '@knownpath/agent-adapters':
+        specifier: workspace:*
+        version: link:../../packages/agent-adapters
+      '@knownpath/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@knownpath/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@knownpath/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      esbuild:
+        specifier: 'catalog:'
+        version: 0.28.2
       tsx:
         specifier: 'catalog:'
         version: 4.23.12
@@ -332,6 +363,10 @@ importers:
         version: 6.0.3
 
   packages/agent-adapters:
+    dependencies:
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*
@@ -2236,6 +2271,9 @@ packages:
 
   json-with-bigint@3.5.12:
     resolution: {integrity: sha512-uwbF/wSSuOgC7qqlq27Xp5B6a2MHVug3t0idZdTqu0JnlFvgJuH7ju+KAk/J06C7GfhoYy2gnb9wz2INqcne7w==}
+
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
   jwa@2.0.1:
     resolution: {integrity: sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==}
@@ -4217,6 +4255,8 @@ snapshots:
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json-with-bigint@3.5.12: {}
+
+  jsonc-parser@3.3.1: {}
 
   jwa@2.0.1:
     dependencies:

@@ -42,14 +42,21 @@ See [the MCP guide](MCP.md) for remote Streamable HTTP and local stdio configura
 bridge needs only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; never place the key in a tracked
 skill file or agent configuration.
 
-No contribution or outcome-reporting tool exists in Phase 12. The skill remembers materially used
-IDs for future reporting but never instructs an agent to call an unavailable write capability.
+No contribution or outcome-reporting tool exists through Phase 13. The skill remembers materially
+used IDs for future reporting but never instructs an agent to call an unavailable write capability.
 
-## Manual development installation
+## Automatic installation
 
-Automatic multi-agent installation belongs to Phase 13. For Phase 12 development, link the one
-canonical directory into the location documented by the selected client. Use an absolute source path
-so the link continues to work from other repositories.
+Phase 13 packages this canonical directory into the `knownpath` installer. Configure the required
+environment and use `pnpm knownpath -- install` from this checkout; see the complete
+[installer guide](INSTALLER.md). The intended post-release command is `npx knownpath install`.
+
+The installer supports Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode without maintaining
+divergent skill text. Manual links remain useful only when editing the skill itself.
+
+## Manual development links
+
+Use an absolute source path so the link continues to work from other repositories.
 
 ### OpenAI Codex
 
@@ -80,8 +87,8 @@ skill directories and detects changes; restart only if the new top-level directo
 
 Cursor discovers `.agents/skills` and `.cursor/skills` at project or user scope. The same
 `~/.agents/skills/knownpath` link used for Codex is portable to Cursor. Invoke `/knownpath` or
-inspect it under **Customize → Skills**. Cursor was not installed in the Phase 12 development
-environment.
+inspect it under **Customize → Skills**. Cursor was not installed in the Phase 12 or Phase 13
+development environment.
 
 ### Gemini CLI
 
@@ -93,16 +100,16 @@ gemini skills link "$(pwd)/skills/knownpath" --scope user
 ```
 
 Inside Gemini CLI, use `/skills list` to inspect discovery and `/skills reload` after changes.
-Gemini asks for activation consent. Gemini CLI was not installed in the Phase 12 development
-environment.
+Gemini asks for activation consent. Gemini CLI was not installed in the Phase 12 or Phase 13
+development environment.
 
 ### GitHub Copilot
 
 GitHub Copilot supports project skills under `.github/skills`, `.claude/skills`, or
 `.agents/skills`, and personal skills under `~/.copilot/skills` or `~/.agents/skills`. The shared
 `.agents/skills/knownpath` link therefore works for Copilot and the other clients above. GitHub
-CLI's preview `gh skill` commands can install and update released skills later, but Phase 12 uses a
-local link to preserve one editable source.
+CLI's preview `gh skill` commands can install and update released skills later, but manual
+development uses a local link to preserve one editable source.
 
 ## Safe use flow
 
@@ -125,8 +132,9 @@ signals, not proof.
 - Major: change activation semantics, privacy expectations, or required MCP contracts incompatibly.
 
 Update `metadata.version` in `SKILL.md`, this guide, and relevant decisions/progress records in the
-same change. Validate before release and tag the repository release used for distribution. Phase 13
-will own installer-side version selection, copying/linking, upgrades, and rollback.
+same change. Validate before release and tag the repository release used for distribution. The CLI
+build copies the canonical directory into its distributable; `knownpath update` reconciles only
+installer-owned copies and refuses locally modified content.
 
 ## Validation
 

@@ -4,10 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 12 adds a portable Agent Skill
-> for using the authenticated MCP read/search surface safely. Automatic multi-agent installation,
-> contribution/outcome tools, dashboards, public signup, and public anonymous access are not
-> implemented yet.
+> [!IMPORTANT] KnownPath is under active phased development. Phase 13 adds the portable installer
+> CLI and safe adapters for five coding agents. Contribution/outcome tools, dashboards, public
+> signup, public anonymous access, and a published npm release are not implemented yet.
 
 ## Prerequisites
 
@@ -160,8 +159,24 @@ configurations are documented in [the MCP guide](docs/MCP.md).
 
 The portable Agent Skill teaches supported coding agents when and how to consult those MCP tools
 without blindly applying retrieved fixes. Manual development installation and the current behavior
-contract are documented in [the Agent Skill guide](docs/AGENT_SKILL.md). Automatic installation is
-deferred to Phase 13.
+contract are documented in [the Agent Skill guide](docs/AGENT_SKILL.md).
+
+Configure the API origin and API key in the environment that launches each agent, then inspect or
+apply the Phase 13 installer plan:
+
+```sh
+export KNOWNPATH_API_URL='https://your-knownpath-origin.example'
+read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
+pnpm knownpath -- install --dry-run --agent all
+pnpm knownpath -- install --agent all
+pnpm knownpath -- doctor --agent all
+```
+
+The CLI stores only references to those variable names and has no URL fallback. It supports Codex
+CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. The package is not
+yet published, so repository development uses `pnpm knownpath --`; the intended released entry point
+is `npx knownpath`. Exact changes, Windows setup, backups, conflicts, updates, and uninstall
+behavior are documented in [the installer guide](docs/INSTALLER.md).
 
 Stop MongoDB without deleting its named development volume:
 
@@ -194,18 +209,19 @@ pnpm dev:infra:down
 | `pnpm run search`       | Project, embed, index, inspect, or query canonical KnownPaths              |
 | `pnpm mcp:stdio`        | Run the thin local MCP-to-HTTP bridge over stdio                           |
 | `pnpm mcp:inspect`      | List or invoke MCP tools with the official SDK client                      |
+| `pnpm knownpath -- …`   | Run the multi-agent installer CLI from this checkout                       |
 
 ## Structure
 
 ```text
 apps/
   api/             Fastify HTTP process
-  cli/             Future installer command boundary
+  cli/             Publishable installer CLI and stdio bridge entry point
   mcp-server/      Thin stdio MCP bridge to the authenticated HTTP API
   web/             Next.js application shell
   worker/          Source ingestion and future background processing runtime
 packages/
-  agent-adapters/  Future per-agent integration boundary
+  agent-adapters/  Safe detection/configuration adapters and ownership state
   ai/              Gemini provider, privacy gate, prompts, validation, and extraction lifecycle
   auth/            Sessions, API keys, principals, authorization, and audit
   config/          Typed environment parsing

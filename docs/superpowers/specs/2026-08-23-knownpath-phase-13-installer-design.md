@@ -19,7 +19,7 @@ Current official documentation and installed CLI help were reviewed on 2026-08-2
 - [Cursor MCP](https://cursor.com/docs/mcp) and [Agent Skills](https://cursor.com/docs/skills)
 - [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/) and
   [Agent Skills](https://geminicli.com/docs/cli/skills/)
-- [OpenCode MCP](https://opencode.ai/v2/docs/mcp-servers) and
+- [OpenCode MCP](https://opencode.ai/docs/mcp-servers/) and
   [Agent Skills](https://opencode.ai/docs/skills)
 - [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills)
 - [Cline MCP](https://docs.cline.bot/mcp/mcp-overview) and
@@ -123,8 +123,8 @@ source path; otherwise use its official user/workspace skill location with owner
 
 Include OpenCode as one additional adapter because its official current configuration supports local
 stdio MCP, environment references, project/global JSON or JSONC config, and the portable
-`.agents/skills` discovery locations. Merge only `mcp.servers.knownpath` and use the same canonical
-skill copy. The adapter remains optional when OpenCode is not detected.
+`.agents/skills` discovery locations. Merge only `mcp.knownpath` and use the same canonical skill
+copy. The adapter remains optional when OpenCode is not detected.
 
 GitHub Copilot, Cline, Windsurf, and other clients are documented as researched but deferred when
 their integration is preview-only, surface-specific, lacks one stable combined MCP/skill target, or

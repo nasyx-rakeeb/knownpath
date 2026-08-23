@@ -20,6 +20,9 @@
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "jsonc-parser": "catalog:"
+  },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",

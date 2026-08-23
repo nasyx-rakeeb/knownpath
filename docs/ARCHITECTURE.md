@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 12. A boundary appearing here does not mean its future product behavior is
+established through Phase 13. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -24,8 +24,9 @@ database.
   transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
   truthful project-status shell.
-- `@knownpath/cli` owns the future installer user experience. It does not install or modify agent
-  configuration through Phase 12.
+- `knownpath` is the publishable installer CLI. It owns interactive/machine-readable presentation,
+  packages the canonical skill, and exposes the thin `mcp` stdio command; it delegates all
+  client-specific behavior to `@knownpath/agent-adapters`.
 
 ### Reusable packages
 
@@ -53,13 +54,13 @@ database.
 - `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
   search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
   the transport-independent safe knowledge-access service.
-- `@knownpath/agent-adapters` will hold per-agent installer adapter contracts and implementations.
+- `@knownpath/agent-adapters` owns client detection, merge-safe MCP configuration, canonical skill
+  installation, backups, ownership state, status/doctor checks, updates, and uninstall behavior.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
 The Agent Skill distribution is the versioned `skills/knownpath` artifact, not an HTTP/UI concern.
-It follows the open Agent Skills `SKILL.md` format and progressive-disclosure conventions. Phase 12
-ships the canonical instructions and manual installation documentation; automatic installation and
-per-agent adapters remain deferred.
+It follows the open Agent Skills `SKILL.md` format and progressive-disclosure conventions. Phase 13
+packages this one artifact into the installer rather than maintaining client-specific copies.
 
 ## Dependency direction
 
@@ -174,12 +175,14 @@ indexes, and feedback aggregation before implementing this complete flow.
     Swagger UI.
 15. MCP exposes the same knowledge service through four bounded read tools. The portable Agent Skill
     teaches compatible clients when and how to use those tools, while preserving repository
-    authority, privacy, and local verification. Dashboard and automatic installer behavior remain
-    deferred.
+    authority, privacy, and local verification.
+16. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
+    skill. Config files contain only references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`;
+    retrieval and authorization remain centralized in the API. Dashboard behavior remains deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 7. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 13. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -200,6 +203,13 @@ Model, request, retry, spacing, and token/call/target budgets are centralized co
 Search defaults to the local non-vector backend. Atlas index names/readiness timeout and the
 embedding model/version/dimensions are explicit environment configuration. A private/team query or
 projection cannot silently use the unpaid public provider.
+
+The installer requires `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` in the launching environment. It
+has no URL default and stores only provider-specific references to these names. Its state file holds
+non-secret ownership/digest/version metadata. Agent configs are backed up before mutation, comments
+and unknown fields are preserved where their documented format permits, and conflicting unmanaged
+entries stop rather than being overwritten. The stdio bridge remains a client of the HTTP API and
+receives no database or AI-provider configuration.
 
 ## Phase 2 persistence boundary
 
@@ -409,8 +419,28 @@ verification before success claims. It retains materially influential IDs for fu
 does not call nonexistent contribution/outcome tools.
 
 Client-specific discovery paths and manual links are documented outside the artifact. Automatic
-installation, updates, rollback, and `@knownpath/agent-adapters` implementations remain Phase 13.
-See [`docs/AGENT_SKILL.md`](AGENT_SKILL.md).
+Phase 13's installer owns installation, update, inspection, and reversible removal. The skill stays
+transport- and client-neutral.
+
+## Phase 13 installer boundary
+
+The `knownpath` CLI supports `install`, `status`, `update`, `uninstall`, `doctor`, and the internal
+`mcp` bridge command. An adapter describes Codex CLI, Claude Code, Cursor, Gemini CLI, or OpenCode
+without importing API/database/retrieval code. Global paths follow the current client and operating
+system conventions; project paths remain inside the selected repository.
+
+Claude Code and Gemini CLI use official MCP mutation commands when installed. Codex uses a bounded
+managed TOML block because its current CLI cannot express inherited environment-variable references.
+Cursor and OpenCode use documented JSON/JSONC structures. Structural edits preserve unrelated
+fields/comments, existing files are backed up, writes are atomic, and a separate state record makes
+ownership explicit. A matching pre-existing artifact is unmanaged; an incompatible `knownpath` entry
+is a conflict. This prevents install/update/uninstall from claiming or deleting user work.
+
+Codex, Cursor, Gemini CLI, and OpenCode share the open `.agents/skills/knownpath` location; Claude
+uses its documented `.claude/skills/knownpath` path. Shared removal happens only once after selected
+installer owners are removed. The CLI bundles the canonical source artifact during build, so all
+adapters receive identical instructions and version metadata. See
+[`docs/INSTALLER.md`](INSTALLER.md). See [`docs/AGENT_SKILL.md`](AGENT_SKILL.md).
 
 ## Technology fit
 

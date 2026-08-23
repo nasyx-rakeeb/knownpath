@@ -727,3 +727,42 @@ unimplemented writes.
 [Cursor Agent Skills](https://cursor.com/docs/skills),
 [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/using-agent-skills/),
 [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)
+
+## 2026-08-23 — Install a thin bridge through owned, reversible per-agent adapters
+
+**Decision:** Publish the Phase 13 CLI as the future `knownpath` npm package and make
+`npx -y knownpath mcp` the default stdio entry in Codex CLI, Claude Code, Cursor, Gemini CLI, and
+OpenCode. Each client config contains only its documented reference form for `KNOWNPATH_API_URL` and
+`KNOWNPATH_API_KEY`; both must exist at install/update and agent launch, and there is no URL
+fallback. Keep client detection/configuration and non-secret ownership state in
+`@knownpath/agent-adapters`, while the CLI owns prompts/output and packages the one canonical skill.
+Bundle private workspace implementation into the npm artifact while leaving maintained public
+libraries as normal versioned runtime dependencies, so the released executable does not depend on
+unpublished `@knownpath/*` packages.
+
+Prefer official MCP mutation commands for Claude Code and Gemini CLI when installed. Use a bounded
+managed TOML block for Codex and structural JSONC edits for documented JSON clients. Back up an
+existing config before mutation, preserve unrelated content, refuse unmanaged conflicts or changed
+owned content, and remove only installer-owned artifacts. Matching pre-existing entries remain
+unmanaged. Support both global and project scope and one JSON output mode. Include OpenCode because
+its current official MCP and open Agent Skills mechanisms are stable; defer clients without a stable
+combined installation surface.
+
+**Why:** The backend remains the sole authority for credentials, policy, retrieval, and future
+writes. One lightweight bridge keeps agent installations provider/database agnostic. Environment
+references avoid plaintext credentials in client files while preserving an unchanged configuration
+model for future keychain-backed environment injection. Explicit ownership, content digests,
+backups, and atomic edits make repeated installation and reversal safe across shared user files.
+
+**Rejected:** Literal key values in config, a committed/default URL, direct MongoDB/provider access,
+or per-agent bridge logic would weaken the central security boundary. Wholesale config rewrites and
+blind adoption of an existing `knownpath` entry risk destroying user work. Keychain integration is
+premature in this phase. GitHub Copilot, Cline, and Windsurf adapters remain deferred rather than
+depending on preview, extension-specific, or insufficiently stable mechanisms.
+
+**References:** [OpenAI Codex MCP](https://developers.openai.com/codex/mcp/),
+[Claude Code MCP](https://code.claude.com/docs/en/mcp),
+[Cursor MCP](https://cursor.com/docs/context/mcp),
+[Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/),
+[OpenCode MCP](https://opencode.ai/docs/mcp-servers/),
+[Agent Skills specification](https://agentskills.io/specification)
