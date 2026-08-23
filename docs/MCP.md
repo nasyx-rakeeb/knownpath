@@ -2,14 +2,13 @@
 
 ## Scope and philosophy
 
-Phase 11 exposes the Phase 10 read API through a small Model Context Protocol surface. KnownPath
-returns compact, evidence-grounded experience; the coding agent still inspects the actual codebase,
-checks version applicability, and decides whether a proposed fix is safe. A result is not an
-instruction to modify code blindly.
+The MCP surface exposes retrieval plus privacy-safe generalized contributions. KnownPath returns
+compact, evidence-grounded experience; the coding agent still inspects the actual codebase, checks
+version applicability, and decides whether a proposed fix is safe. A result is not an instruction to
+modify code blindly.
 
-The MCP surface is read-only in this phase. The future names `knownpath_contribute` and
-`knownpath_report_outcome` are reserved in documentation only; they are not advertised and do not
-perform placeholder writes.
+`knownpath_contribute` is a real idempotent additive write. `knownpath_report_outcome` remains
+reserved and is not advertised.
 
 ## Architecture
 
@@ -39,6 +38,7 @@ structured results are still returned with each call.
 | `knownpath_get`          | Reveal deeper steps, caveats, and bounded evidence for one selected ID                        |
 | `knownpath_alternatives` | Page through other solution variants on the same canonical KnownPath                          |
 | `knownpath_status`       | Inspect safe service, key-scope, review-access, and search-backend state                      |
+| `knownpath_contribute`   | Submit a consented generalized lesson after observable success                                |
 
 Search defaults to five results and allows at most ten. Detail returns at most two solution
 variants, eight steps per solution, and eight bounded evidence references. Alternatives defaults to
@@ -48,7 +48,12 @@ selection is never counted as a successful outcome.
 
 `includeReview` always defaults to `false`. It succeeds only for an active administrator-owned API
 key with `knowledge:read`, and every permitted review read uses the existing audit boundary. Normal
-keys cannot receive review records. No MCP tool can request private/team visibility in Phase 11.
+keys cannot receive review records. Retrieval cannot request private/team records.
+
+`knownpath_contribute` requires `knowledge:contribute`, explicit consent, and a UUID
+`clientSubmissionId`. It accepts public or owner-private lessons and rejects team visibility.
+Private data never uses an unpaid/public provider. The response is a receipt for low-trust
+self-reported evidence, not publication or proof.
 
 ## Configuration
 

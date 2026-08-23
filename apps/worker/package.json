@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "canonicalize": "tsx --env-file-if-exists=../../.env src/index.ts canonicalize",
+    "contributions": "tsx --env-file-if-exists=../../.env src/index.ts contributions",
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "extract": "tsx --env-file-if-exists=../../.env src/index.ts extract",
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
@@ -22,6 +23,7 @@
     "@knownpath/ai": "workspace:*",
     "@knownpath/canonicalization": "workspace:*",
     "@knownpath/config": "workspace:*",
+    "@knownpath/contributions": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/github-ingestion": "workspace:*",
     "@knownpath/source-ingestion": "workspace:*",

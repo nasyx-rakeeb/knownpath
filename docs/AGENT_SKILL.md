@@ -3,10 +3,10 @@
 ## Purpose
 
 The canonical [`knownpath` Agent Skill](../skills/knownpath/SKILL.md) teaches coding agents when and
-how to consult KnownPath's read-only MCP capability. It does not contain knowledge records, connect
-to MongoDB, call the HTTP API directly, or replace MCP configuration. It helps an agent decide when
-a lookup is worthwhile, supply safe structured context, inspect evidence and caveats, and validate a
-selected solution against the current repository.
+how to consult KnownPath and offer privacy-safe contributions. It does not contain knowledge
+records, connect to MongoDB, call the HTTP API directly, or replace MCP configuration. It helps an
+agent decide when a lookup is worthwhile, supply safe structured context, inspect evidence and
+caveats, and validate a selected solution against the current repository.
 
 The skill auto-activates for relevant non-trivial debugging, migration, dependency, build,
 environment/version, native-configuration, and unfamiliar-error work. It remains manually invocable.
@@ -27,7 +27,7 @@ The artifact follows the open Agent Skills specification. Its frontmatter uses o
 dynamic prompt syntax, pre-approved tools, executable scripts, or UI metadata. Detailed Expo and
 React Native examples are loaded only when useful.
 
-The current skill version is `1.0.0`.
+The current skill version is `1.1.0`.
 
 ## Required MCP setup
 
@@ -37,13 +37,15 @@ Configure KnownPath MCP before using the skill. The skill expects exactly these 
 - `knownpath_get`
 - `knownpath_alternatives`
 - `knownpath_status`
+- `knownpath_contribute`
 
 See [the MCP guide](MCP.md) for remote Streamable HTTP and local stdio configuration. The local
 bridge needs only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; never place the key in a tracked
 skill file or agent configuration.
 
-No contribution or outcome-reporting tool exists through Phase 13. The skill remembers materially
-used IDs for future reporting but never instructs an agent to call an unavailable write capability.
+`knownpath_contribute` is used only after observable success and fresh explicit user consent. It
+submits generalized structured fields, never source files or chain-of-thought. Outcome reporting is
+still unavailable, so the skill remembers materially used IDs without inventing that tool.
 
 ## Automatic installation
 

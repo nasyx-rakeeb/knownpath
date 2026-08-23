@@ -60,6 +60,7 @@ import {
   parseSearchArgs,
   searchUsage,
 } from "@knownpath/search";
+import { contributionUsage, inspectContribution } from "@knownpath/contributions";
 
 const command = process.argv[2];
 
@@ -70,9 +71,21 @@ async function main(): Promise<void> {
   if (command === "score") return runScoring();
   if (command === "canonicalize") return runCanonicalization();
   if (command === "search") return runSearch();
+  if (command === "contributions") return runContributions();
   console.info(
-    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}\n\n${searchUsage()}`,
+    `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}\n\n${searchUsage()}\n\n${contributionUsage()}`,
   );
+}
+
+async function runContributions(): Promise<void> {
+  if (process.argv[3] !== "inspect" || process.argv[4] !== "--id" || process.argv[5] === undefined)
+    throw new Error(contributionUsage());
+  const database = await connectToMongo(loadMongoConfig());
+  try {
+    console.info(await inspectContribution(database, process.argv[5]));
+  } finally {
+    await database.close();
+  }
 }
 
 async function runSearch(): Promise<void> {

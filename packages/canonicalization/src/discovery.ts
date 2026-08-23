@@ -1,4 +1,9 @@
-import type { CandidatePairAssessment, CandidateSimilarityProfile } from "@knownpath/domain";
+import type {
+  CandidateExperience,
+  CandidateExperienceId,
+  CandidatePairAssessment,
+  CandidateSimilarityProfile,
+} from "@knownpath/domain";
 import type { KnownPathDatabase } from "@knownpath/database";
 
 import type { CandidatePairService } from "./pair-service.js";
@@ -23,6 +28,23 @@ export class CandidateDiscoveryService {
   public async discover(limit: number, useEmbeddings: boolean): Promise<DiscoverySummary> {
     const candidates =
       await this.database.repositories.candidateExperiences.listForCanonicalization(limit);
+    return this.discoverCandidates(candidates, limit, useEmbeddings);
+  }
+
+  public async discoverForCandidate(
+    candidateId: CandidateExperienceId,
+    useEmbeddings = false,
+  ): Promise<DiscoverySummary> {
+    const candidate = await this.database.repositories.candidateExperiences.findById(candidateId);
+    if (candidate === null) throw new Error(`Candidate ${candidateId} does not exist`);
+    return this.discoverCandidates([candidate], 1, useEmbeddings);
+  }
+
+  private async discoverCandidates(
+    candidates: readonly CandidateExperience[],
+    limit: number,
+    useEmbeddings: boolean,
+  ): Promise<DiscoverySummary> {
     const candidateById = new Map(candidates.map((candidate) => [candidate._id, candidate]));
     const profiles: CandidateSimilarityProfile[] = [];
     let profilesCreated = 0;
@@ -70,6 +92,7 @@ export class CandidateDiscoveryService {
           rightCandidate === undefined
         )
           continue;
+        if (!sameVisibility(leftCandidate, rightCandidate)) continue;
         const rightProfile = profileByCandidate.get(match.candidateExperienceId) ?? match;
         const result = await this.pairs.assess(
           leftCandidate,
@@ -92,6 +115,14 @@ export class CandidateDiscoveryService {
       pairAssessmentsReused,
     };
   }
+}
+
+function sameVisibility(left: CandidateExperience, right: CandidateExperience): boolean {
+  return (
+    left.visibility.scope === right.visibility.scope &&
+    left.visibility.ownerUserId === right.visibility.ownerUserId &&
+    left.visibility.teamId === right.visibility.teamId
+  );
 }
 
 function latestProfiles(

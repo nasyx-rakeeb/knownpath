@@ -3,6 +3,8 @@ import type {
   KnowledgeSearchResponse,
   KnownPathAlternativesResponse,
   KnownPathDetailResponse,
+  ContributionSubmissionResponse,
+  ContributionSubmissionRequest,
 } from "@knownpath/domain";
 
 import type {
@@ -19,6 +21,10 @@ export interface KnowledgeMcpGateway {
     signal: AbortSignal,
   ): Promise<KnownPathAlternativesResponse>;
   status(signal: AbortSignal): Promise<KnownPathMcpStatus>;
+  contribute(
+    input: ContributionSubmissionRequest,
+    signal: AbortSignal,
+  ): Promise<ContributionSubmissionResponse>;
 }
 
 export type McpGatewayErrorCode =
@@ -39,6 +45,11 @@ export type McpGatewayErrorCode =
   | "rate_limit_exceeded"
   | "search_backend_unavailable"
   | "semantic_retrieval_unavailable"
+  | "contribution_disabled"
+  | "contribution_consent_required"
+  | "contribution_content_rejected"
+  | "contribution_idempotency_conflict"
+  | "team_contributions_not_supported"
   | "internal_error";
 
 export class McpGatewayError extends Error {

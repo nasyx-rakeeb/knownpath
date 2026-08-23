@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   auditMetadataSchema,
+  agentContributionIdSchema,
   candidateAssessmentIdSchema,
   candidateExperienceIdSchema,
   extractionAttemptIdSchema,
@@ -129,6 +130,15 @@ export const extractionProvenanceSchema = z.strictObject({
   extractedAt: timestampSchema,
 });
 
+export const contributionProvenanceSchema = z.strictObject({
+  contributionId: agentContributionIdSchema,
+  sourceItemId: sourceItemIdSchema,
+  projectorIdentifier: z.literal("knownpath-contribution-projector"),
+  projectorVersion: z.int().positive(),
+  sanitizedContentDigest: sha256Schema,
+  projectedAt: timestampSchema,
+});
+
 export const attemptedApproachSchema = z.strictObject({
   summary: nonEmptyStringSchema,
   outcome: z.enum(["failed", "partial", "unknown"]),
@@ -181,10 +191,20 @@ export const candidateExperienceSchema = z
     caveats: z.array(nonEmptyStringSchema).max(64).default([]),
     conflicts: z.array(evidenceReferenceSchema).max(64).default([]),
     candidateVerificationLabels: z.array(candidateVerificationLabelSchema).max(32).default([]),
-    extraction: extractionProvenanceSchema,
+    extraction: extractionProvenanceSchema.optional(),
+    contribution: contributionProvenanceSchema.optional(),
     latestAssessmentId: candidateAssessmentIdSchema.optional(),
   })
-  .superRefine(validateErrorFingerprintProjection);
+  .superRefine((candidate, context) => {
+    validateErrorFingerprintProjection(candidate, context);
+    if ((candidate.extraction === undefined) === (candidate.contribution === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "candidate requires exactly one extraction or contribution provenance",
+        path: ["extraction"],
+      });
+    }
+  });
 
 export const knownPathStatusSchema = z.enum([
   "draft",

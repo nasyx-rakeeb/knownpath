@@ -4,8 +4,8 @@ import { z } from "zod";
 
 import { sha256, stableJson } from "./digests.js";
 
-export const SCORING_ALGORITHM = { identifier: "knownpath-seed-evidence", version: 1 } as const;
-export const VERIFIER_VERSION = 5;
+export const SCORING_ALGORITHM = { identifier: "knownpath-seed-evidence", version: 2 } as const;
+export const VERIFIER_VERSION = 6;
 
 const integerScore = z.int().min(0).max(100);
 
@@ -33,6 +33,7 @@ export const scoringPolicySchema = z
       authoritativeConflict: integerScore,
       staleApplicability: integerScore,
       insufficientVeryHighEvidence: integerScore,
+      selfReportedContribution: integerScore,
     }),
     componentWeights: z
       .strictObject({
@@ -85,7 +86,7 @@ export type ScoringPolicy = z.infer<typeof scoringPolicySchema>;
 
 export const defaultScoringPolicy: ScoringPolicy = scoringPolicySchema.parse({
   identifier: "knownpath-seed-confidence",
-  version: 1,
+  version: 2,
   points: {
     groundedExtraction: 20,
     officialSolutionGuidance: 40,
@@ -106,6 +107,7 @@ export const defaultScoringPolicy: ScoringPolicy = scoringPolicySchema.parse({
     authoritativeConflict: 69,
     staleApplicability: 69,
     insufficientVeryHighEvidence: 84,
+    selfReportedContribution: 34,
   },
   componentWeights: { sourceEvidence: 70, freshness: 20, versionFit: 10 },
   freshness: {

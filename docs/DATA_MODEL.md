@@ -415,8 +415,21 @@ outcome. Selection updates only the bounded usage record and does not create an 
 ### `agent_contributions`
 
 - `uq_agent_contributions_deduplication_key`: unique submission deduplication.
+- `uq_agent_contributions_owner_submission_v2`: one schema-v2 client submission ID per owner.
 - `ix_agent_contributions_status_created_at`: processing/moderation queue.
+- `ix_agent_contributions_owner_visibility_status_created_at_v2`: owner inspection and privacy-safe
+  status history.
+- `ix_agent_contributions_processing_stage_updated_at_v2`: resumable processing work.
+- `ix_agent_contributions_candidate_v2`: navigation to the derived candidate.
 - `ix_agent_contributions_known_path_created_at`: partial chronological target history.
+
+Schema-v2 records retain a sanitized structured lesson, HMAC digest of the original request,
+sanitized content digest, consent policy/intent/time, sanitizer findings, contributor/API-key IDs,
+visibility, moderation, and processing pointers. The unsanitized body is never stored. Each accepted
+payload creates an immutable `agent_contribution` source item and a pending candidate with explicit
+contribution provenance. Assessments remain immutable and the candidate's `latestAssessmentId`
+points to the newest score. Self-reported contributions are capped below high trust and cannot enter
+canonical records without future explicit moderation approval.
 
 ### `agent_outcomes`
 
@@ -459,6 +472,9 @@ round trip and confirms cleanup. It does not seed production knowledge.
   license metadata. Future user-facing knowledge must generalize the material and link to sources,
   not mirror complete copyrighted pages. Physical purge automation remains deferred.
 - API keys are revoked/expired rather than silently deleted.
+- Sanitized contribution/audit history is retained for accountability; rejected pre-persistence
+  bodies are not retained. Automated contribution deletion is deferred to a user-data lifecycle
+  phase.
 - Users and knowledge use lifecycle/moderation states for soft removal.
 - Authentication sessions and verification records expire logically; no TTL deletion policy is
   imposed before operational retention requirements exist.

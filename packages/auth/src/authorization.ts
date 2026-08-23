@@ -44,6 +44,16 @@ export function requireScope(
   return authenticated;
 }
 
+export function authorizeContributionSubmit(
+  principal: Principal,
+): Extract<Principal, { kind: "api_key" }> {
+  const authenticated = requireScope(principal, "knowledge:contribute");
+  if (authenticated.kind !== "api_key") {
+    throw new AuthorizationError("Agent contributions require an API key");
+  }
+  return authenticated;
+}
+
 export interface KnowledgeAccessAuthorization {
   readonly accessMode: "published" | "review";
   readonly principal:

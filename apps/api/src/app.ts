@@ -20,6 +20,7 @@ import {
   KnowledgeAccessService,
   RetrievalService,
 } from "@knownpath/search";
+import { ContributionService } from "@knownpath/contributions";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   jsonSchemaTransform,
@@ -30,6 +31,7 @@ import {
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerErrorHandler } from "./error-handler.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
+import { registerContributionRoutes } from "./contribution-routes.js";
 import { registerMcpRoutes } from "./mcp-routes.js";
 import { registerAccountRoutes, registerApiKeyRoutes, registerSystemRoutes } from "./routes.js";
 
@@ -107,7 +109,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   await api.register(cors, {
     origin: options.apiConfig.corsOrigins.length === 0 ? false : [...options.apiConfig.corsOrigins],
     credentials: options.apiConfig.corsOrigins.length > 0,
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     exposedHeaders: ["x-request-id", "retry-after"],
     strictPreflight: true,
@@ -137,6 +139,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       request.url.startsWith("/api/v1/api-keys") ||
       request.url.startsWith("/api/v1/knowledge") ||
       request.url.startsWith("/api/v1/known-paths") ||
+      request.url.startsWith("/api/v1/contributions") ||
       request.url.startsWith("/api/v1/mcp") ||
       request.url.startsWith("/mcp")
     ) {
@@ -182,6 +185,10 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   const knowledge = new KnowledgeAccessService(options.database, retrieval, {
     secret: options.authConfig.apiKeyPepper,
   });
+  const contributions = new ContributionService(options.database, {
+    apiOrigin: options.authConfig.baseUrl,
+    digestSecret: options.authConfig.apiKeyPepper,
+  });
 
   registerSystemRoutes(api, options.database);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
@@ -192,12 +199,22 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     search: rateLimitPolicies.knowledgeSearch,
     usage: rateLimitPolicies.knowledgeUsage,
   });
+  registerContributionRoutes(
+    api,
+    authenticator,
+    contributions,
+    options.database,
+    audit,
+    rateLimitPolicies.contributionSubmit,
+  );
   registerMcpRoutes(api, {
     apiConfig: options.apiConfig,
     authConfig: options.authConfig,
     authenticator,
     database: options.database,
     knowledge,
+    contributions,
+    audit,
     rateLimitPolicy: rateLimitPolicies.knowledgeSearch,
     searchConfig: options.searchConfig,
   });

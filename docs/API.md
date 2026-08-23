@@ -116,6 +116,18 @@ The selected KnownPath must have appeared in that exact principal's search resul
 usage metadata only; it is never interpreted as a successful outcome. The stored event contains a
 keyed query digest and bounded filter/result metadata, not raw query text.
 
+### Privacy-safe contribution
+
+`POST /api/v1/contributions` requires an API key with `knowledge:contribute`, a UUID
+`clientSubmissionId`, public or private visibility, explicit consent policy version 1, agent-client
+metadata, and the structured generalized lesson. It accepts at most 48 KiB. See the inspectable
+OpenAPI example/schema and [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md); avoid placing even fake-looking
+credentials in shell history when manually exercising it.
+
+`GET /api/v1/contributions/:id` returns only the sanitized record to its owning user/key. Browser
+sessions can read or update `ask|disabled` at `/api/v1/account/contribution-settings`; submissions
+themselves require a scoped API key. Team submissions fail explicitly.
+
 ## Errors and limits
 
 Errors retain the stable envelope:
@@ -133,7 +145,10 @@ Errors retain the stable envelope:
 Knowledge-specific codes include `knowledge_not_found`, `knowledge_review_access_forbidden`,
 `invalid_cursor`, `semantic_retrieval_unavailable`, `search_backend_unavailable`,
 `search_event_not_found`, `selection_not_in_results`, `selection_conflict`, and `payload_too_large`.
-Existing auth/validation/rate-limit codes remain stable.
+Contribution codes include `contribution_disabled`, `contribution_consent_required`,
+`contribution_content_rejected`, `contribution_idempotency_conflict`,
+`team_contributions_not_supported`, and `contribution_owner_forbidden`. Existing
+auth/validation/rate-limit codes remain stable.
 
 Search has a 32 KiB body limit and a 30-request/minute process-local policy. Detail/alternatives
 have a 120-request/minute policy. Selection reporting has a separate 120-request/minute policy. The

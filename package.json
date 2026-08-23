@@ -14,6 +14,7 @@
     "auth:user:create": "pnpm --filter @knownpath/auth auth:user:create",
     "build": "turbo run build",
     "canonicalize": "pnpm --filter @knownpath/worker canonicalize",
+    "contributions": "pnpm --filter @knownpath/worker contributions",
     "db:init": "pnpm --filter @knownpath/database db:init",
     "db:inspect": "pnpm --filter @knownpath/database db:inspect",
     "db:verify": "pnpm --filter @knownpath/database db:verify",

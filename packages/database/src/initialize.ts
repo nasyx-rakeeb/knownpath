@@ -180,7 +180,9 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   {
     name: collectionNames.sourceRegistries,
     validator: envelopeValidator(["kind", "identityKey", "enabled", "visibility"], {
-      kind: { enum: ["github_repository", "documentation_site", "release_feed"] },
+      kind: {
+        enum: ["github_repository", "documentation_site", "release_feed", "agent_contribution"],
+      },
       identityKey: { bsonType: "object", required: ["value", "version"] },
       enabled: { bsonType: "bool" },
       visibility: { bsonType: "object", required: ["scope"] },
@@ -1011,8 +1013,9 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   {
     name: collectionNames.agentContributions,
     validator: envelopeValidator(["deduplicationKey", "status", "visibility"], {
+      schemaVersion: { bsonType: numericBsonTypes, enum: [1, 2] },
       deduplicationKey: { bsonType: "object", required: ["value", "version"] },
-      status: { enum: ["pending", "accepted", "rejected", "superseded"] },
+      status: { enum: ["pending", "accepted", "rejected", "superseded", "quarantined"] },
       visibility: { bsonType: "object", required: ["scope"] },
     }),
     indexes: [
@@ -1022,8 +1025,29 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         unique: true,
       },
       {
+        key: { "contributor.userId": 1, clientSubmissionId: 1 },
+        name: "uq_agent_contributions_owner_submission_v2",
+        unique: true,
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
         key: { status: 1, "audit.createdAt": 1 },
         name: "ix_agent_contributions_status_created_at",
+      },
+      {
+        key: { "contributor.userId": 1, "visibility.scope": 1, status: 1, "audit.createdAt": -1 },
+        name: "ix_agent_contributions_owner_visibility_status_created_at_v2",
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
+        key: { "processing.stage": 1, "audit.updatedAt": 1 },
+        name: "ix_agent_contributions_processing_stage_updated_at_v2",
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
+        key: { "processing.candidateExperienceId": 1 },
+        name: "ix_agent_contributions_candidate_v2",
+        partialFilterExpression: { "processing.candidateExperienceId": { $exists: true } },
       },
       {
         key: { knownPathId: 1, "audit.createdAt": -1 },

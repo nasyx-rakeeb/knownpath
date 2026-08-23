@@ -9,6 +9,8 @@ import {
   knownPathMcpSearchInputSchema,
   knownPathMcpStatusInputSchema,
   knownPathMcpStatusSuccessSchema,
+  knownPathMcpContributeInputSchema,
+  knownPathMcpContributeSuccessSchema,
   mcpToolErrorSchema,
 } from "./contracts.js";
 import { McpGatewayError, type KnowledgeMcpGateway } from "./gateway.js";
@@ -19,6 +21,12 @@ const SERVER_INSTRUCTIONS =
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+const CONTRIBUTION_ANNOTATIONS = {
+  readOnlyHint: false,
   destructiveHint: false,
   idempotentHint: true,
   openWorldHint: true,
@@ -124,6 +132,23 @@ export function createKnownPathMcpServer(gateway: KnowledgeMcpGateway): McpServe
       }, renderStatus),
   );
 
+  server.registerTool(
+    "knownpath_contribute",
+    {
+      title: "Contribute a generalized KnownPath lesson",
+      description:
+        "Submit a minimal generalized lesson only after an observable successful outcome and explicit user consent. Never include secrets, private code, prompts, or chain-of-thought. Team visibility is not supported.",
+      inputSchema: knownPathMcpContributeInputSchema,
+      annotations: CONTRIBUTION_ANNOTATIONS,
+    },
+    async (unparsedInput, context) =>
+      execute(async () => {
+        const input = knownPathMcpContributeInputSchema.parse(unparsedInput);
+        const result = await gateway.contribute(input, context.mcpReq.signal);
+        return knownPathMcpContributeSuccessSchema.parse({ ...result, ok: true });
+      }, renderContribution),
+  );
+
   return server;
 }
 
@@ -167,8 +192,20 @@ function isGateway(value: unknown): value is KnowledgeMcpGateway {
     "alternatives" in value &&
     typeof value.alternatives === "function" &&
     "status" in value &&
-    typeof value.status === "function"
+    typeof value.status === "function" &&
+    "contribute" in value &&
+    typeof value.contribute === "function"
   );
+}
+
+function renderContribution(output: {
+  contributionId: string;
+  status: string;
+  visibility: string;
+  processingStage: string;
+  sanitization: { status: string };
+}): string {
+  return `Contribution ${output.contributionId} was stored as ${output.visibility}, status ${output.status}, processing ${output.processingStage}, sanitization ${output.sanitization.status}. It remains self-reported evidence and is not automatically published or highly trusted.`;
 }
 
 async function execute<Output extends { readonly ok: true }>(

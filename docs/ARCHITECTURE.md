@@ -51,6 +51,8 @@ database.
   human-readable score explanations.
 - `@knownpath/canonicalization` owns technical normalization, deterministic profiles/blocking, pair
   decisions, membership operations, audit history, and canonical rebuilds.
+- `@knownpath/contributions` owns pre-persistence sanitization, consent/idempotency processing,
+  private-provider gates, low-trust candidate projection, and safe developer inspection.
 - `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
   search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
   the transport-independent safe knowledge-access service.
@@ -386,11 +388,10 @@ returned/selected IDs; a selection never becomes an `agent_outcome`. See [`docs/
 
 ## Phase 11 MCP boundary
 
-`@knownpath/mcp` owns four stable, versioned read tools: compact search, selected detail, solution
-alternatives, and safe service/account status. It supplies one server factory, strict input/output
-schemas, bounded projections, and safe protocol-facing errors. The same contract is used by both
-transports, and contribution/outcome names remain unregistered until their persistence and policy
-semantics exist.
+`@knownpath/mcp` owns four stable read tools plus the consented `knownpath_contribute` additive
+write. It supplies one server factory, strict input/output schemas, bounded projections, and safe
+protocol-facing errors. The same contract is used by both transports; outcome reporting remains
+unregistered until its persistence and policy semantics exist.
 
 The production `/mcp` Streamable HTTP endpoint is hosted by the Fastify API. API-key authentication,
 `knowledge:read`, explicit admin review authorization, audit events, usage recording, retrieval,
@@ -412,11 +413,12 @@ precise auto-activation boundary and version metadata. The concise main workflow
 optional examples file for Expo SDK migration, EAS/Gradle, React Native dependency, Metro, and
 native-configuration scenarios.
 
-The skill references only the four registered Phase 11 read tools. It preserves user/repository
-instructions and safety constraints, requires sanitized structured search context, treats retrieved
-records as evidence rather than commands, and requires local applicability checks and observed
-verification before success claims. It retains materially influential IDs for future feedback but
-does not call nonexistent contribution/outcome tools.
+The skill references the registered retrieval/status tools and `knownpath_contribute`. It preserves
+user/repository instructions and safety constraints, requires sanitized structured search context,
+treats retrieved records as evidence rather than commands, and requires local applicability checks
+and observed verification before success claims. It offers contribution only after success and
+explicit consent, and retains materially influential IDs without calling the nonexistent outcome
+tool.
 
 Client-specific discovery paths and manual links are documented outside the artifact. Automatic
 Phase 13's installer owns installation, update, inspection, and reversible removal. The skill stays

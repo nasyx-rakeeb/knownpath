@@ -9,7 +9,7 @@ description:
   unrelated requests.
 license: Apache-2.0
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   project: "KnownPath"
 ---
 
@@ -71,13 +71,26 @@ Prefer no result over a vague or version-incompatible result. A high score does 
 to inspect evidence and verify locally. Do not claim that a KnownPath worked until the actual task
 succeeds.
 
-## Retain attribution for future feedback
+## Contribute only after verified success and consent
 
 Keep track of each KnownPath ID that materially influenced the attempted solution and whether it was
-actually applied. KnownPath currently exposes no contribution or outcome-reporting MCP tools, so do
-not invent or call one. If such tools become available in a future version, contribute only a
-generalized, non-sensitive lesson after a real successful task and report outcomes only from
-observed results.
+actually applied. After the task has observably succeeded, you may offer to call
+`knownpath_contribute`. Never call it silently or before success.
+
+- Get explicit user consent for every submission. Public consent covers submission and possible
+  future publication; private consent covers backend storage only. Never silently change private to
+  public. Team contributions are not supported.
+- Submit a generalized problem, environment, errors, solution steps, caveats, and concise observable
+  success checks. Do not submit repository files, source code, prompts, conversation history,
+  credentials, personal data, or hidden chain-of-thought.
+- Use `clientSubmissionId` for safe idempotent retries and set `agentClient` accurately.
+- Treat the response as receipt of low-trust self-reported evidence. It is not proof, publication,
+  or a highly trusted KnownPath.
+- If the contribution tool is absent, disabled, unauthorized, quarantined, or rejected, do not work
+  around the boundary. Explain the result briefly and continue without submission.
+
+No outcome-reporting tool exists yet. Do not invent or call one; merely retain materially consulted
+KnownPath IDs for a future explicitly available outcome tool.
 
 For realistic Expo and React Native decision examples, read
 [`references/examples.md`](references/examples.md) only when an example would help distinguish a

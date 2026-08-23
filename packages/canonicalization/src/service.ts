@@ -77,6 +77,22 @@ export class CanonicalRecordService {
     ) {
       throw new Error("Canonical merges require identical visibility scope and ownership");
     }
+    for (const candidate of candidates) {
+      if (candidate.contribution === undefined) continue;
+      const contribution = await this.database.repositories.agentContributions.findById(
+        candidate.contribution.contributionId,
+      );
+      if (
+        contribution === null ||
+        contribution.schemaVersion !== 2 ||
+        contribution.status !== "accepted" ||
+        contribution.moderation.status !== "approved"
+      ) {
+        throw new Error(
+          `Contribution candidate ${candidate._id} requires explicit moderation approval before canonical merge`,
+        );
+      }
+    }
     const assessments = await loadLatestAssessments(this.database, candidates);
     if (
       assessments.length !== candidates.length ||

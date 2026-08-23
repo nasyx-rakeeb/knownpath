@@ -12,6 +12,7 @@ import {
 
 export const userStatusSchema = z.enum(["active", "suspended", "deleted"]);
 export const userRoleSchema = z.enum(["user", "admin"]);
+export const userContributionModeSchema = z.enum(["ask", "disabled"]);
 
 export const userSchema = z.strictObject({
   _id: userIdSchema,
@@ -26,6 +27,7 @@ export const userSchema = z.strictObject({
   banReason: z.string().trim().max(2_000).nullable().optional(),
   banExpires: timestampSchema.nullable().optional(),
   status: userStatusSchema,
+  contributionMode: userContributionModeSchema.default("ask"),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });

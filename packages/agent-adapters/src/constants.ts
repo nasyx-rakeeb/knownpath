@@ -1,4 +1,4 @@
-export const installerVersion = "0.1.0";
+export const installerVersion = "0.2.0";
 export const installerStateVersion = 1;
 export const knownPathServerName = "knownpath";
 export const knownPathSkillName = "knownpath";

@@ -15,6 +15,14 @@ import {
   type KnownPathMcpGetInput,
 } from "@knownpath/mcp";
 import { KnowledgeAccessError, type KnowledgeAccessService } from "@knownpath/search";
+import {
+  ContributionError,
+  type ContributionService,
+  type ContributionSubmissionResult,
+} from "@knownpath/contributions";
+import type { ContributionSubmissionRequest } from "@knownpath/domain";
+import { authorizeContributionSubmit } from "@knownpath/auth";
+import type { AuditService } from "@knownpath/auth";
 
 export interface ServiceKnowledgeMcpGatewayOptions {
   readonly database: KnownPathDatabase;
@@ -23,6 +31,8 @@ export interface ServiceKnowledgeMcpGatewayOptions {
   readonly principal: Extract<Principal, { kind: "api_key" }>;
   readonly requestId: string;
   readonly searchConfig: SearchConfig;
+  readonly contributions: ContributionService;
+  readonly audit: AuditService;
 }
 
 export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
@@ -95,8 +105,53 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
           publishedRead: true as const,
           reviewRead: principal.user.role === "admin",
           searchBackend: this.options.searchConfig.backend,
+          contribute: principal.key.scopes.includes("knowledge:contribute"),
         },
       };
+    });
+  }
+
+  public contribute(input: ContributionSubmissionRequest, signal: AbortSignal) {
+    return this.safe(async () => {
+      throwIfAborted(signal);
+      const principal = authorizeContributionSubmit(this.options.principal);
+      let result: ContributionSubmissionResult;
+      try {
+        result = await this.options.contributions.submit(
+          input,
+          { user: principal.user, apiKeyId: principal.key._id },
+          signal,
+        );
+      } catch (error) {
+        await this.options.audit.record({
+          actor: { kind: "api_key", userId: principal.user._id, apiKeyId: principal.key._id },
+          eventType: "contribution.rejected",
+          target: { kind: "contribution", id: "rejected-before-persistence" },
+          outcome: "failure",
+          requestId: this.options.requestId,
+          ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),
+          metadata: { reason: safeCode(error), transport: "mcp" },
+        });
+        throw error;
+      }
+      await this.options.audit.record({
+        actor: { kind: "api_key", userId: principal.user._id, apiKeyId: principal.key._id },
+        eventType: result.response.reused
+          ? "contribution.replayed"
+          : result.contribution.status === "quarantined"
+            ? "contribution.quarantined"
+            : "contribution.submitted",
+        target: { kind: "contribution", id: result.contribution._id },
+        outcome: "success",
+        requestId: this.options.requestId,
+        ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),
+        metadata: {
+          visibility: result.response.visibility,
+          processingStage: result.response.processingStage,
+          transport: "mcp",
+        },
+      });
+      return result.response;
     });
   }
 
@@ -128,6 +183,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
       if (error instanceof KnowledgeAccessError) {
         throw new McpGatewayError(error.code, error.message);
       }
+      if (error instanceof ContributionError) {
+        throw new McpGatewayError(
+          error.code as import("@knownpath/mcp").McpGatewayErrorCode,
+          error.message,
+        );
+      }
       if (hasCode(error, "semantic_retrieval_unavailable")) {
         throw new McpGatewayError(
           "semantic_retrieval_unavailable",
@@ -143,6 +204,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
       throw new McpGatewayError("internal_error", "KnownPath could not complete the request");
     }
   }
+}
+
+function safeCode(error: unknown): string {
+  return typeof error === "object" && error !== null && "code" in error
+    ? String(error.code).slice(0, 128)
+    : "rejected";
 }
 
 function throwIfAborted(signal: AbortSignal): void {

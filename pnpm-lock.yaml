@@ -45,6 +45,12 @@ catalogs:
     '@next/eslint-plugin-next':
       specifier: 16.3.2
       version: 16.3.2
+    '@secretlint/core':
+      specifier: 13.0.4
+      version: 13.0.4
+    '@secretlint/secretlint-rule-preset-recommend':
+      specifier: 13.0.4
+      version: 13.0.4
     '@types/html-to-text':
       specifier: 9.0.4
       version: 9.0.4
@@ -188,6 +194,9 @@ importers:
       '@knownpath/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@knownpath/contributions':
+        specifier: workspace:*
+        version: link:../../packages/contributions
       '@knownpath/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -333,6 +342,9 @@ importers:
       '@knownpath/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@knownpath/contributions':
+        specifier: workspace:*
+        version: link:../../packages/contributions
       '@knownpath/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -464,6 +476,37 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      '@knownpath/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/contributions:
+    dependencies:
+      '@knownpath/canonicalization':
+        specifier: workspace:*
+        version: link:../canonicalization
+      '@knownpath/database':
+        specifier: workspace:*
+        version: link:../database
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@knownpath/verification':
+        specifier: workspace:*
+        version: link:../verification
+      '@secretlint/core':
+        specifier: 'catalog:'
+        version: 13.0.4
+      '@secretlint/secretlint-rule-preset-recommend':
+        specifier: 'catalog:'
+        version: 13.0.4
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*
@@ -1591,6 +1634,21 @@ packages:
   '@protobufjs/utf8@1.1.2':
     resolution: {integrity: sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==}
 
+  '@secretlint/core@13.0.4':
+    resolution: {integrity: sha512-Wv49KcI5XX6xjLR1wxyjORA15PtMb5ar/M27ShimVudaSi6iAM04QCA5Ozx+uEahfHNefUUKbjKGpy/9pxuW7g==}
+    engines: {node: '>=22.0.0'}
+
+  '@secretlint/profiler@13.0.4':
+    resolution: {integrity: sha512-T2hSyZmJrQbGAe+Vl9AGNlMnoB0MP6m2BLh7EH80QcesvNM2t0pCzdiBvQ/yCe76w6/gZNpHlrSVayUeT43qVw==}
+
+  '@secretlint/secretlint-rule-preset-recommend@13.0.4':
+    resolution: {integrity: sha512-Nbcr7tvyKuRF4BKh7RQSCEOaif4gFPH/qjK2ajcoUDGL7HAY/C6PzcsmVR1Y0qQCRqrBuMuXn1onXE+wxNNNsw==}
+    engines: {node: '>=22.0.0'}
+
+  '@secretlint/types@13.0.4':
+    resolution: {integrity: sha512-on/DivRDZEFzRD2pZJO0wkIL+AvEY+KOoZLPCWcz4pjZnJ4NzMuHQjvTJc9KY0yht+ugcYg9AmtOUzpEk31IWA==}
+    engines: {node: '>=22.0.0'}
+
   '@selderee/plugin-htmlparser2@0.12.0':
     resolution: {integrity: sha512-oELmoyA6ML9jDRMV3kgcMQFKxUfBU0yFVn6yTctVaLT5ygXnxH52I3TZEgV9EhXJC68/uFvE5Daj1/25c0Xa/A==}
     peerDependencies:
@@ -1860,6 +1918,9 @@ packages:
 
   bottleneck@2.19.5:
     resolution: {integrity: sha512-VHiNCbI1lKdl44tGrhNfU3lup0Tj/ZBMJB5/2ZbNXRCPuRCO7ed2mgcK4r17y+KB2EfuYuRaVlwNbAeaWGSpbw==}
+
+  boundary@2.0.0:
+    resolution: {integrity: sha512-rJKn5ooC9u8q13IMCrW0RSp31pxBCHE3y9V/tp3TdWSLf8Em3p6Di4NBpfzbJge9YjjFEsD0RtFEjtvHL5VyEA==}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
@@ -2648,6 +2709,9 @@ packages:
 
   strnum@2.4.2:
     resolution: {integrity: sha512-rDG3Ah4TV0k1hWvLSzkZtMmLN9+eS+h3knq4MP6A42Y3Yh5qGNnOUs1jJkoSr8FG5dsL28c7KgkIBzSEykqtuw==}
+
+  structured-source@4.0.0:
+    resolution: {integrity: sha512-qGzRFNJDjFieQkl/sVOI2dUjHKRyL9dAJi2gCPGJLbJHBIkyOHxjuocpIEfbLioX+qSJpvbYdT49/YCdMznKxA==}
 
   styled-jsx@5.1.6:
     resolution: {integrity: sha512-qSVyDTeMotdvQYoHWLNGwRFJHC+i+ZvdBRYosOFgC+Wg1vx4frN2/RG/NA7SYqqvKNLf39P2LSRA2pu6n0XYZA==}
@@ -3563,6 +3627,21 @@ snapshots:
 
   '@protobufjs/utf8@1.1.2': {}
 
+  '@secretlint/core@13.0.4':
+    dependencies:
+      '@secretlint/profiler': 13.0.4
+      '@secretlint/types': 13.0.4
+      debug: 4.4.3
+      structured-source: 4.0.0
+    transitivePeerDependencies:
+      - supports-color
+
+  '@secretlint/profiler@13.0.4': {}
+
+  '@secretlint/secretlint-rule-preset-recommend@13.0.4': {}
+
+  '@secretlint/types@13.0.4': {}
+
   '@selderee/plugin-htmlparser2@0.12.0(selderee@0.12.0)':
     dependencies:
       domelementtype: 2.3.0
@@ -3801,6 +3880,8 @@ snapshots:
   bignumber.js@9.3.1: {}
 
   bottleneck@2.19.5: {}
+
+  boundary@2.0.0: {}
 
   brace-expansion@5.0.9:
     dependencies:
@@ -4603,6 +4684,10 @@ snapshots:
   strnum@2.4.2:
     dependencies:
       anynum: 1.0.1
+
+  structured-source@4.0.0:
+    dependencies:
+      boundary: 2.0.0
 
   styled-jsx@5.1.6(react@19.2.8):
     dependencies:

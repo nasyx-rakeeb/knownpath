@@ -30,10 +30,10 @@ First-party official source classification comes from deterministic registry/sou
 the model. Conflicts remain explicit negative signals; authoritative conflicts carry a stronger
 penalty and cap the final result below `high`.
 
-## Version 1 algorithm and policy
+## Version 2 algorithm and policy
 
-The algorithm identifier is `knownpath-seed-evidence`, algorithm version 1. The bundled policy is
-`knownpath-seed-confidence`, policy version 1. The verifier implementation is independently
+The algorithm identifier is `knownpath-seed-evidence`, algorithm version 2. The bundled policy is
+`knownpath-seed-confidence`, policy version 2. The verifier implementation is independently
 versioned. Each assessment stores all three versions plus the complete policy digest.
 
 Source-evidence points are additive and clamped to 0–100:
@@ -41,6 +41,7 @@ Source-evidence points are additive and clamped to 0–100:
 | Signal                                 |    Points | Strength             |
 | -------------------------------------- | --------: | -------------------- |
 | Grounded extraction references         |       +20 | moderate             |
+| Uncorroborated agent self-report       |        +5 | weak                 |
 | First-party official solution guidance |       +40 | decisive             |
 | Repository authority solution          |       +28 | strong               |
 | Selected GitHub Discussion answer      |       +24 | strong               |
@@ -55,7 +56,9 @@ Source-evidence points are additive and clamped to 0–100:
 
 No strong/decisive confirmation caps source evidence at 55. An authoritative conflict caps the final
 score at 69. A stale applicability result also caps it at 69. A `very_high` result requires a
-decisive signal or at least two strong signals; otherwise it is capped at 84.
+decisive signal or at least two strong signals; otherwise it is capped at 84. Any assessment
+containing an agent self-report signal is capped at 34 until independent evidence or future observed
+outcomes justify a stronger score.
 
 The seed result is:
 

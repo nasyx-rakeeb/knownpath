@@ -791,3 +791,35 @@ hardcoded API URL would violate the installer's explicit environment-reference m
 [default environment variables](https://render.com/docs/environment-variables),
 [outbound IP ranges](https://render.com/docs/outbound-ip-addresses),
 [free instance limitations](https://render.com/docs/free)
+
+## 2026-08-23 — Accept minimized contributions through a consented, low-trust pipeline
+
+**Decision:** Accept only versioned structured public or owner-private lessons through an API key
+with `knowledge:contribute`. Require explicit per-submission consent, default accounts to `ask`, and
+reject team visibility. Sanitize before persistence with Secretlint plus bounded PII/path/URL
+redaction, retain only the sanitized structure and an HMAC of the original request, quarantine
+prompt-injection-like text, and reject high-risk residue or source dumps. Project accepted input to
+an immutable source snapshot, pending candidate, immutable deterministic assessment, and similarity
+review—not directly to canonical knowledge. Cap self-reported confidence at 34.
+
+The optional generalizer interface declares either `public_only` or `approved_private`, and the
+visibility gate runs before provider construction/call. Phase 14 configures no generalizer. Thus
+private contributions remain inside the backend and MongoDB, with no unpaid Gemini, public
+embedding, external-provider fallback, or silent public conversion.
+
+**Why:** A reusable lesson can create network value without collecting a repository or an agent's
+private reasoning. Sanitization is defense in depth, not consent. Explicit provenance, audit events,
+immutable score history, conservative trust, and reversible review preserve accountability against
+self-report error and poisoning.
+
+**Rejected:** Raw transcript/code upload, silent background sharing, client-only privacy checks,
+LLM-assigned trust, immediate canonical publication, team scope without an ownership model, and
+using unpaid/public AI for private records.
+
+**References:** [Secretlint](https://github.com/secretlint/secretlint),
+[OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html),
+[OWASP Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html),
+[OWASP Data and Model Poisoning](https://genai.owasp.org/llmrisk/llm04-data-and-model-poisoning/),
+[NIST Privacy Framework](https://www.nist.gov/privacy-framework),
+[OpenTelemetry sensitive data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/),
+[MCP security practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)

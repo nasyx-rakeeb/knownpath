@@ -148,6 +148,18 @@ warning when its config is otherwise valid. Backend checks are skipped—not gue
 required variables are valid. Network/auth failures are reported without response bodies, headers,
 or credentials.
 
+## Contribution privacy
+
+Installer 0.2.0 bundles skill 1.1.0 and the real `knownpath_contribute` contract. Installation does
+not enable background sharing: the skill offers a contribution only after observed success and asks
+for explicit consent for that submission. A key must deliberately include `knowledge:contribute`; a
+read-only key continues to retrieve only. Account contribution mode defaults to `ask` and can be
+changed to `disabled` through the authenticated account API.
+
+The installer still stores only the same environment references. It cannot see, copy, or upload a
+repository. Public/private handling, sanitization, authorization, audit, and provider privacy gates
+remain centralized in the backend. See [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md).
+
 ## Current support boundary
 
 Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode have stable documented MCP and Agent Skill

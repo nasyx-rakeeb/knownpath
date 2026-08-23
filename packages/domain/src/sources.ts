@@ -14,7 +14,12 @@ import {
   visibilitySchema,
 } from "./common.js";
 
-export const sourceKindSchema = z.enum(["github_repository", "documentation_site", "release_feed"]);
+export const sourceKindSchema = z.enum([
+  "github_repository",
+  "documentation_site",
+  "release_feed",
+  "agent_contribution",
+]);
 
 export const sourceRegistrySchema = z.strictObject({
   _id: sourceRegistryIdSchema,
@@ -42,6 +47,7 @@ export const sourceItemTypeSchema = z.enum([
   "pull_request",
   "documentation_page",
   "release_note",
+  "agent_contribution",
   "other",
 ]);
 

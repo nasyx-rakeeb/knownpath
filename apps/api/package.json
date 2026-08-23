@@ -20,6 +20,7 @@
     "@fastify/swagger-ui": "catalog:",
     "@knownpath/auth": "workspace:*",
     "@knownpath/config": "workspace:*",
+    "@knownpath/contributions": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
     "@knownpath/mcp": "workspace:*",

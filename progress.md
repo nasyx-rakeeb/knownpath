@@ -1940,3 +1940,123 @@ documentation was reviewed on 2026-08-23.
   command was unaffected.
 - The free service is for bounded verification and has documented idle spin-down/cold starts; an
   always-on plan is required before treating the MCP backend as reliably available.
+
+## Phase 14 — Privacy-safe agent knowledge contributions
+
+### Phase goal
+
+Add the network's first write path: an authenticated agent can submit a minimal generalized lesson
+only after observable success and explicit consent. Preserve privacy, provenance, visibility,
+sanitization, audit, and low initial trust while routing safe submissions through the existing
+candidate/assessment/canonical-review architecture instead of publishing asserted truth.
+
+### Research performed and official references consulted
+
+Current guidance was checked on 2026-08-23 before implementation:
+
+- [Secretlint](https://github.com/secretlint/secretlint) programmatic scanning and the maintained
+  recommended preset; registry metadata confirmed 13.0.4, MIT licensing, and Node 22+ support.
+- [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+  for data minimization and credential/PII exclusions.
+- [OWASP Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html)
+  and
+  [OWASP LLM04 Data and Model Poisoning](https://genai.owasp.org/llmrisk/llm04-data-and-model-poisoning/)
+  for treating submissions as untrusted data, quarantine, and provenance controls.
+- [NIST Privacy Framework](https://www.nist.gov/privacy-framework) and
+  [OpenTelemetry sensitive-data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/)
+  for purpose limitation, minimal retention, and telemetry filtering.
+- [MCP security best practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)
+  for scoped authorization and non-forwarding of credentials.
+
+### Architecture and technology decisions
+
+- Added versioned strict contribution contracts supporting `public` and owner-`private`; `team` is
+  deliberately parsed then rejected until team ownership/authorization exists. Account mode is `ask`
+  by default or `disabled`; every submission requires consent policy version 1 and a UUID
+  idempotency key. Public consent covers possible later publication; private consent covers backend
+  storage only.
+- Added `@knownpath/contributions`. It normalizes text, strips control/bidi characters, runs
+  Secretlint's recommended rules, redacts email/home-path/credential-URL/sensitive-query values,
+  rescans, rejects dangerous residue or source dumps, and quarantines prompt-injection-like text.
+  Only sanitized structured fields plus an HMAC digest of the original request are retained.
+- Added provider capabilities `public_only|approved_private` and a visibility gate before provider
+  use. No generalizer/provider is configured in Phase 14. Private records therefore remain in the
+  backend/Atlas and never enter Gemini extraction, public embeddings, or another external provider.
+- Each safe contribution creates an immutable `agent_contribution` source snapshot, pending
+  candidate, immutable assessment, similarity profile, and conservative pair-review discovery.
+  Scoring algorithm/policy version 2 identifies self-report evidence and caps the final score at 34.
+  Contribution candidates cannot enter canonical records without a future explicit accepted plus
+  moderation-approved state.
+- Added `POST /api/v1/contributions`, owner-only inspection, session-only contribution settings,
+  `knownpath_contribute`, centralized `knowledge:contribute` authorization, route policy, and audit
+  events. The stdio bridge remains a thin HTTP client and gains no database/provider secret.
+- Updated the canonical skill to 1.1.0 and installer/MCP distributable version to 0.2.0. The skill
+  offers a contribution only after observed success and fresh explicit consent, never silently.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-23-knownpath-phase-14-privacy-safe-contributions-design.md`](docs/superpowers/specs/2026-08-23-knownpath-phase-14-privacy-safe-contributions-design.md).
+Operational/privacy behavior is documented in [`docs/CONTRIBUTIONS.md`](docs/CONTRIBUTIONS.md).
+
+### Collections, schemas, indexes, and files
+
+- Evolved users with `contributionMode`, sources with `agent_contribution`, candidates with exactly
+  one extraction/contribution provenance kind, contribution schema v2, audit events, and the
+  versioned self-report evidence signal.
+- Added contribution repository operations and four v2 indexes:
+  `uq_agent_contributions_owner_submission_v2`,
+  `ix_agent_contributions_owner_visibility_status_created_at_v2`,
+  `ix_agent_contributions_processing_stage_updated_at_v2`, and
+  `ix_agent_contributions_candidate_v2`. The validator accepts historical v1 and new v2 records.
+- Added the contributions package, Fastify routes, MCP gateway/tool contracts, developer inspection
+  command, skill changes, and documentation updates across API, MCP, architecture, scoring, data
+  model, decisions, README, and this progress record.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled all 20 workspaces and passed supply-chain policy.
+- `pnpm typecheck` completed **31/31** tasks, `pnpm lint` completed **18/18** tasks, `pnpm build`
+  completed **18/18** tasks, and `pnpm format:check` passed. No tests were added or run.
+- Against a dedicated Atlas database, `pnpm db:init` created all collections/indexes; the immediate
+  repeat reported every collection `created: false` with the same named indexes, proving
+  idempotency.
+- A real authenticated HTTP flow submitted a private synthetic lesson containing a fake GitHub-like
+  token, email, and `/Users/...` path. Inspection exposed none of those values, stored private
+  visibility throughout, completed source/candidate/assessment/profile processing, created no
+  extraction attempt or embedding, and produced self-report score **29** under the **34** cap.
+- The same request reused one contribution/candidate rather than duplicating it. A team submission
+  returned `team_contributions_not_supported`. A harmless prompt-injection sentence returned 202
+  quarantine and created no candidate.
+- The official MCP SDK client discovered and invoked `knownpath_contribute` over Streamable HTTP. A
+  public consented synthetic lesson completed, and a second bounded run confirmed its
+  `contribution.submitted` audit event with `transport: mcp`; the plaintext API key was absent.
+  Verification observed 3 contributions, 2 candidates, 2 immutable assessments, and 6 audit events
+  before the dedicated database was dropped. All temporary users, keys, contributions, and derived
+  records were removed with that database.
+
+### Environment and manual setup still required
+
+- Redeploy the Render API from this commit before production clients can see the new HTTP/MCP
+  contracts. Existing `knowledge:read` keys cannot contribute; issue a deliberately scoped key with
+  `knowledge:contribute` only for users who enable this feature.
+- Update installed skills/clients after publishing `knownpath@0.2.0` in a future release operation.
+  Phase 14 verified the build artifact but did not publish npm or change user-owned agent configs.
+- No private-safe model/provider is approved or configured. That is intentional: deterministic
+  processing works locally, while optional private generalization remains blocked until an operator
+  explicitly configures an `approved_private` implementation.
+
+### Known limitations intentionally left for later phases
+
+- No team contributions, background queue, admin moderation dashboard, user deletion/retention
+  automation, outcome reporting, corroboration aggregation, or automatic publication exists.
+- Prompt-injection detection is conservative quarantine, not semantic proof of malicious intent.
+  Secret scanning is defense in depth; users and agents must still minimize before submission.
+- Contribution-derived candidates remain pending and cannot be canonicalized. Public submission
+  consent does not itself approve publication.
+- No hidden chain-of-thought field, raw code/file upload, transcript capture, or unpaid/private AI
+  shortcut was added. No tests were added by explicit phase requirement.
+
+### Exact next phase
+
+**Phase 15 (awaiting its prompt): continue only with the explicitly requested next capability. Do
+not infer or begin outcome reporting, moderation UI, team ownership, or another roadmap feature from
+Phase 14.**

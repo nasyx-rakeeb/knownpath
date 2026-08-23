@@ -5,6 +5,7 @@ import {
 } from "@knownpath/auth";
 import type { FastifyInstance } from "fastify";
 import { KnowledgeAccessError } from "@knownpath/search";
+import { ContributionError } from "@knownpath/contributions";
 import { z } from "zod";
 
 export function registerErrorHandler(api: FastifyInstance): void {
@@ -30,6 +31,17 @@ export function registerErrorHandler(api: FastifyInstance): void {
     }
     if (error instanceof KnowledgeAccessError) {
       return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));
+    }
+    if (error instanceof ContributionError) {
+      const status =
+        error.code === "contribution_not_found"
+          ? 404
+          : error.code === "contribution_idempotency_conflict"
+            ? 409
+            : error.code === "contribution_content_rejected"
+              ? 422
+              : 403;
+      return reply.status(status).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof z.ZodError || isFastifyValidationError(error)) {
       const details =

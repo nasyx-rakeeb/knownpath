@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import type { AuthConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
-import { userIdSchema, userStatusSchema } from "@knownpath/domain";
+import { userContributionModeSchema, userIdSchema, userStatusSchema } from "@knownpath/domain";
 import { betterAuth } from "better-auth";
 import { admin } from "better-auth/plugins";
 
@@ -45,6 +45,12 @@ export function createKnownPathAuth(
           defaultValue: "active",
           validator: { output: userStatusSchema },
         },
+        contributionMode: {
+          type: "string",
+          input: false,
+          defaultValue: "ask",
+          validator: { output: userContributionModeSchema },
+        },
       },
       changeEmail: { enabled: false },
       deleteUser: { enabled: false },
@@ -72,6 +78,7 @@ export function createKnownPathAuth(
               schemaVersion: 1,
               normalizedEmail: user.email.trim().toLowerCase(),
               status: "active",
+              contributionMode: "ask",
             },
           }),
           after: async (user) => {

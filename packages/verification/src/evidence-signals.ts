@@ -54,7 +54,9 @@ interface ConfirmationSignals {
 function confirmationSignals(context: SignalContext): ConfirmationSignals {
   const { candidate, resolved, policy, sourceById, supporting } = context;
   const signals: EvidenceSignal[] = [];
-  if (supporting.length > 0) {
+  const selfReported = supporting.filter((item) => item.itemType === "agent_contribution");
+  const independentlyGrounded = supporting.filter((item) => item.itemType !== "agent_contribution");
+  if (independentlyGrounded.length > 0) {
     signals.push(
       createVerifiedSignal({
         type: "grounded_extraction",
@@ -64,7 +66,21 @@ function confirmationSignals(context: SignalContext): ConfirmationSignals {
         reasonCode: "grounded_extraction",
         explanation:
           "The candidate solution has verified references to immutable source snapshots.",
-        items: supporting,
+        items: independentlyGrounded,
+      }),
+    );
+  }
+  if (selfReported.length > 0) {
+    signals.push(
+      createVerifiedSignal({
+        type: "agent_self_report",
+        polarity: "positive",
+        strength: "weak",
+        points: 5,
+        reasonCode: "agent_self_reported_success",
+        explanation:
+          "An agent reported observable success, but the report has not yet been independently corroborated.",
+        items: selfReported,
       }),
     );
   }

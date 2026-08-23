@@ -195,30 +195,31 @@ pnpm dev:infra:down
 
 ## Repository commands
 
-| Command                 | Purpose                                                                    |
-| ----------------------- | -------------------------------------------------------------------------- |
-| `pnpm install`          | Install the pinned workspace dependencies                                  |
-| `pnpm dev`              | Run workspace development tasks                                            |
-| `pnpm build`            | Build every compilable application and package                             |
-| `pnpm typecheck`        | Run strict TypeScript validation across the workspace                      |
-| `pnpm lint`             | Run the ESLint flat configuration across the workspace                     |
-| `pnpm format`           | Format supported files with Prettier                                       |
-| `pnpm format:check`     | Validate formatting without changing files                                 |
-| `pnpm dev:infra`        | Start the required local MongoDB container                                 |
-| `pnpm dev:infra:down`   | Stop the local container while preserving its data volume                  |
-| `pnpm db:init`          | Idempotently create/reconcile MongoDB collections, validators, and indexes |
-| `pnpm db:inspect`       | Print current collection validators and indexes                            |
-| `pnpm db:verify`        | Run and clean up a repository-layer persistence round trip                 |
-| `pnpm auth:user:create` | Safely provision a user/admin with a masked password prompt                |
-| `pnpm ingest:github`    | Collect a bounded configured GitHub source through official APIs           |
-| `pnpm ingest:sources`   | Discover or sync configured official documentation and release feeds       |
-| `pnpm extract`          | Extract or inspect bounded public-source candidate experiences             |
-| `pnpm score`            | Verify evidence and create/inspect immutable candidate assessments         |
-| `pnpm canonicalize`     | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
-| `pnpm run search`       | Project, embed, index, inspect, or query canonical KnownPaths              |
-| `pnpm mcp:stdio`        | Run the thin local MCP-to-HTTP bridge over stdio                           |
-| `pnpm mcp:inspect`      | List or invoke MCP tools with the official SDK client                      |
-| `pnpm knownpath …`      | Run the multi-agent installer CLI from this checkout                       |
+| Command                                | Purpose                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `pnpm install`                         | Install the pinned workspace dependencies                                  |
+| `pnpm dev`                             | Run workspace development tasks                                            |
+| `pnpm build`                           | Build every compilable application and package                             |
+| `pnpm typecheck`                       | Run strict TypeScript validation across the workspace                      |
+| `pnpm lint`                            | Run the ESLint flat configuration across the workspace                     |
+| `pnpm format`                          | Format supported files with Prettier                                       |
+| `pnpm format:check`                    | Validate formatting without changing files                                 |
+| `pnpm dev:infra`                       | Start the required local MongoDB container                                 |
+| `pnpm dev:infra:down`                  | Stop the local container while preserving its data volume                  |
+| `pnpm db:init`                         | Idempotently create/reconcile MongoDB collections, validators, and indexes |
+| `pnpm db:inspect`                      | Print current collection validators and indexes                            |
+| `pnpm db:verify`                       | Run and clean up a repository-layer persistence round trip                 |
+| `pnpm auth:user:create`                | Safely provision a user/admin with a masked password prompt                |
+| `pnpm ingest:github`                   | Collect a bounded configured GitHub source through official APIs           |
+| `pnpm ingest:sources`                  | Discover or sync configured official documentation and release feeds       |
+| `pnpm extract`                         | Extract or inspect bounded public-source candidate experiences             |
+| `pnpm score`                           | Verify evidence and create/inspect immutable candidate assessments         |
+| `pnpm canonicalize`                    | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
+| `pnpm run search`                      | Project, embed, index, inspect, or query canonical KnownPaths              |
+| `pnpm mcp:stdio`                       | Run the thin local MCP-to-HTTP bridge over stdio                           |
+| `pnpm mcp:inspect`                     | List or invoke MCP tools with the official SDK client                      |
+| `pnpm knownpath …`                     | Run the multi-agent installer CLI from this checkout                       |
+| `pnpm contributions inspect --id <id>` | Inspect a sanitized contribution and processing state                      |
 
 ## Structure
 
@@ -237,6 +238,7 @@ packages/
   database/        MongoDB lifecycle, repositories, validators, and indexes
   domain/          Versioned domain schemas and canonicalization helpers
   canonicalization/ Deterministic blocking, optional embeddings, and canonical projections
+  contributions/  Privacy-safe sanitization and low-trust contribution processing
   github-ingestion/ GitHub API collection and source normalization
   source-ingestion/ Official documentation/feed discovery and normalization
   verification/    Deterministic evidence verification and immutable seed scoring
@@ -248,11 +250,11 @@ skills/
 ```
 
 See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
-[retrieval guide](docs/RETRIEVAL.md), [Knowledge HTTP API guide](docs/API.md),
-[MCP guide](docs/MCP.md), [Agent Skill guide](docs/AGENT_SKILL.md),
-[installer guide](docs/INSTALLER.md), [deployment guide](docs/DEPLOYMENT.md),
-[decision log](docs/DECISIONS.md), and [phase progress](progress.md) for the current boundaries and
-delivery status.
+[contribution privacy guide](docs/CONTRIBUTIONS.md), [retrieval guide](docs/RETRIEVAL.md),
+[Knowledge HTTP API guide](docs/API.md), [MCP guide](docs/MCP.md),
+[Agent Skill guide](docs/AGENT_SKILL.md), [installer guide](docs/INSTALLER.md),
+[deployment guide](docs/DEPLOYMENT.md), [decision log](docs/DECISIONS.md), and
+[phase progress](progress.md) for the current boundaries and delivery status.
 
 ## License
 

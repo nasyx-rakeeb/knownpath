@@ -97,6 +97,10 @@ function completedResult(
     final = Math.min(final, policy.caps.staleApplicability);
     finalCaps.push("stale_applicability");
   }
+  if (signals.some((item) => item.type === "agent_self_report")) {
+    final = Math.min(final, policy.caps.selfReportedContribution);
+    finalCaps.push("self_reported_contribution");
+  }
   return {
     status: "completed",
     signals,

@@ -21,6 +21,7 @@ import {
   sourceRegistrySchema,
   userSchema,
   type AgentContribution,
+  type AgentContributionV2,
   type AgentContributionId,
   type AgentOutcome,
   type AgentOutcomeId,
@@ -144,6 +145,13 @@ export class UserRepository
   public async updateStatus(id: UserId, status: User["status"]): Promise<User | null> {
     return this.updateOne({ _id: id }, { status });
   }
+
+  public async updateContributionMode(
+    id: UserId,
+    contributionMode: User["contributionMode"],
+  ): Promise<User | null> {
+    return this.updateOne({ _id: id }, { contributionMode });
+  }
 }
 
 export class AuditEventRepository
@@ -214,6 +222,17 @@ export class SourceRegistryRepository
 
   public async findByIdentityKey(identityKey: VersionedKey): Promise<SourceRegistry | null> {
     return this.findOne({ "identityKey.value": identityKey.value });
+  }
+
+  public async createIfAbsent(entity: SourceRegistry): Promise<SourceRegistry | null> {
+    const parsed = sourceRegistrySchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
   }
 
   public async findBySourceKey(sourceKey: string): Promise<SourceRegistry | null> {
@@ -1188,6 +1207,57 @@ export class AgentContributionRepository
 
   public async findByDeduplicationKey(key: VersionedKey): Promise<AgentContribution | null> {
     return this.findOne({ "deduplicationKey.value": key.value });
+  }
+
+  public async findV2ByOwnerAndClientSubmissionId(
+    userId: UserId,
+    clientSubmissionId: string,
+  ): Promise<AgentContributionV2 | null> {
+    const result = await this.findOne({
+      schemaVersion: 2,
+      "contributor.userId": userId,
+      clientSubmissionId,
+    } as Filter<AgentContribution>);
+    return result?.schemaVersion === 2 ? result : null;
+  }
+
+  public async createV2IfAbsent(entity: AgentContributionV2): Promise<AgentContributionV2 | null> {
+    const parsed = agentContributionSchema.parse(entity);
+    if (parsed.schemaVersion !== 2) throw new Error("Expected a version 2 contribution");
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async updateProcessing(
+    id: AgentContributionId,
+    processing: AgentContributionV2["processing"],
+  ): Promise<AgentContributionV2 | null> {
+    const result = await this.updateOne(
+      { _id: id, schemaVersion: 2 } as Filter<AgentContribution>,
+      { processing } as MatchKeysAndValues<AgentContribution>,
+    );
+    return result?.schemaVersion === 2 ? result : null;
+  }
+
+  public async listV2Pending(limit: number): Promise<AgentContributionV2[]> {
+    const documents = await this.collection
+      .find({
+        schemaVersion: 2,
+        status: "pending",
+        "processing.stage": { $nin: ["complete"] },
+      } as Filter<AgentContribution>)
+      .sort({ "audit.createdAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.flatMap((document) => {
+      const parsed = agentContributionSchema.parse(document);
+      return parsed.schemaVersion === 2 ? [parsed] : [];
+    });
   }
 
   public async updateStatus(

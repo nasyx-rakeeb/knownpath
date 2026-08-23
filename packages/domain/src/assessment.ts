@@ -20,6 +20,7 @@ const scoreSchema = z.int().min(0).max(100);
 export const evidenceSignalTypeSchema = z.enum([
   "evidence_integrity",
   "grounded_extraction",
+  "agent_self_report",
   "official_solution_guidance",
   "maintainer_solution",
   "accepted_discussion_answer",

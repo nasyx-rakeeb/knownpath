@@ -5,12 +5,14 @@ import {
   knownPathIdSchema,
   retrievalCapabilityStateSchema,
   versionFitSchema,
+  contributionSubmissionRequestSchema,
+  contributionSubmissionResponseSchema,
 } from "@knownpath/domain";
 import { z } from "zod";
 
 export const KNOWNPATH_MCP_CONTRACT_VERSION = 1 as const;
 export const KNOWNPATH_MCP_SERVER_NAME = "knownpath";
-export const KNOWNPATH_MCP_SERVER_VERSION = "0.0.0";
+export const KNOWNPATH_MCP_SERVER_VERSION = "0.2.0";
 
 const boundedString = (maximum: number) => z.string().trim().min(1).max(maximum);
 const optionalReviewSchema = z.boolean().default(false);
@@ -65,6 +67,12 @@ export const knownPathMcpAlternativesInputSchema = z.strictObject({
 });
 
 export const knownPathMcpStatusInputSchema = z.strictObject({});
+export const knownPathMcpContributeInputSchema = contributionSubmissionRequestSchema.describe(
+  "A generalized, privacy-minimized lesson submitted only after observable success and explicit user consent.",
+);
+export const knownPathMcpContributeSuccessSchema = contributionSubmissionResponseSchema.extend({
+  ok: z.literal(true),
+});
 
 const compactApplicabilitySchema = z.strictObject({
   ecosystem: boundedString(256),
@@ -213,6 +221,7 @@ export const mcpStatusResponseSchema = z.strictObject({
     publishedRead: z.literal(true),
     reviewRead: z.boolean(),
     searchBackend: z.enum(["local", "atlas"]),
+    contribute: z.boolean(),
   }),
 });
 
@@ -241,8 +250,13 @@ export const knownPathMcpStatusOutputSchema = z.union([
   knownPathMcpStatusSuccessSchema,
   mcpToolErrorSchema,
 ]);
+export const knownPathMcpContributeOutputSchema = z.union([
+  knownPathMcpContributeSuccessSchema,
+  mcpToolErrorSchema,
+]);
 
 export type KnownPathMcpSearchInput = z.infer<typeof knownPathMcpSearchInputSchema>;
 export type KnownPathMcpGetInput = z.infer<typeof knownPathMcpGetInputSchema>;
 export type KnownPathMcpAlternativesInput = z.infer<typeof knownPathMcpAlternativesInputSchema>;
 export type KnownPathMcpStatus = z.infer<typeof mcpStatusResponseSchema>;
+export type KnownPathMcpContributeInput = z.infer<typeof knownPathMcpContributeInputSchema>;

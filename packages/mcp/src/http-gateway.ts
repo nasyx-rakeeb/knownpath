@@ -1,5 +1,7 @@
 import {
   knowledgeSearchResponseSchema,
+  contributionSubmissionRequestSchema,
+  contributionSubmissionResponseSchema,
   knowledgeSelectionResponseSchema,
   knownPathAlternativesResponseSchema,
   knownPathDetailResponseSchema,
@@ -94,6 +96,18 @@ export class HttpKnowledgeMcpGateway implements KnowledgeMcpGateway {
 
   public status(signal: AbortSignal) {
     return this.request("api/v1/mcp/status", { method: "GET" }, mcpStatusResponseSchema, signal);
+  }
+
+  public contribute(
+    input: import("@knownpath/domain").ContributionSubmissionRequest,
+    signal: AbortSignal,
+  ) {
+    return this.request(
+      "api/v1/contributions",
+      { method: "POST", body: contributionSubmissionRequestSchema.parse(input) },
+      contributionSubmissionResponseSchema,
+      signal,
+    );
   }
 
   private async request<Output>(
