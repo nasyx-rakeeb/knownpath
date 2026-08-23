@@ -31,7 +31,7 @@
     "access": "public"
   },
   "bin": {
-    "knownpath": "./dist/index.js"
+    "knownpath": "dist/index.js"
   },
   "files": [
     "dist"
