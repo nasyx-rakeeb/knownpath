@@ -2060,3 +2060,11 @@ Operational/privacy behavior is documented in [`docs/CONTRIBUTIONS.md`](docs/CON
 **Phase 15 (awaiting its prompt): continue only with the explicitly requested next capability. Do
 not infer or begin outcome reporting, moderation UI, team ownership, or another roadmap feature from
 Phase 14.**
+
+## Post-Phase 14 — Deployment and npm release
+
+- Pushed the Phase 14 design and implementation to GitHub and observed the Render production API
+  healthy with 22 OpenAPI paths, including contribution submission and owner inspection.
+- npm's first 0.2.0 publish preserved pnpm `catalog:` dependency specifiers and therefore failed a
+  clean consumer install. It is not considered usable. The binary path was normalized, and 0.2.1 is
+  the corrective release built/published through pnpm's manifest transformation.
