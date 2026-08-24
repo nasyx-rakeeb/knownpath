@@ -13,6 +13,30 @@ services:
       start_period: 10s
     volumes:
       - knownpath-mongodb-data:/data/db
+  valkey:
+    image: valkey/valkey:9.1.1-alpine
+    container_name: knownpath-valkey
+    restart: unless-stopped
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1"
+      - --maxmemory-policy
+      - noeviction
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - knownpath-valkey-data:/data
 
 volumes:
   knownpath-mongodb-data:
+  knownpath-valkey-data:

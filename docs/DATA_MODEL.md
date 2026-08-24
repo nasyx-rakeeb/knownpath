@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document is the Phase 10 reference for KnownPath's durable domain contracts and MongoDB
+This document is the Phase 16 reference for KnownPath's durable domain contracts and MongoDB
 persistence model. It describes structures that exist now, even when the later workflow that will
 populate them is intentionally absent.
 
@@ -55,6 +55,9 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `agent_outcomes`                 | Immutable private observed-result reports referencing one KnownPath revision.                     |
 | `known_path_outcome_assessments` | Immutable deterministic reliability/trend history for one KnownPath revision.                     |
 | `known_path_safety_events`       | Immutable safety-review state transitions, separate from ranking and lifecycle.                   |
+| `pipeline_runs`                  | Durable operator/API/scheduler pipeline intent, aggregate state, and safe counters.               |
+| `pipeline_steps`                 | Durable idempotent job intent and lifecycle; BullMQ delivery is an ephemeral projection.          |
+| `worker_heartbeats`              | Short-lived worker availability projection with a MongoDB TTL index.                              |
 
 Source registries, immutable source snapshots, processing runs, candidates, canonical records,
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
@@ -478,8 +481,26 @@ KnownPath indexes `latestOutcomeAssessmentId` for assessment navigation and
 outcome fields; they never contain reporter IDs or notes.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
-parallel-array multikey restriction. Phase 9 adds one ordinary weighted text index. No TTL,
-wildcard, or geospatial index exists; Vector Search is an explicit Atlas-only lifecycle.
+parallel-array multikey restriction. Phase 9 adds one ordinary weighted text index. The only TTL
+index expires ephemeral worker heartbeats; no product entity uses TTL. Vector Search is an explicit
+Atlas-only lifecycle.
+
+### `pipeline_runs`, `pipeline_steps`, and `worker_heartbeats`
+
+Pipeline runs record kind, trigger, requested target, aggregate counters, safe last error, and
+timestamps. Steps record the run, typed job/queue, target, versioned idempotency key, payload
+digest, bounded ID/options payload, BullMQ job ID, processing versions, attempts, state, and
+quarantine reason. Payloads may contain identifiers and processing controls only; source text and
+credentials remain in their owning collections/configuration.
+
+- `pipeline_runs`: status/update, kind/created, and target/created indexes support operations views.
+- `pipeline_steps`: unique idempotency and BullMQ-job indexes prevent duplicate dispatch; run/state,
+  target/job, pending/stale, and quarantine indexes support reconciliation and inspection.
+- `worker_heartbeats`: state/time supports liveness views; `expiresAt` uses `expireAfterSeconds: 0`
+  because heartbeats are ephemeral coordination, not business evidence.
+
+Run and step records are retained for audit until an explicit volume-based archival policy is
+adopted. BullMQ retention is shorter and configurable because Valkey is not the source of truth.
 
 ## Initialization and inspection
 
@@ -519,8 +540,8 @@ round trip and confirms cleanup. It does not seed production knowledge.
 - Authentication sessions and verification records expire logically; no TTL deletion policy is
   imposed before operational retention requirements exist.
 - Audit events are retained until a future compliance/privacy policy defines archival or deletion.
-- Failed operational runs may later receive a TTL/archive policy, but Phase 2 has insufficient usage
-  evidence to choose one.
+- Pipeline runs/steps have no TTL. A later measured-volume policy may archive them; worker
+  heartbeats alone expire automatically.
 - Extraction attempts, candidates, and immutable candidate assessments are retained for
   reproducibility, audit, and score-version comparison until measured volume and privacy
   requirements justify an explicit archive/purge policy.

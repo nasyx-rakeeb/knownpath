@@ -16,6 +16,7 @@ export async function loadGitHubSourceManifest(path: string): Promise<GitHubSour
         defaultLookbackDays: source.defaultLookbackDays,
         ecosystemHints: source.ecosystemHints,
         enabled: source.enabled,
+        refreshIntervalMinutes: source.refreshIntervalMinutes,
         key: source.key,
         name: source.name,
         owner,

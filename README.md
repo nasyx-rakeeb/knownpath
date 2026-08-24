@@ -4,7 +4,7 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Through Phase 15, agents can retrieve
+> [!IMPORTANT] KnownPath is under active phased development. Through Phase 16, agents can retrieve
 > evidence-grounded records, submit consented generalized lessons, and report privacy-minimized
 > observed outcomes. Dashboards, public signup, teams, and public anonymous access are not
 > implemented yet. The current released installer is published as
@@ -14,7 +14,8 @@ reusable engineering experiences available through agent-native interfaces.
 
 - Node.js 24 LTS (`.nvmrc` tracks the supported major; `package.json` enforces the tested range)
 - Corepack, included with the supported Node.js distribution
-- Docker Desktop or another Docker Engine with Compose support, for local MongoDB
+- Docker Desktop or another Docker Engine with Compose support, for local Valkey and optional local
+  MongoDB
 
 ## Install
 
@@ -29,7 +30,8 @@ Generate independent `BETTER_AUTH_SECRET` and `API_KEY_PEPPER` values as describ
 
 ## Start the current development environment
 
-Start MongoDB:
+Start the required local Valkey queue infrastructure. Configure either local MongoDB or Atlas in
+`.env`; MongoDB remains the product source of truth:
 
 ```sh
 pnpm dev:infra
@@ -167,6 +169,20 @@ Outcome reporting uses a separate `knowledge:outcome` scope and never treats a s
 as success. The immutable assessment algorithm, safety-review separation, abuse controls, and
 developer recomputation commands are documented in [the outcomes guide](docs/OUTCOMES.md).
 
+Start or operate the Phase 16 worker stack after configuring `QUEUE_REDIS_URL`:
+
+```sh
+pnpm jobs start
+pnpm jobs status
+pnpm jobs enqueue source.official.sync \
+  --target-kind source_registry --target-id expo-documentation \
+  --options-json '{"limit":5,"scope":"curated"}'
+```
+
+Per-source schedules are disabled until explicitly enabled and applied. Queue topology, retries,
+quarantine, graceful shutdown, outage behavior, and admin inspection are documented in
+[the operations guide](docs/OPERATIONS.md).
+
 Configure the API origin and API key in the environment that launches each agent, then inspect or
 apply the Phase 13 installer plan:
 
@@ -192,7 +208,7 @@ previously exposed credentials before setup, then follow
 [the Render deployment guide](docs/DEPLOYMENT.md) for the Blueprint, Atlas network access, health
 verification, and post-deploy API-key flow.
 
-Stop MongoDB without deleting its named development volume:
+Stop local infrastructure without deleting named development volumes:
 
 ```sh
 pnpm dev:infra:down
@@ -209,11 +225,13 @@ pnpm dev:infra:down
 | `pnpm lint`                            | Run the ESLint flat configuration across the workspace                     |
 | `pnpm format`                          | Format supported files with Prettier                                       |
 | `pnpm format:check`                    | Validate formatting without changing files                                 |
-| `pnpm dev:infra`                       | Start the required local MongoDB container                                 |
+| `pnpm dev:infra`                       | Start the required local Valkey queue service                              |
 | `pnpm dev:infra:down`                  | Stop the local container while preserving its data volume                  |
 | `pnpm db:init`                         | Idempotently create/reconcile MongoDB collections, validators, and indexes |
 | `pnpm db:inspect`                      | Print current collection validators and indexes                            |
 | `pnpm db:verify`                       | Run and clean up a repository-layer persistence round trip                 |
+| `pnpm jobs start`                      | Start BullMQ consumers for all operational queues                          |
+| `pnpm jobs status`                     | Inspect queue counts and durable worker/run state                          |
 | `pnpm auth:user:create`                | Safely provision a user/admin with a masked password prompt                |
 | `pnpm ingest:github`                   | Collect a bounded configured GitHub source through official APIs           |
 | `pnpm ingest:sources`                  | Discover or sync configured official documentation and release feeds       |
@@ -235,7 +253,7 @@ apps/
   cli/             Publishable installer CLI and stdio bridge entry point
   mcp-server/      Thin stdio MCP bridge to the authenticated HTTP API
   web/             Next.js application shell
-  worker/          Source ingestion and future background processing runtime
+  worker/          Source ingestion commands and operational queue consumers
 packages/
   agent-adapters/  Safe detection/configuration adapters and ownership state
   ai/              Gemini provider, privacy gate, prompts, validation, and extraction lifecycle
@@ -246,6 +264,8 @@ packages/
   canonicalization/ Deterministic blocking, optional embeddings, and canonical projections
   contributions/  Privacy-safe sanitization and low-trust contribution processing
   github-ingestion/ GitHub API collection and source normalization
+  jobs/            BullMQ/Valkey queue, schedule, retry, and worker lifecycle boundary
+  pipelines/       Idempotent operational composition over capability services
   source-ingestion/ Official documentation/feed discovery and normalization
   verification/    Deterministic evidence verification and immutable seed scoring
   search/          Embeddings, search projections, hybrid retrieval, and explainable ranking

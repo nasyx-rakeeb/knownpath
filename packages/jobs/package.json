@@ -1,0 +1,36 @@
+{
+  "name": "@knownpath/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "BullMQ and Valkey operational boundary for KnownPath pipelines.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@knownpath/config": "workspace:*",
+    "@knownpath/database": "workspace:*",
+    "@knownpath/domain": "workspace:*",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@knownpath/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

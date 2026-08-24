@@ -1,11 +1,13 @@
 import {
   requireScope,
+  requireAdmin,
   requireSession,
   type ApiKeyService,
   type Authenticator,
   type RateLimitPolicy,
 } from "@knownpath/auth";
 import type { KnownPathDatabase } from "@knownpath/database";
+import type { QueueRegistry } from "@knownpath/jobs";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -52,7 +54,11 @@ const protectedErrors = {
   429: errorEnvelopeSchema,
 } as const;
 
-export function registerSystemRoutes(api: FastifyInstance, database: KnownPathDatabase): void {
+export function registerSystemRoutes(
+  api: FastifyInstance,
+  database: KnownPathDatabase,
+  queues?: QueueRegistry,
+): void {
   api.get(
     "/health/live",
     { schema: { tags: ["system"], summary: "Process liveness" } },
@@ -65,10 +71,15 @@ export function registerSystemRoutes(api: FastifyInstance, database: KnownPathDa
     async (_request, reply) => {
       try {
         await database.ping();
+        const queueStatus = queues === undefined ? "disabled" : await queues.probe();
         return {
           service: "knownpath-api",
           status: "ready",
-          components: { mongodb: "ok", auth: "ok" },
+          components: {
+            mongodb: "ok",
+            auth: "ok",
+            queues: queueStatus,
+          },
         };
       } catch {
         return reply.status(503).send({
@@ -77,6 +88,52 @@ export function registerSystemRoutes(api: FastifyInstance, database: KnownPathDa
           components: { mongodb: "unavailable", auth: "ok" },
         });
       }
+    },
+  );
+}
+
+export function registerOperationalRoutes(
+  api: FastifyInstance,
+  authenticator: Authenticator,
+  database: KnownPathDatabase,
+  queues?: QueueRegistry,
+): void {
+  api.get(
+    "/api/v1/admin/jobs",
+    {
+      schema: {
+        tags: ["operations"],
+        summary: "Inspect operational queues and durable pipeline runs",
+        security: [{ cookieSession: [] }],
+        response: {
+          401: errorEnvelopeSchema,
+          403: errorEnvelopeSchema,
+          503: errorEnvelopeSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      requireAdmin(await authenticator.authenticate(request.headers));
+      if (queues === undefined) {
+        return reply.status(503).send({
+          error: {
+            code: "queue_unavailable",
+            message: "Queue infrastructure is not configured",
+          },
+          requestId: request.id,
+        });
+      }
+      if ((await queues.probe()) !== "ok")
+        return reply.status(503).send({
+          error: { code: "queue_unavailable", message: "Queue infrastructure is unavailable" },
+          requestId: request.id,
+        });
+      const [queueStatus, runs, workers] = await Promise.all([
+        queues.status(),
+        database.repositories.pipelineRuns.list(undefined, 100),
+        database.repositories.workerHeartbeats.listRecent(new Date(Date.now() - 300_000), 100),
+      ]);
+      return { queues: queueStatus, runs, workers };
     },
   );
 }

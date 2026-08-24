@@ -163,6 +163,48 @@ const mcpBridgeEnvironmentSchema = z.object({
   KNOWNPATH_MCP_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
 });
 
+const queueEnvironmentSchema = z.object({
+  QUEUE_REDIS_URL: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.url({ protocol: /^rediss?$/u }).optional(),
+  ),
+  QUEUE_PREFIX: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_-]+$/u)
+    .default("knownpath"),
+  QUEUE_SCHEDULES_ENABLED: booleanEnvironmentSchema.default(false),
+  QUEUE_PRODUCER_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(5_000),
+  QUEUE_WORKER_HEARTBEAT_MS: z.coerce.number().int().min(1_000).max(300_000).default(15_000),
+  QUEUE_WORKER_STALE_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
+  QUEUE_WORKER_SHUTDOWN_MS: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
+  QUEUE_WORKER_LOCK_MS: z.coerce.number().int().min(10_000).max(3_600_000).default(120_000),
+  QUEUE_MAX_STALLED_COUNT: z.coerce.number().int().min(0).max(10).default(2),
+  QUEUE_CONTROL_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(1),
+  QUEUE_GITHUB_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(1),
+  QUEUE_SOURCE_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(2),
+  QUEUE_AI_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(1),
+  QUEUE_KNOWLEDGE_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(2),
+  QUEUE_FEEDBACK_CONCURRENCY: z.coerce.number().int().min(1).max(100).default(2),
+  QUEUE_GITHUB_RATE_MAX: z.coerce.number().int().min(1).max(100_000).default(30),
+  QUEUE_GITHUB_RATE_DURATION_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  QUEUE_SOURCE_RATE_MAX: z.coerce.number().int().min(1).max(100_000).default(60),
+  QUEUE_SOURCE_RATE_DURATION_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  QUEUE_AI_RATE_MAX: z.coerce.number().int().min(1).max(100_000).default(10),
+  QUEUE_AI_RATE_DURATION_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  QUEUE_COMPLETED_RETENTION_SECONDS: z.coerce.number().int().min(60).max(2_592_000).default(86_400),
+  QUEUE_COMPLETED_RETENTION_COUNT: z.coerce.number().int().min(1).max(100_000).default(1_000),
+  QUEUE_FAILED_RETENTION_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3_600)
+    .max(31_536_000)
+    .default(2_592_000),
+  QUEUE_FAILED_RETENTION_COUNT: z.coerce.number().int().min(1).max(1_000_000).default(10_000),
+});
+
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
@@ -262,6 +304,28 @@ export interface AiExtractionConfig {
 
 export interface RuntimeConfig {
   readonly logLevel: LogLevel;
+}
+
+export interface QueueConfig {
+  readonly redisUrl?: string;
+  readonly prefix: string;
+  readonly schedulesEnabled: boolean;
+  readonly producerConnectTimeoutMs: number;
+  readonly workerHeartbeatMs: number;
+  readonly workerStaleMs: number;
+  readonly workerShutdownMs: number;
+  readonly workerLockMs: number;
+  readonly maxStalledCount: number;
+  readonly concurrency: Readonly<
+    Record<"control" | "github" | "sources" | "ai" | "knowledge" | "feedback", number>
+  >;
+  readonly limiters: Readonly<
+    Record<"github" | "sources" | "ai", { readonly max: number; readonly durationMs: number }>
+  >;
+  readonly retention: {
+    readonly completed: { readonly ageSeconds: number; readonly count: number };
+    readonly failed: { readonly ageSeconds: number; readonly count: number };
+  };
 }
 
 export type RuntimeMode = z.infer<typeof runtimeModeSchema>;
@@ -421,6 +485,56 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
   return {
     logLevel: parsed.LOG_LEVEL,
   };
+}
+
+export function loadQueueConfig(environment: NodeJS.ProcessEnv = process.env): QueueConfig {
+  const parsed = parseEnvironment(queueEnvironmentSchema, environment);
+  return {
+    ...(parsed.QUEUE_REDIS_URL === undefined ? {} : { redisUrl: parsed.QUEUE_REDIS_URL }),
+    prefix: parsed.QUEUE_PREFIX,
+    schedulesEnabled: parsed.QUEUE_SCHEDULES_ENABLED,
+    producerConnectTimeoutMs: parsed.QUEUE_PRODUCER_CONNECT_TIMEOUT_MS,
+    workerHeartbeatMs: parsed.QUEUE_WORKER_HEARTBEAT_MS,
+    workerStaleMs: parsed.QUEUE_WORKER_STALE_MS,
+    workerShutdownMs: parsed.QUEUE_WORKER_SHUTDOWN_MS,
+    workerLockMs: parsed.QUEUE_WORKER_LOCK_MS,
+    maxStalledCount: parsed.QUEUE_MAX_STALLED_COUNT,
+    concurrency: {
+      control: parsed.QUEUE_CONTROL_CONCURRENCY,
+      github: parsed.QUEUE_GITHUB_CONCURRENCY,
+      sources: parsed.QUEUE_SOURCE_CONCURRENCY,
+      ai: parsed.QUEUE_AI_CONCURRENCY,
+      knowledge: parsed.QUEUE_KNOWLEDGE_CONCURRENCY,
+      feedback: parsed.QUEUE_FEEDBACK_CONCURRENCY,
+    },
+    limiters: {
+      github: {
+        max: parsed.QUEUE_GITHUB_RATE_MAX,
+        durationMs: parsed.QUEUE_GITHUB_RATE_DURATION_MS,
+      },
+      sources: {
+        max: parsed.QUEUE_SOURCE_RATE_MAX,
+        durationMs: parsed.QUEUE_SOURCE_RATE_DURATION_MS,
+      },
+      ai: { max: parsed.QUEUE_AI_RATE_MAX, durationMs: parsed.QUEUE_AI_RATE_DURATION_MS },
+    },
+    retention: {
+      completed: {
+        ageSeconds: parsed.QUEUE_COMPLETED_RETENTION_SECONDS,
+        count: parsed.QUEUE_COMPLETED_RETENTION_COUNT,
+      },
+      failed: {
+        ageSeconds: parsed.QUEUE_FAILED_RETENTION_SECONDS,
+        count: parsed.QUEUE_FAILED_RETENTION_COUNT,
+      },
+    },
+  };
+}
+
+export function requireQueueRedisUrl(config: QueueConfig): string {
+  if (config.redisUrl === undefined)
+    throw new Error("Invalid KnownPath configuration: QUEUE_REDIS_URL is required for workers");
+  return config.redisUrl;
 }
 
 function parseEnvironment<Schema extends z.ZodType>(

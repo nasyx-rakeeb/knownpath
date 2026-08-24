@@ -7,6 +7,7 @@ import {
 } from "@knownpath/auth";
 import { outcomeSubmissionRequestSchema, outcomeSubmissionResponseSchema } from "@knownpath/domain";
 import type { OutcomeService } from "@knownpath/outcomes";
+import type { JobProducer } from "@knownpath/jobs";
 import type { FastifyInstance } from "fastify";
 
 import { errorEnvelopeSchema } from "./schemas.js";
@@ -28,6 +29,7 @@ export function registerOutcomeRoutes(
   service: OutcomeService,
   audit: AuditService,
   policy: RateLimitPolicy,
+  producer?: JobProducer,
 ): void {
   api.post(
     "/api/v1/outcomes",
@@ -78,6 +80,22 @@ export function registerOutcomeRoutes(
           apiKeyId: principal.key._id,
           accessMode: access.accessMode,
         });
+        if (producer !== undefined) {
+          try {
+            await producer.enqueue({
+              jobName: "outcomes.aggregate",
+              kind: "outcome",
+              target: { kind: "knownpath", id: input.knownPathId },
+              trigger: "api",
+              idempotencyParts: ["outcomes.aggregate", response.outcomeId],
+            });
+          } catch {
+            request.log.warn(
+              { errorCode: "queue_dispatch_deferred", outcomeId: response.outcomeId },
+              "outcome stored; aggregate dispatch will be reconciled",
+            );
+          }
+        }
         await audit.record({
           actor: {
             kind: "api_key",

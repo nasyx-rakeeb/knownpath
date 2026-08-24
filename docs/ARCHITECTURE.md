@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 15. A boundary appearing here does not mean its future product behavior is
+established through Phase 16. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -18,8 +18,9 @@ database.
   network security policy, and API process lifecycle. It exposes operational health,
   closed-registration session/account/API-key routes, and Phase 10's safe knowledge routes under
   `/api/v1`.
-- `@knownpath/worker` owns ingestion and background-process lifecycle. It composes bounded GitHub,
-  official-document, and AI extraction commands; it is not yet a scheduler or queue consumer.
+- `@knownpath/worker` owns background-process lifecycle. It runs bounded manual commands and the
+  BullMQ consumers that operationalize ingestion, extraction, scoring, canonicalization, projection,
+  contribution, outcome, and maintenance jobs.
 - `@knownpath/mcp-server` is the thin local stdio-to-HTTP MCP bridge. The production Streamable HTTP
   transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
 - `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
@@ -57,6 +58,10 @@ database.
   PII/path/credential redaction used by contributions and outcome notes.
 - `@knownpath/outcomes` owns authenticated observed-result ingestion, durable abuse controls,
   immutable reliability assessments, safety events, trend detection, and recomputation commands.
+- `@knownpath/jobs` is the sole BullMQ/Valkey boundary. It owns typed dispatch, queue topology,
+  retries, rate limits, schedules, graceful shutdown, and durable operational status projection.
+- `@knownpath/pipelines` composes existing domain services into idempotent job handlers and bounded
+  downstream chains without importing transport or queue implementation details.
 - `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
   search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
   the transport-independent safe knowledge-access service.
@@ -97,6 +102,10 @@ apps/worker --> packages/verification --> packages/domain
 apps/worker --> packages/canonicalization --> packages/domain
                               |          --> packages/database
                               +----------> packages/search --> official Gemini SDK
+
+apps/worker --> packages/pipelines --> capability packages
+                    +-------------> packages/jobs --> BullMQ --> Valkey
+packages/jobs --> packages/database --> MongoDB
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
@@ -141,11 +150,12 @@ indexes, and feedback aggregation before implementing this complete flow.
 
 ## Current runtime and persistence flow
 
-1. Docker Compose starts only MongoDB and binds it to loopback.
+1. Docker Compose provides loopback-bound Valkey for queues and an optional loopback MongoDB for
+   contributors not using Atlas.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 26 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 29 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -188,10 +198,14 @@ indexes, and feedback aggregation before implementing this complete flow.
 17. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
     skill. Config files contain only references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`;
     retrieval and authorization remain centralized in the API. Dashboard behavior remains deferred.
+18. BullMQ consumers run six workload-isolated queues. MongoDB stores pipeline intent before
+    dispatch; source-specific schedulers, retries with jitter, global provider limits, stalled-job
+    recovery, reconciliation, quarantine, heartbeats, and graceful shutdown are centralized in
+    `@knownpath/jobs` and composed through `@knownpath/pipelines`.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 15. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 16. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -200,6 +214,11 @@ cookie security, and rate-limit settings are explicit configuration rather than 
 Invalid configuration fails before an application starts. Database callers supply a validated
 `MongoConfig`; only command entry points read process globals. The reusable database layer receives
 configuration explicitly.
+
+Valkey is auxiliary, not a product datastore. MongoDB records pipeline intent before dispatch and
+retains auditable run/step history. Valkey owns only queue delivery, scheduler state, retries,
+provider rate limiting, locks, and ephemeral worker coordination. API reads remain available when
+queues are disabled or degraded; workers require Valkey. See [OPERATIONS.md](OPERATIONS.md).
 
 `GITHUB_TOKEN` has no committed default and is never logged. Public REST collection can operate
 without it at GitHub's lower limit. Discussions require authenticated GraphQL and are reported as a

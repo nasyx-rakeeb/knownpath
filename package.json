@@ -20,7 +20,8 @@
     "db:inspect": "pnpm --filter @knownpath/database db:inspect",
     "db:verify": "pnpm --filter @knownpath/database db:verify",
     "dev": "turbo run dev",
-    "dev:infra": "docker compose up -d mongodb",
+    "dev:infra": "docker compose up -d valkey",
+    "dev:infra:local-mongo": "docker compose up -d mongodb",
     "dev:infra:down": "docker compose down",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -31,6 +32,7 @@
     "mcp:stdio": "pnpm --filter @knownpath/mcp-server start",
     "mcp:inspect": "pnpm --filter @knownpath/mcp-server inspect",
     "knownpath": "pnpm --filter ./apps/cli start",
+    "jobs": "pnpm --filter @knownpath/worker jobs",
     "score": "pnpm --filter @knownpath/worker score",
     "search": "pnpm --filter @knownpath/worker run retrieve",
     "typecheck": "turbo run typecheck"

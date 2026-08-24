@@ -1,41 +1,42 @@
 {
-  "name": "@knownpath/api",
+  "name": "@knownpath/pipelines",
   "version": "0.0.0",
   "private": true,
-  "description": "KnownPath HTTP API.",
+  "description": "KnownPath operational pipeline service composition and job handlers.",
   "license": "Apache-2.0",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src",
-    "start": "node --env-file-if-exists=../../.env dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fastify/cors": "catalog:",
-    "@fastify/helmet": "catalog:",
-    "@fastify/rate-limit": "catalog:",
-    "@fastify/swagger": "catalog:",
-    "@fastify/swagger-ui": "catalog:",
-    "@knownpath/auth": "workspace:*",
+    "@knownpath/ai": "workspace:*",
+    "@knownpath/canonicalization": "workspace:*",
     "@knownpath/config": "workspace:*",
     "@knownpath/contributions": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
-    "@knownpath/mcp": "workspace:*",
+    "@knownpath/github-ingestion": "workspace:*",
     "@knownpath/jobs": "workspace:*",
     "@knownpath/outcomes": "workspace:*",
     "@knownpath/search": "workspace:*",
-    "@modelcontextprotocol/node": "catalog:",
-    "fastify": "catalog:",
-    "fastify-type-provider-zod": "catalog:",
-    "zod": "catalog:"
+    "@knownpath/source-ingestion": "workspace:*",
+    "@knownpath/verification": "workspace:*"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",
     "@types/node": "catalog:",
-    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

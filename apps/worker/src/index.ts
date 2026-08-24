@@ -62,6 +62,7 @@ import {
 } from "@knownpath/search";
 import { contributionUsage, inspectContribution } from "@knownpath/contributions";
 import { outcomeUsage, parseOutcomeArgs, runOutcomeCommand } from "@knownpath/outcomes";
+import { runOperationalCommand } from "./operational.js";
 
 const command = process.argv[2];
 
@@ -74,6 +75,7 @@ async function main(): Promise<void> {
   if (command === "search") return runSearch();
   if (command === "contributions") return runContributions();
   if (command === "outcomes") return runOutcomes();
+  if (command === "jobs") return runOperationalCommand(process.argv.slice(3));
   console.info(
     `${githubIngestionUsage()}\n\n${sourceIngestionUsage()}\n\n${extractionUsage()}\n\n${scoringUsage()}\n\n${canonicalizationUsage()}\n\n${searchUsage()}\n\n${contributionUsage()}\n\n${outcomeUsage()}`,
   );

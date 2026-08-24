@@ -2210,3 +2210,136 @@ phase prompt.**
   `knownpath_report_outcome`.
 - The short-lived clipboard publishing credential was used only in memory, never printed or written
   to project files, and the clipboard was cleared after successful publication.
+
+## Phase 16 — Operational background pipelines
+
+### Phase goal
+
+Turn manually invoked ingestion, extraction, scoring, canonicalization, projection, contribution,
+outcome, and maintenance operations into reliable continuously runnable pipelines with durable
+intent, safe retries, workload isolation, schedules, quarantine, and observable worker state.
+
+### Research performed and official references consulted
+
+Current references were checked on 2026-08-24 before implementation:
+
+- [BullMQ connections](https://docs.bullmq.io/guide/connections),
+  [retrying/failing jobs](https://docs.bullmq.io/guide/retrying-failing-jobs),
+  [Job Schedulers](https://docs.bullmq.io/guide/job-schedulers),
+  [rate limiting](https://docs.bullmq.io/guide/rate-limiting),
+  [graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown), and
+  [production guidance](https://docs.bullmq.io/guide/going-to-production) for connection behavior,
+  exponential backoff/jitter, scheduler replacement semantics, global limits, stalled recovery,
+  `noeviction`, and shutdown.
+- [Valkey installation](https://valkey.io/topics/installation/) and the official Valkey release
+  channel for the current 9.1.1 local/container path and Redis-protocol compatibility.
+- Current npm registry metadata and licenses for exact BullMQ 6.2.0 and ioredis 6.0.0 compatibility.
+  Agenda 6.2.6 and Temporal 1.22.0 were evaluated and rejected for the reasons in the decision log.
+
+### Architecture and technology decisions
+
+- Added BullMQ 6.2.0 over Valkey 9.1.1. MongoDB remains the only persistent product database; Valkey
+  stores queues, schedules, retries, provider limits, locks, stalled coordination, and ephemeral job
+  diagnostics only.
+- Added `@knownpath/jobs` as the only BullMQ-facing package and `@knownpath/pipelines` as the
+  queue-neutral domain-service composition layer. Payloads contain IDs and bounded controls, never
+  source bodies or credentials.
+- Added six workload queues: `control`, `github`, `sources`, `ai`, `knowledge`, and `feedback`.
+  Source-specific scheduler policies come from `refreshIntervalMinutes` in the shared source
+  registry; schedules remain disabled until explicitly enabled/applied.
+- MongoDB stores a run and idempotent step before dispatch. Changed-source fan-out uses snapshots
+  captured during that sync only. Downstream services retain their existing content hashes,
+  immutable assessment keys, canonical memberships, projections, contribution IDs, and outcome
+  inputs, so retries are safe.
+- Default retries use five attempts, exponential delay from two seconds, and 50% jitter. GitHub
+  starts at five seconds; Gemini starts at ten seconds with four attempts. Permanent/exhausted jobs
+  are quarantined durably. BullMQ lock renewal/stalled recovery uses `maxStalledCount=2`; shutdown
+  is bounded and graceful.
+- API knowledge/auth reads remain available when Valkey is disabled or unavailable. Readiness
+  distinguishes `ok`, `disabled`, and `unavailable`; admin-session-only operations expose safe queue
+  counts/runs/heartbeats. Contribution/outcome product data is written before deferred dispatch.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-24-knownpath-phase-16-operational-pipelines-design.md`](docs/superpowers/specs/2026-08-24-knownpath-phase-16-operational-pipelines-design.md).
+Runtime behavior is documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+
+### Collections, indexes, packages, and files
+
+- Added `pipeline_runs`, `pipeline_steps`, and TTL-backed `worker_heartbeats`, bringing database
+  initialization to 29 collections and 129 named indexes. Unique step idempotency/BullMQ IDs plus
+  run/status, target/job, quarantine, heartbeat/state, and expiry indexes support recovery and
+  operations without using MongoDB as a custom queue.
+- Added `packages/jobs`, `packages/pipelines`, `apps/worker/src/operational.ts`, Valkey Compose
+  infrastructure, centralized queue configuration, per-source refresh policies, root job commands,
+  and `GET /api/v1/admin/jobs`.
+- Updated contribution submission for durable deferred processing when queues are configured,
+  outcome follow-up aggregation/projection, source-manifest ancestor resolution, source-change
+  fan-out, architecture/data-model/decision/README documentation, `.env.example`, and lockfile.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled 24 workspaces and passed repository supply-chain policy. The optional
+  `msgpackr-extract` native script is explicitly denied because KnownPath does not require it.
+- With Node 24.18.0, `pnpm typecheck` completed **39/39** tasks, `pnpm lint` completed **22/22**
+  tasks, `pnpm build` completed **22/22** tasks, and `pnpm format:check` passed. No tests were added
+  or run.
+- Because Docker Desktop was not running, verification used Homebrew Valkey **9.1.1** on a dedicated
+  loopback port with AOF and `noeviction`. BullMQ connected successfully; `probe` returned `ok`; a
+  scheduler round trip applied/listed/removed 12 schedules (nine source-specific and three
+  maintenance), and cleanup reduced 74 temporary keys to zero before shutdown.
+- Against isolated Atlas database `knownpath_phase16_verify_20260824`, the first `db:init` created
+  29 collections/129 indexes and the immediate repeat created zero collections with the same 129
+  indexes.
+- A successful development job completed once; identical enqueue returned the same run/step with
+  `deduplicated: true`. A permanent failure quarantined after one attempt with `permanent_failure`;
+  a transient failure retried three times with exponential jitter and quarantined as
+  `retry_limit_exhausted`.
+- A 60-second active job's worker was deliberately killed. With a 10-second lock, the replacement
+  worker recovered the stalled job, updated its start time, completed it, and advanced the run to
+  completed. A direct SIGINT then persisted a `stopped` heartbeat with zero active jobs.
+- A real bounded Expo documentation flow created a source snapshot. A targeted real public upgrade
+  guide then traversed
+  `source.extract -> candidate.score -> candidate.canonicalize -> knownpath.project`, completing
+  four durable steps and producing one candidate, immutable assessment, similarity profile, review
+  KnownPath/revision, and search document. An unchanged page rerun created no extraction fan-out.
+- The API booted against Atlas/Valkey; readiness reported MongoDB/auth/queues `ok`, OpenAPI exposed
+  the cookie-session-protected admin jobs route, and an unauthenticated request was denied. After
+  Valkey shutdown, liveness stayed `ok`, readiness reported queues `unavailable`, and the added
+  queue error handlers prevented retry-log bombardment.
+- With Valkey stopped, `pnpm jobs status` exited non-zero in five seconds with the actionable safe
+  message `Valkey queue infrastructure is unavailable`; it did not hang or expose the connection
+  URI.
+- The isolated Atlas database contained 29 collections and eight pipeline runs before it was
+  explicitly dropped. Temporary Valkey keys were flushed on the dedicated instance; the server was
+  stopped. No verification product data remains.
+
+### Environment and manual setup still required
+
+- Production needs a separately provisioned Valkey/Redis-protocol service with persistence and
+  `noeviction`, plus `QUEUE_REDIS_URL` and reviewed concurrency/rate/retention values. The current
+  Render Blueprint intentionally still deploys only the API; add a worker service and managed queue
+  infrastructure deliberately rather than silently creating paid resources.
+- Set `QUEUE_SCHEDULES_ENABLED=true` and run `pnpm jobs schedules apply` only after production
+  source cadence and provider quotas are approved. Workers also need the existing MongoDB, GitHub,
+  and Gemini configuration appropriate to the jobs they consume.
+- Docker Compose syntax passed validation, but the containerized Valkey path was not booted because
+  Docker Desktop was unavailable. The exact remaining check is `pnpm dev:infra`, followed by
+  `docker compose ps` and `pnpm jobs status` with a configured MongoDB URI.
+
+### Known limitations intentionally left for later phases
+
+- No production worker/Valkey deployment, dashboard job console, team queue ownership, distributed
+  API limiter, automatic moderation, or provider-specific adaptive quota controller was added.
+- Maintenance reconciliation currently redispatches durable `pending_dispatch` steps. Business
+  entities remain authoritative; a future operations phase may add broader periodic drift audits and
+  archival after measured volume.
+- BullMQ diagnostics use bounded retention while MongoDB run/step history has no automatic purge. A
+  retention/archive policy is intentionally deferred until real operational volume exists.
+- Private/team records remain hard-blocked from public/unpaid Gemini and embedding paths. Queueing
+  never changes provider approval or visibility policy. No tests were added by explicit phase rule.
+
+### Exact next phase
+
+**Phase 17 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt. Do not infer or begin dashboard, team, moderation, or another roadmap feature from
+Phase 16.**

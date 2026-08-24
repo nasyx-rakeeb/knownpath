@@ -49,6 +49,8 @@ export interface ContributionServiceOptions {
   readonly apiOrigin: string;
   readonly digestSecret: string;
   readonly generalizer?: ContributionGeneralizer;
+  readonly defaultProcessingMode?: "inline" | "deferred";
+  readonly enqueueProcessing?: (contribution: AgentContributionV2) => Promise<void>;
 }
 
 export interface ContributionActor {
@@ -77,6 +79,7 @@ export class ContributionService {
     unparsedRequest: ContributionSubmissionRequest,
     actor: ContributionActor,
     signal: AbortSignal = new AbortController().signal,
+    processingMode: "inline" | "deferred" = this.options.defaultProcessingMode ?? "inline",
   ): Promise<ContributionSubmissionResult> {
     const request = contributionSubmissionRequestSchema.parse(unparsedRequest);
     this.assertSubmissionAllowed(request, actor.user);
@@ -93,7 +96,10 @@ export class ContributionService {
           "This clientSubmissionId was already used for different contribution content",
         );
       const processed =
-        existing.status === "quarantined" ? existing : await this.process(existing._id, signal);
+        existing.status === "quarantined" || processingMode === "deferred"
+          ? existing
+          : await this.process(existing._id, signal);
+      await this.enqueueIfDeferred(processed, processingMode);
       return { contribution: processed, response: toSubmissionResponse(processed, true) };
     }
 
@@ -165,12 +171,36 @@ export class ContributionService {
           "This clientSubmissionId was already used for different contribution content",
         );
       const processed =
-        raced.status === "quarantined" ? raced : await this.process(raced._id, signal);
+        raced.status === "quarantined" || processingMode === "deferred"
+          ? raced
+          : await this.process(raced._id, signal);
+      await this.enqueueIfDeferred(processed, processingMode);
       return { contribution: processed, response: toSubmissionResponse(processed, true) };
     }
     const processed =
-      inserted.status === "quarantined" ? inserted : await this.process(inserted._id, signal);
+      inserted.status === "quarantined" || processingMode === "deferred"
+        ? inserted
+        : await this.process(inserted._id, signal);
+    await this.enqueueIfDeferred(processed, processingMode);
     return { contribution: processed, response: toSubmissionResponse(processed, false) };
+  }
+
+  private async enqueueIfDeferred(
+    contribution: AgentContributionV2,
+    mode: "inline" | "deferred",
+  ): Promise<void> {
+    if (
+      mode !== "deferred" ||
+      this.options.enqueueProcessing === undefined ||
+      contribution.status === "quarantined" ||
+      contribution.processing.stage === "complete"
+    )
+      return;
+    try {
+      await this.options.enqueueProcessing(contribution);
+    } catch {
+      // The durable contribution remains stored; maintenance reconciliation dispatches its job.
+    }
   }
 
   public async process(

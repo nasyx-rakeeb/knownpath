@@ -7,6 +7,8 @@ allowBuilds:
   "@google/genai": true
   # Required by tsx for development-time TypeScript execution.
   esbuild: true
+  # Optional msgpackr native acceleration is not required by KnownPath queues.
+  msgpackr-extract: false
   # Transitive Gemini tokenizer dependency.
   protobufjs: true
 
@@ -32,6 +34,7 @@ catalog:
   "@types/react-dom": 19.2.4
   "@types/semver": 7.8.0
   better-auth: 1.7.1
+  bullmq: 6.2.0
   eslint: 10.9.0
   eslint-config-prettier: 10.1.8
   esbuild: 0.28.2
@@ -40,6 +43,7 @@ catalog:
   fast-xml-parser: 5.11.0
   globals: 17.11.0
   html-to-text: 10.0.1
+  ioredis: 6.0.0
   jsonc-parser: 3.3.1
   marked: 18.0.10
   mongodb: 7.5.0

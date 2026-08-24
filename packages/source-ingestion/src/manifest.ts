@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { access, readFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 
 import { normalizeUrl } from "@knownpath/domain";
 import { z } from "zod";
@@ -38,6 +38,7 @@ const commonShape = {
   canonicalUrl: httpsUrlSchema,
   ecosystemHints: z.array(z.string().trim().min(1).max(256)).min(1).max(32),
   enabled: z.boolean(),
+  refreshIntervalMinutes: z.int().min(5).max(43_200),
   sourceQuality: sourceQualitySchema,
   attributionUrl: httpsUrlSchema,
   licenseIdentifier: z.string().trim().min(1).max(256),
@@ -120,7 +121,7 @@ export type ReleaseFeedSourceDefinition = Extract<SourceDefinition, { adapter: "
 export type OfficialSourceDefinition = DocumentationSourceDefinition | ReleaseFeedSourceDefinition;
 
 export async function loadSourceManifest(path: string): Promise<SourceManifest> {
-  const parsedJson = JSON.parse(await readFile(resolve(path), "utf8")) as unknown;
+  const parsedJson = JSON.parse(await readFile(await resolveManifestPath(path), "utf8")) as unknown;
   const manifest = manifestSchema.parse(parsedJson);
   const seenKeys = new Set<string>();
 
@@ -148,6 +149,22 @@ export async function loadSourceManifest(path: string): Promise<SourceManifest> 
   }
 
   return manifest;
+}
+
+async function resolveManifestPath(path: string): Promise<string> {
+  if (isAbsolute(path)) return path;
+  let directory = process.cwd();
+  while (true) {
+    const candidate = resolve(directory, path);
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      const parent = dirname(directory);
+      if (parent === directory) return resolve(process.cwd(), path);
+      directory = parent;
+    }
+  }
 }
 
 export function selectOfficialSources(

@@ -14,6 +14,7 @@
     "extract": "tsx --env-file-if-exists=../../.env src/index.ts extract",
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
     "ingest:sources": "tsx --env-file-if-exists=../../.env src/index.ts sources",
+    "jobs": "tsx --env-file-if-exists=../../.env src/index.ts jobs",
     "score": "tsx --env-file-if-exists=../../.env src/index.ts score",
     "retrieve": "tsx --env-file-if-exists=../../.env src/index.ts search",
     "lint": "eslint src",
@@ -28,6 +29,9 @@
     "@knownpath/database": "workspace:*",
     "@knownpath/github-ingestion": "workspace:*",
     "@knownpath/outcomes": "workspace:*",
+    "@knownpath/jobs": "workspace:*",
+    "@knownpath/pipelines": "workspace:*",
+    "@knownpath/domain": "workspace:*",
     "@knownpath/source-ingestion": "workspace:*",
     "@knownpath/search": "workspace:*",
     "@knownpath/verification": "workspace:*"

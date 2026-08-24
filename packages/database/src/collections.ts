@@ -16,12 +16,15 @@ import type {
   IngestionRun,
   KnownPath,
   KnowledgeSearchEvent,
+  PipelineRun,
+  PipelineStep,
   KnownPathSearchDocument,
   KnownPathRevision,
   SourceItem,
   SourceItemState,
   SourceRegistry,
   User,
+  WorkerHeartbeat,
 } from "@knownpath/domain";
 import type { Collection, Db } from "mongodb";
 
@@ -48,10 +51,13 @@ export const collectionNames = {
   knownPathRevisions: "known_path_revisions",
   knownPathSearchDocuments: "known_path_search_documents",
   knowledgeSearchEvents: "knowledge_search_events",
+  pipelineRuns: "pipeline_runs",
+  pipelineSteps: "pipeline_steps",
   sourceItems: "source_items",
   sourceItemStates: "source_item_states",
   sourceRegistries: "source_registries",
   users: "users",
+  workerHeartbeats: "worker_heartbeats",
 } as const;
 
 export interface KnownPathCollections {
@@ -74,10 +80,13 @@ export interface KnownPathCollections {
   readonly knownPathRevisions: Collection<KnownPathRevision>;
   readonly knownPathSearchDocuments: Collection<KnownPathSearchDocument>;
   readonly knowledgeSearchEvents: Collection<KnowledgeSearchEvent>;
+  readonly pipelineRuns: Collection<PipelineRun>;
+  readonly pipelineSteps: Collection<PipelineStep>;
   readonly sourceItems: Collection<SourceItem>;
   readonly sourceItemStates: Collection<SourceItemState>;
   readonly sourceRegistries: Collection<SourceRegistry>;
   readonly users: Collection<User>;
+  readonly workerHeartbeats: Collection<WorkerHeartbeat>;
 }
 
 export function getCollections(database: Db): KnownPathCollections {
@@ -119,9 +128,12 @@ export function getCollections(database: Db): KnownPathCollections {
     knowledgeSearchEvents: database.collection<KnowledgeSearchEvent>(
       collectionNames.knowledgeSearchEvents,
     ),
+    pipelineRuns: database.collection<PipelineRun>(collectionNames.pipelineRuns),
+    pipelineSteps: database.collection<PipelineStep>(collectionNames.pipelineSteps),
     sourceItems: database.collection<SourceItem>(collectionNames.sourceItems),
     sourceItemStates: database.collection<SourceItemState>(collectionNames.sourceItemStates),
     sourceRegistries: database.collection<SourceRegistry>(collectionNames.sourceRegistries),
     users: database.collection<User>(collectionNames.users),
+    workerHeartbeats: database.collection<WorkerHeartbeat>(collectionNames.workerHeartbeats),
   };
 }

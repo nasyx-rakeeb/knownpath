@@ -8,6 +8,7 @@ export interface GitHubSourceDefinition {
   readonly defaultLookbackDays: number;
   readonly ecosystemHints: readonly string[];
   readonly enabled: boolean;
+  readonly refreshIntervalMinutes: number;
   readonly key: string;
   readonly licenseIdentifier: string;
   readonly licenseUrl?: string;

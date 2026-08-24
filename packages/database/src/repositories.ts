@@ -19,10 +19,13 @@ import {
   knownPathRevisionSchema,
   knownPathSearchDocumentSchema,
   knowledgeSearchEventSchema,
+  pipelineRunSchema,
+  pipelineStepSchema,
   sourceItemSchema,
   sourceItemStateSchema,
   sourceRegistrySchema,
   userSchema,
+  workerHeartbeatSchema,
   type AgentContribution,
   type AgentContributionV2,
   type AgentContributionId,
@@ -63,6 +66,10 @@ import {
   type KnownPathSearchDocumentId,
   type KnowledgeSearchEvent,
   type KnowledgeSearchEventId,
+  type PipelineRun,
+  type PipelineRunId,
+  type PipelineStep,
+  type PipelineStepId,
   type SimilarityProfileId,
   type SourceItem,
   type SourceItemId,
@@ -73,6 +80,8 @@ import {
   type User,
   type UserId,
   type VersionedKey,
+  type WorkerHeartbeat,
+  type WorkerHeartbeatId,
 } from "@knownpath/domain";
 import type {
   Collection,
@@ -452,10 +461,12 @@ export class SourceItemRepository
   public async listLatestExtractionTargets(
     limit: number,
     sourceRegistryId?: SourceRegistryId,
+    capturedSince?: Date,
   ): Promise<SourceItem[]> {
     const match: Filter<SourceItem> = {
       itemType: { $in: ["issue", "discussion", "documentation_page", "release_note"] },
       ...(sourceRegistryId === undefined ? {} : { sourceRegistryId }),
+      ...(capturedSince === undefined ? {} : { capturedAt: { $gte: capturedSince } }),
     };
     const documents = await this.collection
       .aggregate<SourceItem>([
@@ -1471,6 +1482,116 @@ export class SafetyEventRepository extends MongoEntityRepository<SafetyEvent, Sa
   }
 }
 
+export class PipelineRunRepository extends MongoEntityRepository<PipelineRun, PipelineRunId> {
+  public constructor(collection: Collection<PipelineRun>) {
+    super(collection, pipelineRunSchema);
+  }
+
+  public async list(status?: PipelineRun["status"], limit = 100): Promise<PipelineRun[]> {
+    const filter = status === undefined ? {} : { status };
+    const values = await this.collection
+      .find(filter)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => pipelineRunSchema.parse(value));
+  }
+
+  public async updateState(
+    id: PipelineRunId,
+    values: Partial<
+      Pick<PipelineRun, "status" | "counters" | "startedAt" | "completedAt" | "lastError">
+    >,
+  ): Promise<PipelineRun | null> {
+    return this.updateOne({ _id: id }, values as MatchKeysAndValues<PipelineRun>);
+  }
+}
+
+export class PipelineStepRepository extends MongoEntityRepository<PipelineStep, PipelineStepId> {
+  public constructor(collection: Collection<PipelineStep>) {
+    super(collection, pipelineStepSchema);
+  }
+
+  public async createIfAbsent(entity: PipelineStep): Promise<PipelineStep | null> {
+    const parsed = pipelineStepSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey): Promise<PipelineStep | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async findByBullmqJobId(jobId: string): Promise<PipelineStep | null> {
+    return this.findOne({ bullmqJobId: jobId });
+  }
+
+  public async listPendingDispatch(limit = 100): Promise<PipelineStep[]> {
+    const values = await this.collection
+      .find({ status: "pending_dispatch" })
+      .sort({ "audit.createdAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => pipelineStepSchema.parse(value));
+  }
+
+  public async listByRun(runId: PipelineRunId, limit = 1_000): Promise<PipelineStep[]> {
+    const values = await this.collection
+      .find({ pipelineRunId: runId })
+      .sort({ "audit.createdAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => pipelineStepSchema.parse(value));
+  }
+
+  public async updateState(
+    id: PipelineStepId,
+    values: Partial<
+      Pick<
+        PipelineStep,
+        | "status"
+        | "attemptsMade"
+        | "dispatchedAt"
+        | "startedAt"
+        | "completedAt"
+        | "lastError"
+        | "quarantineReason"
+      >
+    >,
+  ): Promise<PipelineStep | null> {
+    return this.updateOne({ _id: id }, values as MatchKeysAndValues<PipelineStep>);
+  }
+}
+
+export class WorkerHeartbeatRepository extends MongoEntityRepository<
+  WorkerHeartbeat,
+  WorkerHeartbeatId
+> {
+  public constructor(collection: Collection<WorkerHeartbeat>) {
+    super(collection, workerHeartbeatSchema);
+  }
+
+  public async upsert(entity: WorkerHeartbeat): Promise<WorkerHeartbeat> {
+    const parsed = workerHeartbeatSchema.parse(entity);
+    await this.collection.replaceOne({ _id: parsed._id }, parsed, { upsert: true });
+    return parsed;
+  }
+
+  public async listRecent(since: Date, limit = 100): Promise<WorkerHeartbeat[]> {
+    const values = await this.collection
+      .find({ lastHeartbeatAt: { $gte: since } })
+      .sort({ lastHeartbeatAt: -1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => workerHeartbeatSchema.parse(value));
+  }
+}
+
 export interface KnownPathRepositories {
   readonly agentContributions: AgentContributionRepository;
   readonly agentOutcomes: AgentOutcomeRepository;
@@ -1491,10 +1612,13 @@ export interface KnownPathRepositories {
   readonly knownPathRevisions: KnownPathRevisionRepository;
   readonly knownPathSearchDocuments: KnownPathSearchDocumentRepository;
   readonly knowledgeSearchEvents: KnowledgeSearchEventRepository;
+  readonly pipelineRuns: PipelineRunRepository;
+  readonly pipelineSteps: PipelineStepRepository;
   readonly sourceItems: SourceItemRepository;
   readonly sourceItemStates: SourceItemStateRepository;
   readonly sourceRegistries: SourceRegistryRepository;
   readonly users: UserRepository;
+  readonly workerHeartbeats: WorkerHeartbeatRepository;
 }
 
 export function createRepositories(collections: KnownPathCollections): KnownPathRepositories {
@@ -1524,9 +1648,12 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
       collections.knownPathSearchDocuments,
     ),
     knowledgeSearchEvents: new KnowledgeSearchEventRepository(collections.knowledgeSearchEvents),
+    pipelineRuns: new PipelineRunRepository(collections.pipelineRuns),
+    pipelineSteps: new PipelineStepRepository(collections.pipelineSteps),
     sourceItems: new SourceItemRepository(collections.sourceItems),
     sourceItemStates: new SourceItemStateRepository(collections.sourceItemStates),
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),
     users: new UserRepository(collections.users),
+    workerHeartbeats: new WorkerHeartbeatRepository(collections.workerHeartbeats),
   };
 }

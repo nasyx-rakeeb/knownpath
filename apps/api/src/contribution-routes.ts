@@ -14,6 +14,7 @@ import {
 } from "@knownpath/domain";
 import type { ContributionService } from "@knownpath/contributions";
 import type { KnownPathDatabase } from "@knownpath/database";
+import type { JobProducer } from "@knownpath/jobs";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
@@ -39,6 +40,7 @@ export function registerContributionRoutes(
   database: KnownPathDatabase,
   audit: AuditService,
   policy: RateLimitPolicy,
+  producer?: JobProducer,
 ): void {
   api.post(
     "/api/v1/contributions",
@@ -109,6 +111,8 @@ export function registerContributionRoutes(
             user: principal.user,
             apiKeyId: principal.key._id,
           },
+          new AbortController().signal,
+          producer === undefined ? "inline" : "deferred",
         );
         await audit.record({
           actor: { kind: "api_key", userId: principal.user._id, apiKeyId: principal.key._id },
@@ -127,7 +131,12 @@ export function registerContributionRoutes(
           },
         });
         return reply
-          .status(result.contribution.status === "quarantined" ? 202 : 200)
+          .status(
+            result.contribution.status === "quarantined" ||
+              result.contribution.processing.stage !== "complete"
+              ? 202
+              : 200,
+          )
           .send(result.response);
       } catch (error) {
         await audit.record({

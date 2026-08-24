@@ -47,6 +47,9 @@ export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">(
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
 export const outcomeAssessmentIdSchema = brandedIdSchema<"OutcomeAssessmentId">();
 export const safetyEventIdSchema = brandedIdSchema<"SafetyEventId">();
+export const pipelineRunIdSchema = brandedIdSchema<"PipelineRunId">();
+export const pipelineStepIdSchema = brandedIdSchema<"PipelineStepId">();
+export const workerHeartbeatIdSchema = brandedIdSchema<"WorkerHeartbeatId">();
 
 export type UserId = z.infer<typeof userIdSchema>;
 export type ApiKeyId = z.infer<typeof apiKeyIdSchema>;
@@ -72,6 +75,9 @@ export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
 export type OutcomeAssessmentId = z.infer<typeof outcomeAssessmentIdSchema>;
 export type SafetyEventId = z.infer<typeof safetyEventIdSchema>;
+export type PipelineRunId = z.infer<typeof pipelineRunIdSchema>;
+export type PipelineStepId = z.infer<typeof pipelineStepIdSchema>;
+export type WorkerHeartbeatId = z.infer<typeof workerHeartbeatIdSchema>;
 
 export function createUserId(): UserId {
   return userIdSchema.parse(randomUUID());
@@ -167,6 +173,18 @@ export function createOutcomeAssessmentId(): OutcomeAssessmentId {
 
 export function createSafetyEventId(): SafetyEventId {
   return safetyEventIdSchema.parse(randomUUID());
+}
+
+export function createPipelineRunId(): PipelineRunId {
+  return pipelineRunIdSchema.parse(randomUUID());
+}
+
+export function createPipelineStepId(): PipelineStepId {
+  return pipelineStepIdSchema.parse(randomUUID());
+}
+
+export function createWorkerHeartbeatId(): WorkerHeartbeatId {
+  return workerHeartbeatIdSchema.parse(randomUUID());
 }
 
 export const auditMetadataSchema = z.strictObject({

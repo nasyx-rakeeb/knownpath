@@ -889,3 +889,37 @@ every outcome wastes quota. Returning raw reports exposes private operational da
 
 **References:** [Semantic Versioning](https://semver.org/),
 [NIST Technical Note 2119](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2119.pdf)
+
+## 2026-08-24 — Use BullMQ with Valkey for ephemeral orchestration and MongoDB for durable intent
+
+**Decision:** Adopt exact BullMQ 6.2.0 with ioredis 6.0.0 and Valkey 9.1.1. Keep MongoDB as the only
+persistent product database. Add `@knownpath/jobs` as the sole queue-library boundary and
+`@knownpath/pipelines` as the domain-service composition boundary. Persist every run and step in
+MongoDB before dispatch; Valkey stores only delivery, schedules, retries, provider rate limits,
+locks, stalled-job coordination, and bounded diagnostics.
+
+Use six workload queues (`control`, `github`, `sources`, `ai`, `knowledge`, `feedback`),
+source-specific Job Schedulers, exponential retry with 50% jitter, explicit permanent failures,
+`maxStalledCount=2`, bounded graceful shutdown, and durable quarantine. Source refresh intervals
+live in the data-driven source registry. API reads degrade independently of Valkey; workers require
+it. Contribution/outcome product writes occur before their follow-up job is dispatched.
+
+**Why:** BullMQ provides maintained scheduling, backoff, rate limiting, lock renewal, stalled-job
+recovery, concurrency, and pause/retry controls that KnownPath should not recreate. Workload
+isolation respects GitHub/Gemini limits and prevents one poison item from halting a batch. MongoDB
+intent plus idempotent handlers makes retry and Valkey loss recoverable without creating a second
+product source of truth.
+
+**Rejected:** Agenda keeps MongoDB-only infrastructure but has weaker first-class retry/backoff and
+provider-rate controls for this workload. Temporal adds a separate operational platform whose
+complexity is not justified at the current scale. A custom MongoDB lease/retry scheduler would
+duplicate difficult locking and recovery behavior. Storing product state only in Valkey would make
+queue eviction/outage a data-loss event. A monolithic BullMQ Flow was rejected because changed-item
+fan-out is discovered dynamically and durable service-level idempotency is clearer to audit.
+
+**References:** [BullMQ connections](https://docs.bullmq.io/guide/connections),
+[retrying and jitter](https://docs.bullmq.io/guide/retrying-failing-jobs),
+[Job Schedulers](https://docs.bullmq.io/guide/job-schedulers),
+[graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown),
+[production guidance](https://docs.bullmq.io/guide/going-to-production),
+[Valkey installation](https://valkey.io/topics/installation/)

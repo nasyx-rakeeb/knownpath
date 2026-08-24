@@ -15,6 +15,8 @@ import {
 import type { ApiConfig, AuthConfig } from "@knownpath/config";
 import type { EmbeddingConfig, SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
+import type { AgentContributionV2 } from "@knownpath/domain";
+import type { JobProducer, QueueRegistry } from "@knownpath/jobs";
 import {
   GeminiEmbeddingProvider,
   KnowledgeAccessService,
@@ -35,7 +37,12 @@ import { registerKnowledgeRoutes } from "./knowledge-routes.js";
 import { registerContributionRoutes } from "./contribution-routes.js";
 import { registerMcpRoutes } from "./mcp-routes.js";
 import { registerOutcomeRoutes } from "./outcome-routes.js";
-import { registerAccountRoutes, registerApiKeyRoutes, registerSystemRoutes } from "./routes.js";
+import {
+  registerAccountRoutes,
+  registerApiKeyRoutes,
+  registerOperationalRoutes,
+  registerSystemRoutes,
+} from "./routes.js";
 
 export interface BuildApiOptions {
   readonly apiConfig: ApiConfig;
@@ -43,6 +50,8 @@ export interface BuildApiOptions {
   readonly database: KnownPathDatabase;
   readonly embeddingConfig: EmbeddingConfig;
   readonly searchConfig: SearchConfig;
+  readonly jobProducer?: JobProducer;
+  readonly queueRegistry?: QueueRegistry;
 }
 
 export async function buildApi(options: BuildApiOptions): Promise<FastifyInstance> {
@@ -191,13 +200,28 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   const contributions = new ContributionService(options.database, {
     apiOrigin: options.authConfig.baseUrl,
     digestSecret: options.authConfig.apiKeyPepper,
+    ...(options.jobProducer === undefined
+      ? {}
+      : {
+          defaultProcessingMode: "deferred" as const,
+          enqueueProcessing: async (contribution: AgentContributionV2) => {
+            await options.jobProducer?.enqueue({
+              jobName: "contribution.process",
+              kind: "contribution",
+              target: { kind: "contribution", id: contribution._id },
+              trigger: "api",
+              idempotencyParts: ["contribution.process", contribution._id],
+            });
+          },
+        }),
   });
   const outcomes = new OutcomeService(options.database);
 
-  registerSystemRoutes(api, options.database);
+  registerSystemRoutes(api, options.database, options.queueRegistry);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
+  registerOperationalRoutes(api, authenticator, options.database, options.queueRegistry);
   registerKnowledgeRoutes(api, authenticator, knowledge, {
     read: rateLimitPolicies.knowledgeRead,
     search: rateLimitPolicies.knowledgeSearch,
@@ -210,8 +234,16 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.database,
     audit,
     rateLimitPolicies.contributionSubmit,
+    options.jobProducer,
   );
-  registerOutcomeRoutes(api, authenticator, outcomes, audit, rateLimitPolicies.outcomeSubmit);
+  registerOutcomeRoutes(
+    api,
+    authenticator,
+    outcomes,
+    audit,
+    rateLimitPolicies.outcomeSubmit,
+    options.jobProducer,
+  );
   registerMcpRoutes(api, {
     apiConfig: options.apiConfig,
     authConfig: options.authConfig,

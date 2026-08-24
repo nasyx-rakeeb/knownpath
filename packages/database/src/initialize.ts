@@ -54,6 +54,105 @@ function envelopeValidator(
 
 export const collectionDefinitions: readonly CollectionDefinition[] = [
   {
+    name: collectionNames.pipelineRuns,
+    validator: envelopeValidator(["kind", "trigger", "status", "scope", "counters"], {
+      kind: { bsonType: "string" },
+      trigger: { bsonType: "string" },
+      status: { bsonType: "string" },
+      scope: { bsonType: "object" },
+      counters: { bsonType: "object" },
+    }),
+    indexes: [
+      { key: { status: 1, "audit.updatedAt": 1 }, name: "ix_pipeline_runs_status_updated" },
+      { key: { kind: 1, "audit.createdAt": -1 }, name: "ix_pipeline_runs_kind_created" },
+      {
+        key: { "scope.target.kind": 1, "scope.target.id": 1, "audit.createdAt": -1 },
+        name: "ix_pipeline_runs_target_created",
+      },
+    ],
+  },
+  {
+    name: collectionNames.pipelineSteps,
+    validator: envelopeValidator(
+      [
+        "pipelineRunId",
+        "jobName",
+        "queueName",
+        "target",
+        "idempotencyKey",
+        "payloadDigest",
+        "payload",
+        "bullmqJobId",
+        "trigger",
+        "chainDepth",
+        "status",
+        "attemptsMade",
+        "maxAttempts",
+        "processingVersions",
+      ],
+      {
+        pipelineRunId: { bsonType: "string" },
+        jobName: { bsonType: "string" },
+        queueName: { bsonType: "string" },
+        target: { bsonType: "object" },
+        idempotencyKey: { bsonType: "object" },
+        payloadDigest: { bsonType: "string" },
+        payload: { bsonType: "object" },
+        bullmqJobId: { bsonType: "string" },
+        trigger: { bsonType: "string" },
+        chainDepth: { bsonType: numericBsonTypes },
+        status: { bsonType: "string" },
+        attemptsMade: { bsonType: numericBsonTypes },
+        maxAttempts: { bsonType: numericBsonTypes },
+        processingVersions: { bsonType: "object" },
+      },
+    ),
+    indexes: [
+      { key: { "idempotencyKey.value": 1 }, name: "uq_pipeline_steps_idempotency", unique: true },
+      { key: { bullmqJobId: 1 }, name: "uq_pipeline_steps_bullmq_job", unique: true },
+      { key: { status: 1, "audit.updatedAt": 1 }, name: "ix_pipeline_steps_status_updated" },
+      {
+        key: { pipelineRunId: 1, status: 1, "audit.createdAt": 1 },
+        name: "ix_pipeline_steps_run_status_created",
+      },
+      {
+        key: { "target.kind": 1, "target.id": 1, jobName: 1, "audit.createdAt": -1 },
+        name: "ix_pipeline_steps_target_job_created",
+      },
+      {
+        key: { status: 1, quarantineReason: 1, completedAt: -1 },
+        name: "ix_pipeline_steps_quarantine",
+      },
+    ],
+  },
+  {
+    name: collectionNames.workerHeartbeats,
+    validator: envelopeValidator(
+      [
+        "workerVersion",
+        "queues",
+        "state",
+        "activeJobs",
+        "startedAt",
+        "lastHeartbeatAt",
+        "expiresAt",
+      ],
+      {
+        workerVersion: { bsonType: "string" },
+        queues: { bsonType: "array" },
+        state: { bsonType: "string" },
+        activeJobs: { bsonType: numericBsonTypes },
+        startedAt: { bsonType: "date" },
+        lastHeartbeatAt: { bsonType: "date" },
+        expiresAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      { key: { state: 1, lastHeartbeatAt: -1 }, name: "ix_worker_heartbeats_state_time" },
+      { key: { expiresAt: 1 }, name: "ttl_worker_heartbeats", expireAfterSeconds: 0 },
+    ],
+  },
+  {
     name: collectionNames.users,
     validator: plainValidator(
       [
