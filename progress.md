@@ -2402,13 +2402,19 @@ move to an always-on worker later.
 - Temporary verification MongoDB/Valkey data, queue keys, downloaded validator binary, and logs were
   deleted after both disposable services stopped. No Atlas or Render product data was used.
 
-### Manual hosted setup remaining
+### Hosted activation verified
 
-- Create the free Upstash database with eviction disabled and copy its TLS `rediss://` URL directly
-  into Render `QUEUE_REDIS_URL` and GitHub secret `KNOWNPATH_QUEUE_REDIS_URL`.
-- Add the Atlas URI, current Render auth secret/API-key pepper, and approved Gemini key as the named
-  GitHub Actions secrets documented in `docs/DEPLOYMENT.md`. Never paste those values into Git or
-  workflow logs.
-- Push this implementation, sync/redeploy the Render Blueprint, manually run **Process production
-  queues** with schedule application off, verify queue readiness, then deliberately enable schedules
-  and the `KNOWNPATH_SCHEDULED_WORKER_ENABLED` repository variable.
+- The free Upstash TLS queue URL is configured in Render and GitHub Actions, and the required Atlas,
+  auth, API-key pepper, and Gemini credentials are configured as GitHub Actions secrets. Their
+  values were not committed or printed.
+- Render readiness at `https://knownpath-api.onrender.com/health/ready` reported MongoDB, auth, and
+  queues all `ok` after deployment.
+- Manual GitHub Actions run
+  [`32707179920`](https://github.com/nasyx-rakeeb/knownpath/actions/runs/32707179920) completed
+  successfully in 65 seconds. It validated the required secrets, installed the locked dependencies,
+  built the worker, started all six queue workers, and drained to zero runnable jobs. Schedule
+  application was intentionally skipped for this first run.
+- Repository variable `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` now enables the bounded worker at
+  the configured thirty-minute cadence. Source-refresh schedules remain deliberately unapplied:
+  enabling them immediately begins ingestion and consumes GitHub/Gemini quota, so that requires a
+  separate explicit operational decision.
