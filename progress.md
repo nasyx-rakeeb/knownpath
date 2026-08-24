@@ -2173,11 +2173,12 @@ Operational behavior and formulas are documented in [`docs/OUTCOMES.md`](docs/OU
 
 - Production API keys intended to report outcomes must be deliberately issued with both
   `knowledge:read` and `knowledge:outcome`; existing keys do not gain the scope automatically.
-- Phase 15 has not been deployed or published to npm. Installed agents remain on the prior published
-  CLI/skill until a separately requested release and redeploy occur.
-- The HTTP/service path was exercised against Atlas. An official external MCP client invocation of
-  the new write tool remains a post-deployment manual check; its shared schemas and gateway are
-  covered by repository typecheck/build verification.
+- Phase 15 is deployed and `knownpath@0.3.0` is published. Existing installations do not update
+  themselves silently; run the installer update flow to receive skill 1.2.0 and the outcome tool.
+- The HTTP/service path was exercised against Atlas. An authenticated official external MCP client
+  invocation of the new write tool remains a manual check for an operator-issued key with
+  `knowledge:read` and `knowledge:outcome`; its shared schemas and gateway passed repository
+  typecheck/build verification.
 
 ### Known limitations intentionally left for later phases
 
@@ -2195,3 +2196,17 @@ Operational behavior and formulas are documented in [`docs/OUTCOMES.md`](docs/OU
 
 **Phase 16 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt.**
+
+## Post-Phase 15 — Deployment and npm release
+
+- Pushed Phase 15 commit `6205462` to GitHub `main`; Render's commit-triggered deployment completed
+  at `https://knownpath-api.onrender.com`.
+- Live HTTPS verification returned `ok` liveness and `ready` status with MongoDB/auth `ok`. The
+  production OpenAPI document exposed 23 paths and included `POST /api/v1/outcomes`.
+- Built and inspected the pnpm-transformed `knownpath@0.3.0` tarball before publication. Its runtime
+  dependencies contained concrete registry versions rather than workspace/catalog specifiers.
+- Published public npm release `knownpath@0.3.0` with the `latest` tag. A clean temporary npm
+  install ran `knownpath --version` as `0.3.0` and contained skill version 1.2.0 plus
+  `knownpath_report_outcome`.
+- The short-lived clipboard publishing credential was used only in memory, never printed or written
+  to project files, and the clipboard was cleared after successful publication.
