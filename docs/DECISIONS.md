@@ -923,3 +923,27 @@ fan-out is discovered dynamically and durable service-level idempotency is clear
 [graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown),
 [production guidance](https://docs.bullmq.io/guide/going-to-production),
 [Valkey installation](https://valkey.io/topics/installation/)
+
+## 2026-08-24 — Use scheduled GitHub Actions and Upstash for the zero-cost early worker deployment
+
+**Decision:** Keep the Render API on its free web-service plan, use one free Upstash
+Redis-compatible database for BullMQ queue state, and run the existing six consumers through a
+bounded `jobs drain` command scheduled every fifteen minutes on GitHub Actions. Keep continuous
+`jobs start` semantics unchanged. Treat this as an early deployment with delayed processing, not an
+always-on production SLA.
+
+**Why:** Upstash officially supports BullMQ, persists its free database, and defaults to rejecting
+writes rather than evicting queue keys at capacity. Standard GitHub-hosted runners are free for this
+public repository. Running only while draining avoids an idle BullMQ process consuming free queue
+commands and avoids Render's paid Background Worker. MongoDB durable intent and idempotent handlers
+remain authoritative if a run is delayed or interrupted.
+
+**Rejected:** Render's free Key Value instance can restart without preserving queue state, and a
+laptop worker is not reliably available. An always-on Render worker plus persistent Key Value gives
+better latency but creates recurring cost before KnownPath has measured usage. Replacing BullMQ with
+a provider-specific scheduler would undo Phase 16's queue boundary.
+
+**References:** [Upstash BullMQ integration](https://upstash.com/docs/redis/integrations/bullmq),
+[Upstash durability](https://upstash.com/docs/redis/features/durability),
+[GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
+[scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)

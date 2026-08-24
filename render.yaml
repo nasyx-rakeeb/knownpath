@@ -56,6 +56,12 @@ services:
         value: "20"
       - key: MONGODB_SERVER_SELECTION_TIMEOUT_MS
         value: "10000"
+      - key: QUEUE_REDIS_URL
+        sync: false
+      - key: QUEUE_PREFIX
+        value: knownpath-production
+      - key: QUEUE_PRODUCER_CONNECT_TIMEOUT_MS
+        value: "5000"
       - key: SEARCH_BACKEND
         value: atlas
       - key: SEARCH_ATLAS_LEXICAL_INDEX

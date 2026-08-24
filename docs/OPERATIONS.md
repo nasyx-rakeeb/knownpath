@@ -40,6 +40,12 @@ pnpm jobs schedules apply
 pnpm jobs schedules status
 ```
 
+For bounded compute, `pnpm jobs drain` starts the same six consumers and exits after every runnable
+queue has remained idle for `QUEUE_DRAIN_IDLE_MS`. Future scheduled jobs and delayed retries do not
+keep the process alive; they are eligible on the next invocation. `QUEUE_DRAIN_MAX_RUNTIME_MS`
+causes a non-zero exit if runnable work remains beyond the execution budget. `jobs start` retains
+its existing continuous-worker behavior.
+
 Every enabled entry in `config/sources/registry.json` has `refreshIntervalMinutes`. Applying
 schedules creates one source-specific scheduler so failures and rate limits remain isolated.
 Maintenance reconciliation runs every five minutes, stale inspection every fifteen minutes, and
@@ -86,6 +92,29 @@ graceful shutdown stops intake, waits for active jobs, then forces close only af
 - Workers fail startup clearly when Valkey is missing or unreachable. No business state is inferred
   from missing BullMQ jobs.
 
+## Free hosted worker path
+
+The early hosted deployment uses an Upstash free Redis-compatible database and
+`.github/workflows/process-queues.yml` instead of a paid always-on Render worker. Upstash officially
+supports BullMQ over its TLS Redis URL. The workflow runs at minutes 7 and 37 of every hour and can
+also be started manually. It drains runnable work for at most ten minutes and then closes all
+workers gracefully. Schedule installation is an explicit manual-dispatch option so connecting the
+infrastructure cannot accidentally start every configured source against free provider quotas.
+
+This path is intentionally not an always-on production SLA. GitHub can delay scheduled workflows,
+and it disables schedules in public repositories after 60 days without repository activity. A
+delayed retry may wait for the next invocation. Standard GitHub-hosted runners are currently free
+for public repositories, and the selected Upstash tier has bounded command/storage quotas. Monitor
+both providers before increasing source cadence. The hosted drain polls every five seconds and
+requires fifteen seconds of runnable idleness, deliberately reducing idle queue commands.
+
+The workflow has read-only repository permissions, runs only from `main`, does not execute for pull
+requests, permits only one worker run at a time, and pins official actions to immutable revisions.
+Its required credentials are repository Actions secrets; it never echoes them. Scheduled events are
+skipped until `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` is configured as a repository Actions
+variable after a successful manual run. See
+[`DEPLOYMENT.md`](DEPLOYMENT.md#configure-the-free-queue-and-scheduled-worker) for exact setup.
+
 ## References
 
 - [BullMQ connections](https://docs.bullmq.io/guide/connections)
@@ -95,3 +124,7 @@ graceful shutdown stops intake, waits for active jobs, then forces close only af
 - [BullMQ graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown)
 - [BullMQ production guidance](https://docs.bullmq.io/guide/going-to-production)
 - [Valkey installation](https://valkey.io/topics/installation/)
+- [Upstash BullMQ integration](https://upstash.com/docs/redis/integrations/bullmq)
+- [Upstash Redis free limits](https://upstash.com/docs/redis/overall/billing)
+- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+- [GitHub scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)

@@ -2343,3 +2343,72 @@ Runtime behavior is documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 **Phase 17 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt. Do not infer or begin dashboard, team, moderation, or another roadmap feature from
 Phase 16.**
+
+## Post-Phase 16 — Zero-cost scheduled worker deployment
+
+### Goal
+
+Replace the unprovisioned paid-worker requirement with a zero-cost early deployment path while
+preserving Phase 16's BullMQ contracts, MongoDB durability, privacy restrictions, and ability to
+move to an always-on worker later.
+
+### Research and decisions
+
+- Current official Render documentation confirmed that free Key Value is memory-only across restarts
+  and that Background Workers are not available as a free service type. The paid persistent Render
+  topology was therefore not provisioned.
+- Current [Upstash BullMQ guidance](https://upstash.com/docs/redis/integrations/bullmq),
+  [durability behavior](https://upstash.com/docs/redis/features/durability), and
+  [free limits](https://upstash.com/docs/redis/overall/billing) support a bounded free
+  Redis-compatible queue path with eviction disabled.
+- Current
+  [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+  confirms standard hosted runners are free for public repositories. Scheduled workflows may be
+  delayed and are disabled after 60 days without repository activity, so this is documented as an
+  early zero-cost deployment rather than an always-on production SLA.
+- Added a bounded `jobs drain` mode instead of changing continuous `jobs start`. Future delayed jobs
+  do not prevent an idle exit; active/waiting/prioritized work and chained jobs do. Runtime, idle,
+  and polling bounds are strictly environment-validated.
+- The production workflow runs only trusted `main`, uses read-only repository permissions, pins
+  official actions to immutable commits, permits one run at a time, and reads credentials only from
+  GitHub Actions secrets. Scheduled runs remain skipped until the explicit repository variable
+  `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` is set after a successful manual run.
+- Schedule application is a disabled-by-default manual workflow option. Isolated verification showed
+  that first-time BullMQ schedule application immediately starts configured sources, so automatic
+  application was rejected to protect free GitHub/Gemini quotas.
+
+### Files and configuration
+
+- Added `.github/workflows/process-queues.yml` for manual and thirty-minute bounded queue draining.
+- Added drain settings to centralized queue configuration and `.env.example`.
+- Added the external secret `QUEUE_REDIS_URL` and production queue prefix to `render.yaml`; no queue
+  URI or credential is committed.
+- Updated the operations/deployment/README/decision documentation and added the approved design at
+  `docs/superpowers/specs/2026-08-24-knownpath-free-scheduled-worker-design.md`.
+
+### Verification observed
+
+- With Node 24.18.0, `pnpm typecheck` completed **39/39**, `pnpm lint` completed **22/22**,
+  `pnpm build` completed **22/22**, and `pnpm format:check` passed. No tests were added or run.
+- Official `actionlint` 1.7.12 was checksum-verified and accepted
+  `.github/workflows/process-queues.yml`; Ruby YAML parsing also accepted the workflow and
+  `render.yaml`.
+- An isolated MongoDB 8.3.4 and Valkey 9.1.1 stack completed a real queued `maintenance.reconcile`
+  step in one attempt. `jobs drain` reported `status: idle`, zero runnable jobs, and a final worker
+  heartbeat of `stopped` with zero active jobs.
+- An invalid `QUEUE_DRAIN_IDLE_MS=999` exited 1 with the actionable configuration error rather than
+  starting a worker. A forced ten-second runtime budget with active source work entered the existing
+  bounded graceful-shutdown path.
+- Temporary verification MongoDB/Valkey data, queue keys, downloaded validator binary, and logs were
+  deleted after both disposable services stopped. No Atlas or Render product data was used.
+
+### Manual hosted setup remaining
+
+- Create the free Upstash database with eviction disabled and copy its TLS `rediss://` URL directly
+  into Render `QUEUE_REDIS_URL` and GitHub secret `KNOWNPATH_QUEUE_REDIS_URL`.
+- Add the Atlas URI, current Render auth secret/API-key pepper, and approved Gemini key as the named
+  GitHub Actions secrets documented in `docs/DEPLOYMENT.md`. Never paste those values into Git or
+  workflow logs.
+- Push this implementation, sync/redeploy the Render Blueprint, manually run **Process production
+  queues** with schedule application off, verify queue readiness, then deliberately enable schedules
+  and the `KNOWNPATH_SCHEDULED_WORKER_ENABLED` repository variable.

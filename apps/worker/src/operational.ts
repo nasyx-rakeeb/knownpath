@@ -42,6 +42,7 @@ import { CandidateAssessmentService, defaultScoringPolicy } from "@knownpath/ver
 const usage = `KnownPath operational jobs
 
   jobs start
+  jobs drain
   jobs enqueue <job-name> --target-kind <kind> --target-id <id> [--options-json <json>]
   jobs status
   jobs pause [queue]
@@ -58,7 +59,8 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
     return;
   }
   const queueConfig = loadQueueConfig();
-  const connection = createValkeyConnection(requireQueueRedisUrl(queueConfig), action === "start");
+  const workerAction = action === "start" || action === "drain";
+  const connection = createValkeyConnection(requireQueueRedisUrl(queueConfig), workerAction);
   const queues = new QueueRegistry(connection, queueConfig);
   const database = await connectToMongo(loadMongoConfig());
   try {
@@ -66,7 +68,7 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
       throw new Error("Valkey queue infrastructure is unavailable");
     await queues.waitUntilReady();
     const producer = new JobProducer(database, queues, queueConfig);
-    if (action === "start") {
+    if (workerAction) {
       const services = await createOperationalServices(database);
       const runtime = new OperationalWorkerRuntime(
         database,
@@ -91,10 +93,31 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
       );
       await runtime.start();
       console.info(
-        JSON.stringify({ event: "worker.ready", queues: Object.keys(queueConfig.concurrency) }),
+        JSON.stringify({
+          event: "worker.ready",
+          mode: action,
+          queues: Object.keys(queueConfig.concurrency),
+        }),
       );
-      await waitForShutdown();
-      await runtime.close();
+      if (action === "start") {
+        await waitForShutdown();
+        await runtime.close();
+        return;
+      }
+      const shutdown = createShutdownSignal();
+      const result = await (async () => {
+        try {
+          return await queues.waitUntilRunnableIdle(queueConfig.drain, shutdown.signal);
+        } finally {
+          shutdown.dispose();
+          await runtime.close();
+        }
+      })();
+      console.info(JSON.stringify({ event: "worker.drain.complete", ...result }));
+      if (result.status === "timeout")
+        throw new Error(
+          `Queue drain exceeded ${queueConfig.drain.maxRuntimeMs}ms with ${result.runnableJobs} runnable jobs`,
+        );
       return;
     }
     if (action === "status") {
@@ -432,4 +455,18 @@ async function waitForShutdown(): Promise<void> {
     process.once("SIGINT", resolve);
     process.once("SIGTERM", resolve);
   });
+}
+
+function createShutdownSignal(): { readonly signal: AbortSignal; readonly dispose: () => void } {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  process.once("SIGINT", abort);
+  process.once("SIGTERM", abort);
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      process.removeListener("SIGINT", abort);
+      process.removeListener("SIGTERM", abort);
+    },
+  };
 }

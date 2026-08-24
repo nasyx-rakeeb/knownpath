@@ -1,11 +1,12 @@
 # Deploy the KnownPath API on Render
 
 KnownPath deploys the Fastify API as one Render web service and continues to use MongoDB Atlas as
-its only persistent database. The worker, web dashboard, MongoDB, and local stdio MCP bridge are not
-part of this service.
+its only persistent product database. The web dashboard, MongoDB, and local stdio MCP bridge are not
+part of this service. The current zero-cost worker runs separately through GitHub Actions.
 
-The root [`render.yaml`](../render.yaml) is the deployment source of truth. It builds from the
-monorepo root, runs only `@knownpath/api`, uses Render's `PORT`, and checks `/health/ready`.
+The root [`render.yaml`](../render.yaml) is the API deployment source of truth. It builds from the
+monorepo root, runs only `@knownpath/api`, uses Render's `PORT`, checks `/health/ready`, and accepts
+an externally managed queue URL without committing it.
 
 ## Before creating the service
 
@@ -29,7 +30,8 @@ In the Render Dashboard, select **New > Blueprint**, connect
 `https://github.com/nasyx-rakeeb/knownpath`, and select the root `render.yaml`. The Blueprint
 creates only `knownpath-api` in Render's Singapore region.
 
-When Render prompts for `MONGODB_URI`, provide the rotated Atlas URI. The Blueprint generates
+When Render prompts for `MONGODB_URI`, provide the rotated Atlas URI. When it prompts for
+`QUEUE_REDIS_URL`, provide the Upstash TLS Redis URL created below. The Blueprint generates
 independent values for `BETTER_AUTH_SECRET` and `API_KEY_PEPPER`; their values are never stored in
 Git. Render supplies the assigned HTTPS origin to `BETTER_AUTH_URL` and `AUTH_TRUSTED_ORIGINS`
 through its documented `RENDER_EXTERNAL_URL` variable.
@@ -43,6 +45,52 @@ Do not add `GITHUB_TOKEN`, Gemini credentials, `KNOWNPATH_API_KEY`, or worker-on
 the web service. A rotated `GEMINI_API_KEY` may be added deliberately later if production query
 embedding is required; without it, retrieval remains useful through Atlas lexical and deterministic
 matching.
+
+## Configure the free queue and scheduled worker
+
+1. Create one free database in the [Upstash Console](https://console.upstash.com/redis). Choose the
+   closest available region to the API/database, keep eviction disabled, open **Connect**, and copy
+   the TLS Redis connection string beginning with `rediss://`. Do not use the REST URL or print the
+   connection string in a terminal transcript.
+2. In Render, open `knownpath-api` > **Environment**, set `QUEUE_REDIS_URL` to that TLS string, and
+   save/redeploy. Keep `QUEUE_PREFIX=knownpath-production` as defined by the Blueprint.
+3. In GitHub, open the KnownPath repository > **Settings** > **Secrets and variables** >
+   **Actions**. Create these repository secrets:
+
+   | GitHub secret                       | Required value                                      |
+   | ----------------------------------- | --------------------------------------------------- |
+   | `KNOWNPATH_QUEUE_REDIS_URL`         | The same Upstash `rediss://` connection string      |
+   | `KNOWNPATH_MONGODB_URI`             | The deployed Atlas URI                              |
+   | `KNOWNPATH_BETTER_AUTH_SECRET`      | The exact current Render `BETTER_AUTH_SECRET` value |
+   | `KNOWNPATH_API_KEY_PEPPER`          | The exact current Render `API_KEY_PEPPER` value     |
+   | `KNOWNPATH_GEMINI_API_KEY`          | The approved public-data Gemini key                 |
+   | `KNOWNPATH_GITHUB_TOKEN` (optional) | Token for higher limits and Discussions ingestion   |
+
+   Do not generate a different API-key pepper for the worker: it must match the API. Rotating the
+   deployed pepper invalidates existing KnownPath API keys.
+
+4. Open **Actions** > **Process production queues** > **Run workflow** on `main`. The workflow
+   validates required secrets without printing them, installs the locked workspace, and runs
+   `jobs drain`. Leave **Apply schedules** off for the first infrastructure check.
+5. Inspect the action summary/log for `worker.ready` and `worker.drain.complete`. Then add the
+   repository **Actions variable** `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` to enable scheduled
+   runs. Scheduled events remain safely skipped until this non-secret variable is set.
+6. After reviewing the source cadence and free GitHub/Gemini quotas, manually run the workflow once
+   with **Apply schedules** enabled. This is the only path that creates/updates BullMQ schedules;
+   normal scheduled workflow runs only drain work that is already due or queued.
+7. Check:
+
+   ```sh
+   curl --fail --show-error https://knownpath-api.onrender.com/health/ready
+   ```
+
+   Readiness should report queues as `ok`. A missing/malformed secret fails the workflow clearly;
+   API reads continue with the documented queue-degraded behavior if Upstash is unavailable.
+
+The workflow normally starts within each thirty-minute window, not immediately after every enqueue.
+GitHub may delay scheduled runs and disables public-repository schedules after 60 days without
+repository activity. Manual dispatch remains the recovery path. Upstash free-tier storage and
+command limits must be monitored; KnownPath does not enable automatic paid upgrades.
 
 ## Verify the deployment
 
@@ -101,3 +149,7 @@ depending on KnownPath for low-latency agent workflows.
 - [Render default environment variables](https://render.com/docs/environment-variables)
 - [Render outbound IP ranges](https://render.com/docs/outbound-ip-addresses)
 - [Render free instance limitations](https://render.com/docs/free)
+- [Upstash BullMQ integration](https://upstash.com/docs/redis/integrations/bullmq)
+- [Upstash free limits and billing](https://upstash.com/docs/redis/overall/billing)
+- [GitHub Actions public-repository billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+- [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)

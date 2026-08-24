@@ -62,6 +62,45 @@ export class QueueRegistry {
     return output;
   }
 
+  public async waitUntilRunnableIdle(
+    options: {
+      readonly idleMs: number;
+      readonly maxRuntimeMs: number;
+      readonly pollMs: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<{
+    readonly status: "aborted" | "idle" | "timeout";
+    readonly elapsedMs: number;
+    readonly runnableJobs: number;
+  }> {
+    const startedAt = Date.now();
+    let idleSince: number | undefined;
+
+    while (true) {
+      if (signal?.aborted === true)
+        return { status: "aborted", elapsedMs: Date.now() - startedAt, runnableJobs: 0 };
+
+      const runnableJobs = await this.countRunnableJobs();
+      const now = Date.now();
+      if (runnableJobs === 0) {
+        idleSince ??= now;
+        if (now - idleSince >= options.idleMs)
+          return { status: "idle", elapsedMs: now - startedAt, runnableJobs };
+      } else {
+        idleSince = undefined;
+      }
+
+      if (now - startedAt >= options.maxRuntimeMs)
+        return { status: "timeout", elapsedMs: now - startedAt, runnableJobs };
+
+      await abortableDelay(
+        Math.min(options.pollMs, Math.max(1, options.maxRuntimeMs - (now - startedAt))),
+        signal,
+      );
+    }
+  }
+
   public async probe(
     timeoutMs = this.config.producerConnectTimeoutMs,
   ): Promise<"ok" | "unavailable"> {
@@ -72,6 +111,28 @@ export class QueueRegistry {
       return "unavailable";
     }
   }
+
+  private async countRunnableJobs(): Promise<number> {
+    let count = 0;
+    for (const queue of this.queues.values()) {
+      const counts = await queue.getJobCounts("active", "prioritized", "waiting");
+      count += (counts["active"] ?? 0) + (counts["prioritized"] ?? 0) + (counts["waiting"] ?? 0);
+    }
+    return count;
+  }
+}
+
+async function abortableDelay(delayMs: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted === true) return;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(done, delayMs);
+    function done(): void {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    }
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 async function withTimeout<T>(operation: Promise<T>, timeoutMs: number): Promise<T> {

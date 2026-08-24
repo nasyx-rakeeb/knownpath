@@ -173,15 +173,17 @@ Start or operate the Phase 16 worker stack after configuring `QUEUE_REDIS_URL`:
 
 ```sh
 pnpm jobs start
+pnpm jobs drain
 pnpm jobs status
 pnpm jobs enqueue source.official.sync \
   --target-kind source_registry --target-id expo-documentation \
   --options-json '{"limit":5,"scope":"curated"}'
 ```
 
-Per-source schedules are disabled until explicitly enabled and applied. Queue topology, retries,
-quarantine, graceful shutdown, outage behavior, and admin inspection are documented in
-[the operations guide](docs/OPERATIONS.md).
+`jobs start` runs continuously; `jobs drain` is the bounded scheduled-compute path. Per-source
+schedules are disabled until explicitly enabled and applied. Queue topology, retries, quarantine,
+graceful shutdown, outage behavior, the free Upstash/GitHub Actions deployment, and admin inspection
+are documented in [the operations guide](docs/OPERATIONS.md).
 
 Configure the API origin and API key in the environment that launches each agent, then inspect or
 apply the Phase 13 installer plan:
@@ -203,10 +205,10 @@ setup, backups, conflicts, updates, and uninstall behavior are documented in
 ## Deploy the API
 
 The root `render.yaml` defines one Render web service for the Fastify API and keeps MongoDB Atlas as
-the database. It intentionally does not deploy the worker, dashboard, or another datastore. Rotate
-previously exposed credentials before setup, then follow
-[the Render deployment guide](docs/DEPLOYMENT.md) for the Blueprint, Atlas network access, health
-verification, and post-deploy API-key flow.
+the product database. The current free hosted worker uses Upstash plus scheduled GitHub Actions; it
+does not require a paid Render background worker. Rotate previously exposed credentials before
+setup, then follow [the Render deployment guide](docs/DEPLOYMENT.md) for the Blueprint, free queue,
+GitHub secrets, Atlas network access, and verification flow.
 
 Stop local infrastructure without deleting named development volumes:
 

@@ -176,6 +176,9 @@ const queueEnvironmentSchema = z.object({
     .regex(/^[a-z0-9_-]+$/u)
     .default("knownpath"),
   QUEUE_SCHEDULES_ENABLED: booleanEnvironmentSchema.default(false),
+  QUEUE_DRAIN_IDLE_MS: z.coerce.number().int().min(1_000).max(300_000).default(30_000),
+  QUEUE_DRAIN_MAX_RUNTIME_MS: z.coerce.number().int().min(10_000).max(21_000_000).default(720_000),
+  QUEUE_DRAIN_POLL_MS: z.coerce.number().int().min(250).max(30_000).default(1_000),
   QUEUE_PRODUCER_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(100).max(60_000).default(5_000),
   QUEUE_WORKER_HEARTBEAT_MS: z.coerce.number().int().min(1_000).max(300_000).default(15_000),
   QUEUE_WORKER_STALE_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
@@ -310,6 +313,11 @@ export interface QueueConfig {
   readonly redisUrl?: string;
   readonly prefix: string;
   readonly schedulesEnabled: boolean;
+  readonly drain: {
+    readonly idleMs: number;
+    readonly maxRuntimeMs: number;
+    readonly pollMs: number;
+  };
   readonly producerConnectTimeoutMs: number;
   readonly workerHeartbeatMs: number;
   readonly workerStaleMs: number;
@@ -493,6 +501,11 @@ export function loadQueueConfig(environment: NodeJS.ProcessEnv = process.env): Q
     ...(parsed.QUEUE_REDIS_URL === undefined ? {} : { redisUrl: parsed.QUEUE_REDIS_URL }),
     prefix: parsed.QUEUE_PREFIX,
     schedulesEnabled: parsed.QUEUE_SCHEDULES_ENABLED,
+    drain: {
+      idleMs: parsed.QUEUE_DRAIN_IDLE_MS,
+      maxRuntimeMs: parsed.QUEUE_DRAIN_MAX_RUNTIME_MS,
+      pollMs: parsed.QUEUE_DRAIN_POLL_MS,
+    },
     producerConnectTimeoutMs: parsed.QUEUE_PRODUCER_CONNECT_TIMEOUT_MS,
     workerHeartbeatMs: parsed.QUEUE_WORKER_HEARTBEAT_MS,
     workerStaleMs: parsed.QUEUE_WORKER_STALE_MS,

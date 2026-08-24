@@ -1,0 +1,93 @@
+name: Process production queues
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+    inputs:
+      apply_schedules:
+        description: Apply the reviewed source and maintenance schedules before draining
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: knownpath-production-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drain:
+    if: >-
+      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
+      vars.KNOWNPATH_SCHEDULED_WORKER_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      NODE_ENV: production
+      MONGODB_URI: ${{ secrets.KNOWNPATH_MONGODB_URI }}
+      MONGODB_DATABASE: knownpath
+      MONGODB_APP_NAME: knownpath-scheduled-worker
+      MONGODB_MIN_POOL_SIZE: "0"
+      MONGODB_MAX_POOL_SIZE: "10"
+      MONGODB_SERVER_SELECTION_TIMEOUT_MS: "10000"
+      QUEUE_REDIS_URL: ${{ secrets.KNOWNPATH_QUEUE_REDIS_URL }}
+      QUEUE_PREFIX: knownpath-production
+      QUEUE_SCHEDULES_ENABLED: "true"
+      QUEUE_DRAIN_IDLE_MS: "15000"
+      QUEUE_DRAIN_MAX_RUNTIME_MS: "600000"
+      QUEUE_DRAIN_POLL_MS: "5000"
+      QUEUE_PRODUCER_CONNECT_TIMEOUT_MS: "10000"
+      BETTER_AUTH_URL: https://knownpath-api.onrender.com
+      BETTER_AUTH_SECRET: ${{ secrets.KNOWNPATH_BETTER_AUTH_SECRET }}
+      AUTH_TRUSTED_ORIGINS: https://knownpath-api.onrender.com
+      API_KEY_PEPPER: ${{ secrets.KNOWNPATH_API_KEY_PEPPER }}
+      GEMINI_API_KEY: ${{ secrets.KNOWNPATH_GEMINI_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.KNOWNPATH_GITHUB_TOKEN || github.token }}
+      SOURCE_REGISTRY_PATH: config/sources/registry.json
+      AI_PROVIDER: gemini
+      AI_DATA_HANDLING: public_only
+      EMBEDDING_PROVIDER: gemini
+      SEARCH_BACKEND: atlas
+      LOG_LEVEL: info
+
+    steps:
+      - name: Check out the trusted default branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Validate required secrets
+        shell: bash
+        run: |
+          missing=0
+          for name in MONGODB_URI QUEUE_REDIS_URL BETTER_AUTH_SECRET API_KEY_PEPPER GEMINI_API_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required GitHub Actions secret for ${name}."
+              missing=1
+            fi
+          done
+          exit "${missing}"
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the worker
+        run: pnpm turbo run build --filter=@knownpath/worker
+
+      - name: Apply idempotent schedules
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_schedules
+        run: pnpm --filter @knownpath/worker start jobs schedules apply
+
+      - name: Drain runnable queues
+        run: pnpm --filter @knownpath/worker start jobs drain
