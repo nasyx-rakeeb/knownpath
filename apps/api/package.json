@@ -24,6 +24,7 @@
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
     "@knownpath/mcp": "workspace:*",
+    "@knownpath/outcomes": "workspace:*",
     "@knownpath/search": "workspace:*",
     "@modelcontextprotocol/node": "catalog:",
     "fastify": "catalog:",

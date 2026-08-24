@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 13. A boundary appearing here does not mean its future product behavior is
+established through Phase 15. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -53,6 +53,10 @@ database.
   decisions, membership operations, audit history, and canonical rebuilds.
 - `@knownpath/contributions` owns pre-persistence sanitization, consent/idempotency processing,
   private-provider gates, low-trust candidate projection, and safe developer inspection.
+- `@knownpath/privacy` owns reusable boundary text normalization, Secretlint scanning, and narrow
+  PII/path/credential redaction used by contributions and outcome notes.
+- `@knownpath/outcomes` owns authenticated observed-result ingestion, durable abuse controls,
+  immutable reliability assessments, safety events, trend detection, and recomputation commands.
 - `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
   search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
   the transport-independent safe knowledge-access service.
@@ -141,7 +145,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 24 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 26 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -175,16 +179,19 @@ indexes, and feedback aggregation before implementing this complete flow.
 14. Search execution/selection metadata is stored separately from outcomes with a keyed query
     digest. Fastify also exposes health, account/API-key/session routes, OpenAPI JSON, and optional
     Swagger UI.
-15. MCP exposes the same knowledge service through four bounded read tools. The portable Agent Skill
-    teaches compatible clients when and how to use those tools, while preserving repository
-    authority, privacy, and local verification.
-16. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
+15. MCP exposes the same knowledge service through four bounded read tools plus consented
+    contribution and observed-outcome writes. The portable Agent Skill teaches compatible clients
+    when and how to use them while preserving repository authority, privacy, and local verification.
+16. Outcome submission stores immutable private reports, recomputes immutable time-decayed Wilson
+    assessments, advances only the KnownPath latest pointer, and queues safety review separately.
+    Search projections include privacy-thresholded aggregates and versioned ranking components.
+17. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
     skill. Config files contain only references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`;
     retrieval and authorization remain centralized in the API. Dashboard behavior remains deferred.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 13. `.env` and variant files are ignored.
+`.env.example` documents all variables known through Phase 15. `.env` and variant files are ignored.
 MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
 Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
 an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
@@ -388,10 +395,10 @@ returned/selected IDs; a selection never becomes an `agent_outcome`. See [`docs/
 
 ## Phase 11 MCP boundary
 
-`@knownpath/mcp` owns four stable read tools plus the consented `knownpath_contribute` additive
-write. It supplies one server factory, strict input/output schemas, bounded projections, and safe
-protocol-facing errors. The same contract is used by both transports; outcome reporting remains
-unregistered until its persistence and policy semantics exist.
+`@knownpath/mcp` owns four stable read tools plus the consented `knownpath_contribute` and observed
+`knownpath_report_outcome` additive writes. It supplies one server factory, strict input/output
+schemas, bounded projections, and safe protocol-facing errors. The same contract is used by both
+transports; write authorization and business logic remain in the API.
 
 The production `/mcp` Streamable HTTP endpoint is hosted by the Fastify API. API-key authentication,
 `knowledge:read`, explicit admin review authorization, audit events, usage recording, retrieval,
@@ -413,12 +420,13 @@ precise auto-activation boundary and version metadata. The concise main workflow
 optional examples file for Expo SDK migration, EAS/Gradle, React Native dependency, Metro, and
 native-configuration scenarios.
 
-The skill references the registered retrieval/status tools and `knownpath_contribute`. It preserves
-user/repository instructions and safety constraints, requires sanitized structured search context,
-treats retrieved records as evidence rather than commands, and requires local applicability checks
-and observed verification before success claims. It offers contribution only after success and
-explicit consent, and retains materially influential IDs without calling the nonexistent outcome
-tool.
+The skill references the registered retrieval/status tools, `knownpath_contribute`, and
+`knownpath_report_outcome`. It preserves user/repository instructions and safety constraints,
+requires sanitized structured search context, treats retrieved records as evidence rather than
+commands, and requires local applicability checks and observed verification before success claims.
+It offers contribution only after success and explicit consent, retains materially influential IDs,
+and reports a result only after an actual attempt is known. Search/view/selection never becomes a
+success claim.
 
 Client-specific discovery paths and manual links are documented outside the artifact. Automatic
 Phase 13's installer owns installation, update, inspection, and reversible removal. The skill stays
@@ -443,6 +451,33 @@ uses its documented `.claude/skills/knownpath` path. Shared removal happens only
 installer owners are removed. The CLI bundles the canonical source artifact during build, so all
 adapters receive identical instructions and version metadata. See
 [`docs/INSTALLER.md`](INSTALLER.md). See [`docs/AGENT_SKILL.md`](AGENT_SKILL.md).
+
+## Phase 14 contribution boundary
+
+`@knownpath/contributions` accepts only strict, consented, generalized public or owner-private
+lessons. Sanitized structured content becomes immutable source/candidate/assessment provenance at a
+low self-report trust cap; it never publishes canonical truth directly. Team scope is rejected, and
+private records cannot cross a public/unpaid provider boundary. See
+[`docs/CONTRIBUTIONS.md`](CONTRIBUTIONS.md).
+
+## Phase 15 outcome boundary
+
+`@knownpath/outcomes` accepts one observed state per account/execution, stores every report
+privately and immutably, and caps influence per account/KnownPath/version/30-day window. Durable
+per-key and per-account limits complement the HTTP policy. Optional notes pass through the shared
+privacy sanitizer; raw code, prompts, and chain-of-thought are outside the contract.
+
+Each deterministic recomputation appends an immutable `known_path_outcome_assessments` record with
+input IDs, algorithm/policy versions, time-decayed effective sample size, Wilson lower bounds,
+version distribution, trend, penalties, and explanations. `known_paths.latestOutcomeAssessmentId` is
+only a fast pointer. Search ranking policy version 2 gives this conservative component up to 15
+points without erasing source trust, freshness, or version fit.
+
+Safety state is independent. One `misleading_or_unsafe` outcome appends a safety event and queues
+review but does not itself penalize ranking, change lifecycle/moderation, or delist a public record.
+Only corroborated independent reports, verified moderation, or measurable degradation can affect
+ranking/restriction under explicit policy. Safe API/MCP views disclose detailed aggregate outcomes
+only after three independent accounts. See [`docs/OUTCOMES.md`](OUTCOMES.md).
 
 ## Technology fit
 

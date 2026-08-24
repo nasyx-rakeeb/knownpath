@@ -2,12 +2,13 @@ import {
   AuthenticationError,
   AuthorizationError,
   authorizeKnowledgeRead,
+  authorizeOutcomeSubmit,
   requireScope,
   type Principal,
 } from "@knownpath/auth";
 import type { SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
-import type { KnowledgeSearchRequest } from "@knownpath/domain";
+import type { KnowledgeSearchRequest, OutcomeSubmissionRequest } from "@knownpath/domain";
 import {
   McpGatewayError,
   type KnowledgeMcpGateway,
@@ -23,6 +24,7 @@ import {
 import type { ContributionSubmissionRequest } from "@knownpath/domain";
 import { authorizeContributionSubmit } from "@knownpath/auth";
 import type { AuditService } from "@knownpath/auth";
+import { OutcomeError, type OutcomeService } from "@knownpath/outcomes";
 
 export interface ServiceKnowledgeMcpGatewayOptions {
   readonly database: KnownPathDatabase;
@@ -33,6 +35,7 @@ export interface ServiceKnowledgeMcpGatewayOptions {
   readonly searchConfig: SearchConfig;
   readonly contributions: ContributionService;
   readonly audit: AuditService;
+  readonly outcomes: OutcomeService;
 }
 
 export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
@@ -106,6 +109,7 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
           reviewRead: principal.user.role === "admin",
           searchBackend: this.options.searchConfig.backend,
           contribute: principal.key.scopes.includes("knowledge:contribute"),
+          reportOutcome: principal.key.scopes.includes("knowledge:outcome"),
         },
       };
     });
@@ -155,6 +159,71 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
     });
   }
 
+  public reportOutcome(input: OutcomeSubmissionRequest, signal: AbortSignal) {
+    return this.safe(async () => {
+      throwIfAborted(signal);
+      const principal = authorizeOutcomeSubmit(this.options.principal);
+      const access = authorizeKnowledgeRead(principal, input.includeReview);
+      try {
+        const response = await this.options.outcomes.submit(input, {
+          userId: principal.user._id,
+          apiKeyId: principal.key._id,
+          accessMode: access.accessMode,
+        });
+        await this.options.audit.record({
+          actor: {
+            kind: "api_key",
+            userId: principal.user._id,
+            apiKeyId: principal.key._id,
+          },
+          eventType: response.reused ? "outcome.replayed" : "outcome.submitted",
+          target: { kind: "outcome", id: response.outcomeId },
+          outcome: "success",
+          requestId: this.options.requestId,
+          ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),
+          metadata: {
+            knownPathId: input.knownPathId,
+            outcome: input.outcome,
+            influence: response.influence.status,
+            transport: "mcp",
+          },
+        });
+        if (response.safetyReviewQueued && input.outcome === "misleading_or_unsafe") {
+          await this.options.audit.record({
+            actor: {
+              kind: "api_key",
+              userId: principal.user._id,
+              apiKeyId: principal.key._id,
+            },
+            eventType: "outcome.safety_review_queued",
+            target: { kind: "safety_review", id: input.knownPathId },
+            outcome: "success",
+            requestId: this.options.requestId,
+            ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),
+            metadata: { sourceOutcomeId: response.outcomeId, transport: "mcp" },
+          });
+        }
+        throwIfAborted(signal);
+        return response;
+      } catch (error) {
+        await this.options.audit.record({
+          actor: {
+            kind: "api_key",
+            userId: principal.user._id,
+            apiKeyId: principal.key._id,
+          },
+          eventType: "outcome.rejected",
+          target: { kind: "outcome", id: "rejected-before-persistence" },
+          outcome: "failure",
+          requestId: this.options.requestId,
+          ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),
+          metadata: { reason: safeCode(error), transport: "mcp" },
+        });
+        throw error;
+      }
+    });
+  }
+
   private context(authorization: ReturnType<typeof authorizeKnowledgeRead>) {
     return {
       accessMode: authorization.accessMode,
@@ -184,6 +253,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
         throw new McpGatewayError(error.code, error.message);
       }
       if (error instanceof ContributionError) {
+        throw new McpGatewayError(
+          error.code as import("@knownpath/mcp").McpGatewayErrorCode,
+          error.message,
+        );
+      }
+      if (error instanceof OutcomeError) {
         throw new McpGatewayError(
           error.code as import("@knownpath/mcp").McpGatewayErrorCode,
           error.message,

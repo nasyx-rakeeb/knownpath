@@ -58,12 +58,14 @@ The service validates and normalizes the query, then gathers a bounded candidate
 3. optional public query embedding and MongoDB Vector Search on Atlas;
 4. deterministic application-side reranking and thresholding.
 
-The versioned `knownpath-retrieval-ranking` policy stores a digest with every explanation. Its
-maximum positive components are exact error 25, lexical 15, semantic 15, metadata 15, version fit
-10, deterministic trust 12, freshness 5, and observed outcomes 3. Outcomes remain unobserved in the
-current corpus and contribute zero. Conflicts, staleness, moderation, deprecation, and explicit
-version incompatibility add visible penalties or caps. An incompatible record is capped below the
-default minimum score. Unknown compatibility remains `unknown`; it is never described as confirmed.
+The versioned `knownpath-retrieval-ranking` policy stores a digest with every explanation. Policy
+version 2 maximum positive components are exact error 20, lexical 15, semantic 12, metadata 15,
+version fit 10, deterministic source trust 8, freshness 5, and conservative observed outcomes 15.
+Unobserved outcomes contribute zero. Conflicts, staleness, moderation, deprecation, explicit version
+incompatibility, corroborated safety, qualified recent degradation, and failure-heavy matching
+version buckets add visible penalties or caps. One unverified safety report does not penalize rank.
+An incompatible record is capped below the default minimum score. Unknown compatibility remains
+`unknown`; it is never described as confirmed. See [`OUTCOMES.md`](OUTCOMES.md).
 
 Vector similarity is only one relevance component. It cannot override explicit version
 incompatibility, weak trust, conflict, or visibility rules. Results include component values,

@@ -13,6 +13,7 @@ import {
   timestampSchema,
   versionedKeySchema,
   visibilityScopeSchema,
+  outcomeAssessmentIdSchema,
 } from "./common.js";
 import { knownPathStatusSchema } from "./knowledge.js";
 
@@ -67,7 +68,37 @@ export const knownPathSearchDocumentSchema = z
       lastVerifiedAt: timestampSchema.optional(),
       staleAfter: timestampSchema.optional(),
     }),
-    outcome: z.strictObject({ status: z.literal("unobserved"), sampleSize: z.literal(0) }),
+    outcome: z.discriminatedUnion("status", [
+      z.strictObject({ status: z.literal("unobserved"), sampleSize: z.literal(0) }),
+      z.strictObject({
+        status: z.literal("observed"),
+        assessmentId: outcomeAssessmentIdSchema,
+        confidenceScore: z.int().min(0).max(100),
+        confidenceGrade: z.enum(["very_low", "low", "moderate", "high", "very_high"]),
+        effectiveSampleSize: z.number().nonnegative(),
+        solved: z.int().nonnegative(),
+        partiallyHelped: z.int().nonnegative(),
+        attemptedFailed: z.int().nonnegative(),
+        incompatibleEnvironment: z.int().nonnegative(),
+        staleOrOutdated: z.int().nonnegative(),
+        recentSuccesses: z.int().nonnegative(),
+        anyHelpLowerBound: z.number().min(0).max(1),
+        fullSolveLowerBound: z.number().min(0).max(1),
+        lastSuccessfulAt: timestampSchema.optional(),
+        trendStatus: z.enum(["insufficient_data", "stable", "declining"]),
+        penalties: z.array(z.enum(["corroborated_safety", "outcome_degradation"])).max(2),
+        versionDistribution: z
+          .array(
+            z.strictObject({
+              bucket: shortStringSchema,
+              count: z.int().positive(),
+              solved: z.int().nonnegative(),
+              failed: z.int().nonnegative(),
+            }),
+          )
+          .max(128),
+      }),
+    ]),
     embedding: z.strictObject({
       status: searchEmbeddingStatusSchema,
       providerIdentifier: shortStringSchema,
@@ -142,14 +173,14 @@ export const retrievalScoreBreakdownSchema = z.strictObject({
   policyVersion: z.int().positive(),
   policyDigest: sha256Schema,
   components: z.strictObject({
-    exactError: z.int().min(0).max(25),
+    exactError: z.int().min(0).max(20),
     lexical: z.int().min(0).max(15),
-    semantic: z.int().min(0).max(15),
+    semantic: z.int().min(0).max(12),
     metadataFit: z.int().min(0).max(15),
     versionFit: z.int().min(0).max(10),
-    trust: z.int().min(0).max(12),
+    trust: z.int().min(0).max(8),
     freshness: z.int().min(0).max(5),
-    outcomes: z.int().min(0).max(3),
+    outcomes: z.int().min(0).max(15),
   }),
   penalties: z
     .array(

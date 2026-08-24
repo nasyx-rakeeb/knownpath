@@ -8,7 +8,7 @@ import {
 } from "@knownpath/domain";
 
 import { normalizeRetrievalQuery } from "./normalization.js";
-import { retrievalPolicyDigest, retrievalPolicyV1 } from "./policy.js";
+import { retrievalPolicyDigest, retrievalPolicyV2 } from "./policy.js";
 import {
   assertEmbeddingVisibility,
   EmbeddingProviderError,
@@ -224,11 +224,11 @@ function rerank(
     const document = candidate.document;
     const exactText = normalized.errors.some((error) => document.normalizedErrors.includes(error));
     const codeOverlap = overlap(normalized.errorCodes, document.errorCodes);
-    const exactError = exactText ? 25 : codeOverlap > 0 ? 18 : 0;
+    const exactError = exactText ? 20 : codeOverlap > 0 ? 15 : 0;
     const lexicalPoints =
       maxLexical === 0 ? 0 : Math.round(15 * Math.min(1, candidate.lexical / maxLexical));
     const semanticPoints =
-      candidate.semantic === 0 ? 0 : Math.round(15 * Math.max(0, Math.min(1, candidate.semantic)));
+      candidate.semantic === 0 ? 0 : Math.round(12 * Math.max(0, Math.min(1, candidate.semantic)));
     let metadataFit = 0;
     if (normalized.ecosystem !== undefined && normalized.ecosystem === document.ecosystem)
       metadataFit += 5;
@@ -240,7 +240,7 @@ function rerank(
     );
     const version = evaluateVersionFit(query, document.versionConstraints);
     const versionPoints = version.fit === "exact" ? 10 : version.fit === "compatible" ? 8 : 0;
-    const trust = Math.round((document.trust.score / 100) * 12);
+    const trust = Math.round((document.trust.score / 100) * 8);
     const freshness =
       document.freshness.status === "current"
         ? 5
@@ -250,35 +250,69 @@ function rerank(
             ? 1
             : 0;
     const penalties: Array<{ code: string; points: number; explanation: string }> = [];
+    const outcomes =
+      document.outcome.status === "observed"
+        ? Math.round((document.outcome.confidenceScore / 100) * 15)
+        : 0;
     let cap: number | undefined;
     if (version.fit === "incompatible") {
       penalties.push({
         code: "version_incompatible",
-        points: retrievalPolicyV1.penalties.incompatibleVersion,
+        points: retrievalPolicyV2.penalties.incompatibleVersion,
         explanation: "Explicit version constraints are incompatible.",
       });
-      cap = retrievalPolicyV1.caps.incompatibleVersion;
+      cap = retrievalPolicyV2.caps.incompatibleVersion;
     }
     if (document.conflictCount > 0)
       penalties.push({
         code: "conflicting_evidence",
-        points: retrievalPolicyV1.penalties.conflict,
+        points: retrievalPolicyV2.penalties.conflict,
         explanation: "The canonical record has active conflicting candidate evidence.",
       });
     if (document.freshness.status === "stale")
       penalties.push({
         code: "stale_applicability",
-        points: retrievalPolicyV1.penalties.stale,
+        points: retrievalPolicyV2.penalties.stale,
         explanation: "The record is past its stale-after timestamp.",
       });
     if (document.moderationStatus === "flagged")
       penalties.push({
         code: "moderation_flagged",
-        points: retrievalPolicyV1.penalties.flagged,
+        points: retrievalPolicyV2.penalties.flagged,
         explanation: "The canonical record is flagged for review.",
       });
     if (document.knownPathStatus === "deprecated")
-      cap = Math.min(cap ?? 100, retrievalPolicyV1.caps.deprecated);
+      cap = Math.min(cap ?? 100, retrievalPolicyV2.caps.deprecated);
+    if (document.outcome.status === "observed") {
+      if (document.outcome.penalties.includes("corroborated_safety"))
+        penalties.push({
+          code: "corroborated_safety_outcomes",
+          points: retrievalPolicyV2.penalties.corroboratedSafety,
+          explanation:
+            "Independent safety reports reached the deterministic corroboration threshold.",
+        });
+      if (document.outcome.penalties.includes("outcome_degradation"))
+        penalties.push({
+          code: "recent_outcome_degradation",
+          points: retrievalPolicyV2.penalties.outcomeDegradation,
+          explanation:
+            "Conservative recent outcome reliability materially declined against its historical baseline.",
+        });
+      const queryVersionValues = query.versions.map((entry) => entry.value.toLowerCase());
+      const matchingBuckets = document.outcome.versionDistribution.filter((entry) =>
+        queryVersionValues.some((value) => entry.bucket.toLowerCase().includes(value)),
+      );
+      const matchingCount = matchingBuckets.reduce((sum, entry) => sum + entry.count, 0);
+      const matchingSolved = matchingBuckets.reduce((sum, entry) => sum + entry.solved, 0);
+      const matchingFailed = matchingBuckets.reduce((sum, entry) => sum + entry.failed, 0);
+      if (matchingCount >= 3 && matchingFailed > matchingSolved)
+        penalties.push({
+          code: "version_specific_outcome_failures",
+          points: retrievalPolicyV2.penalties.versionOutcomeFailure,
+          explanation:
+            "The requested version bucket has more eligible failed than solved outcome reports.",
+        });
+    }
     const raw =
       exactError +
       lexicalPoints +
@@ -287,6 +321,7 @@ function rerank(
       versionPoints +
       trust +
       freshness +
+      outcomes +
       penalties.reduce((sum, entry) => sum + entry.points, 0);
     const finalScore = Math.max(0, Math.min(cap ?? 100, Math.min(100, raw)));
     const reasonCodes = [
@@ -297,7 +332,9 @@ function rerank(
         `version_${version.fit}`,
         `trust_${document.trust.grade}`,
         `freshness_${document.freshness.status}`,
-        "outcomes_unobserved",
+        document.outcome.status === "observed"
+          ? `outcomes_${document.outcome.confidenceGrade}`
+          : "outcomes_unobserved",
         ...penalties.map((entry) => entry.code),
       ]),
     ];
@@ -311,8 +348,8 @@ function rerank(
       matchedBy: [...candidate.matched],
       trustAssessmentIds: document.trust.assessmentIds,
       score: {
-        policyIdentifier: retrievalPolicyV1.identifier,
-        policyVersion: retrievalPolicyV1.version,
+        policyIdentifier: retrievalPolicyV2.identifier,
+        policyVersion: retrievalPolicyV2.version,
         policyDigest: retrievalPolicyDigest,
         components: {
           exactError,
@@ -322,7 +359,7 @@ function rerank(
           versionFit: versionPoints,
           trust,
           freshness,
-          outcomes: 0,
+          outcomes,
         },
         penalties,
         ...(cap === undefined ? {} : { cap }),
@@ -333,10 +370,12 @@ function rerank(
           exactError > 0
             ? "Exact normalized error identifiers materially increased relevance."
             : "No exact normalized error identifier matched.",
-          `Lexical contribution ${lexicalPoints}/15; semantic contribution ${semanticPoints}/15.`,
-          `Metadata fit contributed ${metadataFit}/15; deterministic trust contributed ${trust}/12.`,
+          `Lexical contribution ${lexicalPoints}/15; semantic contribution ${semanticPoints}/12.`,
+          `Metadata fit contributed ${metadataFit}/15; deterministic source trust contributed ${trust}/8.`,
           ...version.explanations,
-          `Freshness contributed ${freshness}/5; agent outcomes are unobserved.`,
+          document.outcome.status === "observed"
+            ? `Freshness contributed ${freshness}/5; conservative outcome confidence contributed ${outcomes}/15 from effective sample ${document.outcome.effectiveSampleSize.toFixed(2)}.`
+            : `Freshness contributed ${freshness}/5; agent outcomes are unobserved.`,
           ...penalties.map((entry) => entry.explanation),
         ],
       },

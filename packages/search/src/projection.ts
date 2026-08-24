@@ -13,13 +13,14 @@ import {
   type KnownPathId,
   type KnownPathSearchDocument,
   type KnownPathRevision,
+  type OutcomeAssessment,
 } from "@knownpath/domain";
 
 import { assertEmbeddingVisibility, type EmbeddingProvider } from "./provider.js";
 
 const PROJECTION_VERSION = 1;
 const TEXT_SCHEMA_VERSION = 1;
-const RANKING_SCHEMA_VERSION = 1;
+const RANKING_SCHEMA_VERSION = 2;
 const INPUT_FORMAT_VERSION = 1;
 
 export interface SearchProjectionOptions {
@@ -51,7 +52,13 @@ export class SearchProjectionService {
     );
     if (revision === null) throw new Error("KnownPath latest revision does not exist");
     await this.assertPublicEvidence(revision, knownPath, useEmbedding);
-    const base = buildProjectionBase(knownPath, revision);
+    const assessment =
+      knownPath.latestOutcomeAssessmentId === undefined
+        ? null
+        : await this.database.repositories.outcomeAssessments.findById(
+            knownPath.latestOutcomeAssessmentId,
+          );
+    const base = buildProjectionBase(knownPath, revision, assessment);
     const input = buildRetrievalDocumentInput(base);
     const inputHash = sha256(input);
     const mode =
@@ -66,7 +73,9 @@ export class SearchProjectionService {
       if (
         active !== null &&
         active.knownPathRevisionId === revision._id &&
-        active.embedding.inputHash === inputHash
+        active.embedding.inputHash === inputHash &&
+        active.rankingSchemaVersion === RANKING_SCHEMA_VERSION &&
+        outcomeProjectionMatches(active.outcome, assessment)
       )
         return { document: active, reused: true, providerCalled: false };
     }
@@ -75,6 +84,7 @@ export class SearchProjectionService {
       knownPath._id,
       revision._id,
       base.contentHash,
+      assessment?._id ?? "outcomes-unobserved",
       this.options.providerIdentifier,
       this.options.providerModel,
       this.options.providerModelVersion,
@@ -99,29 +109,39 @@ export class SearchProjectionService {
     let providerCalled = false;
     let embedding: KnownPathSearchDocument["embedding"];
     if (mode === "ready") {
-      const provider = this.options.providerFactory?.();
-      if (provider === undefined) throw new Error("Embedding provider factory is unavailable");
-      assertEmbeddingVisibility(knownPath.visibility, provider.capability);
-      const response = await provider.embed({
-        input,
-        title: knownPath.title,
-        dimensions: this.options.dimensions,
-        task: "retrieval_document",
-      });
-      providerCalled = true;
-      embedding = {
-        status: "ready",
-        providerIdentifier: provider.identifier,
-        providerCapability: provider.capability,
-        modelIdentifier: provider.modelIdentifier,
-        modelVersion: provider.modelVersion,
-        dimensions: this.options.dimensions,
-        inputFormatVersion: INPUT_FORMAT_VERSION,
-        inputHash,
-        values: [...response.values],
-        generatedAt: new Date(),
-        latencyMs: response.latencyMs,
-      };
+      const active = await this.database.repositories.knownPathSearchDocuments.findActive(
+        knownPath._id,
+        this.options.providerModel,
+        this.options.providerModelVersion,
+        this.options.dimensions,
+      );
+      if (active?.embedding.status === "ready" && active.embedding.inputHash === inputHash) {
+        embedding = active.embedding;
+      } else {
+        const provider = this.options.providerFactory?.();
+        if (provider === undefined) throw new Error("Embedding provider factory is unavailable");
+        assertEmbeddingVisibility(knownPath.visibility, provider.capability);
+        const response = await provider.embed({
+          input,
+          title: knownPath.title,
+          dimensions: this.options.dimensions,
+          task: "retrieval_document",
+        });
+        providerCalled = true;
+        embedding = {
+          status: "ready",
+          providerIdentifier: provider.identifier,
+          providerCapability: provider.capability,
+          modelIdentifier: provider.modelIdentifier,
+          modelVersion: provider.modelVersion,
+          dimensions: this.options.dimensions,
+          inputFormatVersion: INPUT_FORMAT_VERSION,
+          inputHash,
+          values: [...response.values],
+          generatedAt: new Date(),
+          latencyMs: response.latencyMs,
+        };
+      }
     } else {
       embedding = {
         status: "unavailable",
@@ -229,9 +249,19 @@ export class SearchProjectionService {
   }
 }
 
+function outcomeProjectionMatches(
+  projected: KnownPathSearchDocument["outcome"],
+  assessment: OutcomeAssessment | null,
+): boolean {
+  if (assessment === null || assessment.confidence.status === "unobserved")
+    return projected.status === "unobserved";
+  return projected.status === "observed" && projected.assessmentId === assessment._id;
+}
+
 function buildProjectionBase(
   knownPath: KnownPath,
   revision: KnownPathRevision,
+  assessment: OutcomeAssessment | null,
 ): Omit<
   KnownPathSearchDocument,
   | "_id"
@@ -356,7 +386,39 @@ function buildProjectionBase(
         ? {}
         : { staleAfter: knownPath.freshness.staleAfter }),
     },
-    outcome: { status: "unobserved", sampleSize: 0 },
+    outcome: toProjectionOutcome(assessment),
+  };
+}
+
+function toProjectionOutcome(
+  assessment: OutcomeAssessment | null,
+): KnownPathSearchDocument["outcome"] {
+  if (
+    assessment === null ||
+    assessment.confidence.status === "unobserved" ||
+    assessment.confidence.grade === "unobserved"
+  )
+    return { status: "unobserved", sampleSize: 0 };
+  return {
+    status: "observed",
+    assessmentId: assessment._id,
+    confidenceScore: assessment.confidence.score,
+    confidenceGrade: assessment.confidence.grade,
+    effectiveSampleSize: assessment.recency.effectiveSampleSize,
+    solved: assessment.counts.solved,
+    partiallyHelped: assessment.counts.partiallyHelped,
+    attemptedFailed: assessment.counts.attemptedFailed,
+    incompatibleEnvironment: assessment.counts.incompatibleEnvironment,
+    staleOrOutdated: assessment.counts.staleOrOutdated,
+    recentSuccesses: assessment.counts.recentSuccesses,
+    anyHelpLowerBound: assessment.intervals.anyHelp.lowerBound,
+    fullSolveLowerBound: assessment.intervals.fullSolve.lowerBound,
+    ...(assessment.lastSuccessfulAt === undefined
+      ? {}
+      : { lastSuccessfulAt: assessment.lastSuccessfulAt }),
+    trendStatus: assessment.trend.status,
+    penalties: assessment.penalties,
+    versionDistribution: assessment.versionDistribution,
   };
 }
 

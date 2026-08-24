@@ -88,6 +88,33 @@ export const safeFreshnessSchema = z.strictObject({
   staleAfter: z.iso.datetime().optional(),
 });
 
+export const safeOutcomeVerificationSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("unobserved"),
+    explanation: nonEmptyStringSchema,
+  }),
+  z.strictObject({
+    status: z.literal("limited"),
+    effectiveSampleSize: z.number().nonnegative(),
+    explanation: nonEmptyStringSchema,
+  }),
+  z.strictObject({
+    status: z.literal("observed"),
+    confidenceScore: z.int().min(0).max(100),
+    confidenceGrade: z.enum(["very_low", "low", "moderate", "high", "very_high"]),
+    effectiveSampleSize: z.number().nonnegative(),
+    recentSuccesses: z.int().nonnegative(),
+    solved: z.int().nonnegative(),
+    partiallyHelped: z.int().nonnegative(),
+    attemptedFailed: z.int().nonnegative(),
+    incompatibleEnvironment: z.int().nonnegative(),
+    staleOrOutdated: z.int().nonnegative(),
+    lastSuccessfulAt: z.iso.datetime().optional(),
+    trend: z.enum(["insufficient_data", "stable", "declining"]),
+    explanation: nonEmptyStringSchema,
+  }),
+]);
+
 export const safeRelevanceSchema = z.strictObject({
   score: z.int().min(0).max(100),
   versionCompatibility: versionFitSchema,
@@ -122,6 +149,7 @@ export const knowledgeSearchResultSchema = z.strictObject({
   caveats: z.array(nonEmptyStringSchema).max(64),
   trust: safeTrustSchema,
   freshness: safeFreshnessSchema,
+  outcomes: safeOutcomeVerificationSchema,
   relevance: safeRelevanceSchema,
   provenance: z.array(safeProvenanceSchema).max(64),
 });
@@ -177,6 +205,7 @@ export const knownPathDetailResponseSchema = z.strictObject({
   solutions: z.array(safeSolutionVariantSchema).min(1).max(32),
   trust: safeTrustSchema,
   freshness: safeFreshnessSchema,
+  outcomes: safeOutcomeVerificationSchema,
   provenance: z.array(safeProvenanceSchema).max(512),
 });
 
@@ -262,6 +291,7 @@ export type SafeProvenance = z.infer<typeof safeProvenanceSchema>;
 export type SafeApplicability = z.infer<typeof safeApplicabilitySchema>;
 export type SafeTrust = z.infer<typeof safeTrustSchema>;
 export type SafeFreshness = z.infer<typeof safeFreshnessSchema>;
+export type SafeOutcomeVerification = z.infer<typeof safeOutcomeVerificationSchema>;
 export type SafeSolutionVariant = z.infer<typeof safeSolutionVariantSchema>;
 export type KnowledgeSearchPrincipal = z.infer<typeof knowledgeSearchPrincipalSchema>;
 export type KnowledgeSearchEvent = z.infer<typeof knowledgeSearchEventSchema>;

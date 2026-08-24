@@ -6,6 +6,7 @@ import {
 import type { FastifyInstance } from "fastify";
 import { KnowledgeAccessError } from "@knownpath/search";
 import { ContributionError } from "@knownpath/contributions";
+import { OutcomeError } from "@knownpath/outcomes";
 import { z } from "zod";
 
 export function registerErrorHandler(api: FastifyInstance): void {
@@ -41,6 +42,17 @@ export function registerErrorHandler(api: FastifyInstance): void {
             : error.code === "contribution_content_rejected"
               ? 422
               : 403;
+      return reply.status(status).send(envelope(error.code, error.message, request.id));
+    }
+    if (error instanceof OutcomeError) {
+      const status =
+        error.code === "outcome_target_not_accessible"
+          ? 404
+          : error.code === "outcome_rate_limited"
+            ? 429
+            : error.code === "outcome_note_rejected"
+              ? 422
+              : 409;
       return reply.status(status).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof z.ZodError || isFastifyValidationError(error)) {

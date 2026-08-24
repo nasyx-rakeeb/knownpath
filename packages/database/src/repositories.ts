@@ -1,6 +1,9 @@
 import {
   agentContributionSchema,
   agentOutcomeSchema,
+  agentOutcomeV2Schema,
+  outcomeAssessmentSchema,
+  safetyEventSchema,
   apiKeySchema,
   auditEventSchema,
   candidateAssessmentSchema,
@@ -24,7 +27,12 @@ import {
   type AgentContributionV2,
   type AgentContributionId,
   type AgentOutcome,
+  type AgentOutcomeV2,
   type AgentOutcomeId,
+  type OutcomeAssessment,
+  type OutcomeAssessmentId,
+  type SafetyEvent,
+  type SafetyEventId,
   type ApiKey,
   type ApiKeyId,
   type AuditEvent,
@@ -924,6 +932,43 @@ export class KnownPathRepository
     return this.updateOne({ _id: id }, { status });
   }
 
+  public async updateOutcomeAssessment(
+    id: KnownPathId,
+    assessmentId: OutcomeAssessmentId,
+    calculatedAt: Date,
+  ): Promise<KnownPath | null> {
+    return this.updateOne(
+      {
+        _id: id,
+        $or: [
+          { latestOutcomeAssessedAt: { $exists: false } },
+          { latestOutcomeAssessedAt: { $lte: calculatedAt } },
+        ],
+      },
+      { latestOutcomeAssessmentId: assessmentId, latestOutcomeAssessedAt: calculatedAt },
+    );
+  }
+
+  public async queueSafetyReview(
+    id: KnownPathId,
+    eventId: SafetyEventId,
+    occurredAt: Date,
+  ): Promise<KnownPath | null> {
+    const existing = await this.findById(id);
+    if (existing === null) return null;
+    return this.updateOne(
+      { _id: id },
+      {
+        safetyReview: {
+          status: "review_queued",
+          firstQueuedAt: existing.safetyReview.firstQueuedAt ?? occurredAt,
+          latestEventAt: occurredAt,
+          latestSafetyEventId: eventId,
+        },
+      },
+    );
+  }
+
   public async updateProjection(
     id: KnownPathId,
     projection: Omit<KnownPath, "_id" | "schemaVersion" | "canonicalKey" | "audit">,
@@ -935,6 +980,18 @@ export class KnownPathRepository
     const documents = await this.collection
       .find({ status: { $in: ["review", "published"] }, latestRevisionId: { $exists: true } })
       .sort({ "audit.updatedAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => knownPathSchema.parse(document));
+  }
+
+  public async listForOutcomeAssessment(limit = 100): Promise<KnownPath[]> {
+    const documents = await this.collection
+      .find({
+        status: { $in: ["review", "published", "deprecated"] },
+        latestRevisionId: { $exists: true },
+      })
+      .sort({ _id: 1 })
       .limit(limit)
       .toArray();
     return documents.map((document) => knownPathSchema.parse(document));
@@ -1279,11 +1336,146 @@ export class AgentOutcomeRepository
   public async findByDeduplicationKey(key: VersionedKey): Promise<AgentOutcome | null> {
     return this.findOne({ "deduplicationKey.value": key.value });
   }
+
+  public async createV2IfAbsent(entity: AgentOutcomeV2): Promise<AgentOutcomeV2 | null> {
+    const parsed = agentOutcomeV2Schema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findV2ByClientOutcome(
+    userId: UserId,
+    clientOutcomeId: string,
+  ): Promise<AgentOutcomeV2 | null> {
+    const result = await this.findOne({
+      schemaVersion: 2,
+      "reporter.userId": userId,
+      clientOutcomeId,
+    } as Filter<AgentOutcome>);
+    return result?.schemaVersion === 2 ? result : null;
+  }
+
+  public async findV2ByExecution(
+    userId: UserId,
+    knownPathId: KnownPathId,
+    clientExecutionId: string,
+  ): Promise<AgentOutcomeV2 | null> {
+    const result = await this.findOne({
+      schemaVersion: 2,
+      "reporter.userId": userId,
+      knownPathId,
+      clientExecutionId,
+    } as Filter<AgentOutcome>);
+    return result?.schemaVersion === 2 ? result : null;
+  }
+
+  public async listV2ByKnownPath(
+    knownPathId: KnownPathId,
+    limit = 10_000,
+  ): Promise<AgentOutcomeV2[]> {
+    const documents = await this.collection
+      .find({ schemaVersion: 2, knownPathId } as Filter<AgentOutcome>)
+      .sort({ receivedAt: 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.flatMap((document) => {
+      const parsed = agentOutcomeSchema.parse(document);
+      return parsed.schemaVersion === 2 ? [parsed] : [];
+    });
+  }
+
+  public async countRecentByApiKey(apiKeyId: ApiKeyId, since: Date): Promise<number> {
+    return this.collection.countDocuments({
+      schemaVersion: 2,
+      "reporter.apiKeyId": apiKeyId,
+      receivedAt: { $gte: since },
+    } as Filter<AgentOutcome>);
+  }
+
+  public async countRecentByUser(userId: UserId, since: Date): Promise<number> {
+    return this.collection.countDocuments({
+      schemaVersion: 2,
+      "reporter.userId": userId,
+      receivedAt: { $gte: since },
+    } as Filter<AgentOutcome>);
+  }
+}
+
+export class OutcomeAssessmentRepository extends MongoEntityRepository<
+  OutcomeAssessment,
+  OutcomeAssessmentId
+> {
+  public constructor(collection: Collection<OutcomeAssessment>) {
+    super(collection, outcomeAssessmentSchema);
+  }
+  public async createIfAbsent(entity: OutcomeAssessment): Promise<OutcomeAssessment | null> {
+    const parsed = outcomeAssessmentSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+  public async findByIdempotencyKey(key: VersionedKey): Promise<OutcomeAssessment | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+  public async findManyByIds(ids: readonly OutcomeAssessmentId[]): Promise<OutcomeAssessment[]> {
+    if (ids.length === 0) return [];
+    const values = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return values.map((value) => outcomeAssessmentSchema.parse(value));
+  }
+  public async listByKnownPath(
+    knownPathId: KnownPathId,
+    limit = 100,
+  ): Promise<OutcomeAssessment[]> {
+    const values = await this.collection
+      .find({ knownPathId })
+      .sort({ calculatedAt: -1, _id: -1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => outcomeAssessmentSchema.parse(value));
+  }
+}
+
+export class SafetyEventRepository extends MongoEntityRepository<SafetyEvent, SafetyEventId> {
+  public constructor(collection: Collection<SafetyEvent>) {
+    super(collection, safetyEventSchema);
+  }
+  public async createIfAbsent(entity: SafetyEvent): Promise<SafetyEvent | null> {
+    const parsed = safetyEventSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+  public async findByIdempotencyKey(key: VersionedKey): Promise<SafetyEvent | null> {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+  public async listByKnownPath(knownPathId: KnownPathId, limit = 100): Promise<SafetyEvent[]> {
+    const values = await this.collection
+      .find({ knownPathId })
+      .sort({ occurredAt: -1, _id: -1 })
+      .limit(limit)
+      .toArray();
+    return values.map((value) => safetyEventSchema.parse(value));
+  }
 }
 
 export interface KnownPathRepositories {
   readonly agentContributions: AgentContributionRepository;
   readonly agentOutcomes: AgentOutcomeRepository;
+  readonly outcomeAssessments: OutcomeAssessmentRepository;
+  readonly safetyEvents: SafetyEventRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly auditEvents: AuditEventRepository;
   readonly candidateAssessments: CandidateAssessmentRepository;
@@ -1309,6 +1501,8 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
   return {
     agentContributions: new AgentContributionRepository(collections.agentContributions),
     agentOutcomes: new AgentOutcomeRepository(collections.agentOutcomes),
+    outcomeAssessments: new OutcomeAssessmentRepository(collections.outcomeAssessments),
+    safetyEvents: new SafetyEventRepository(collections.safetyEvents),
     apiKeys: new ApiKeyRepository(collections.apiKeys),
     auditEvents: new AuditEventRepository(collections.auditEvents),
     candidateAssessments: new CandidateAssessmentRepository(collections.candidateAssessments),

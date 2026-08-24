@@ -9,7 +9,7 @@ description:
   unrelated requests.
 license: Apache-2.0
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   project: "KnownPath"
 ---
 
@@ -66,6 +66,8 @@ lookup: skip the call if brief repository inspection makes the solution obvious.
    ordinary repository investigation and report the limitation plainly.
 7. Adapt the evidence to the current repository. Make the smallest justified change and verify it
    using the project's normal checks or reproduction steps.
+8. Keep the selected KnownPath ID, search ID, solution variant when known, and a fresh
+   `clientExecutionId` until the real task result is known. A search or view is not an outcome.
 
 Prefer no result over a vague or version-incompatible result. A high score does not remove the need
 to inspect evidence and verify locally. Do not claim that a KnownPath worked until the actual task
@@ -89,8 +91,27 @@ actually applied. After the task has observably succeeded, you may offer to call
 - If the contribution tool is absent, disabled, unauthorized, quarantined, or rejected, do not work
   around the boundary. Explain the result briefly and continue without submission.
 
-No outcome-reporting tool exists yet. Do not invent or call one; merely retain materially consulted
-KnownPath IDs for a future explicitly available outcome tool.
+## Report only observed outcomes
+
+When `knownpath_report_outcome` is available, report after the attempted solution's result is known,
+subject to the user's instructions and configured privacy/telemetry choices. Report each
+KnownPath/execution pair once and reuse the same `clientOutcomeId` only for an idempotent retry.
+
+- Use `solved` only when the selected KnownPath materially produced a successful result;
+  `partially_helped` when it advanced the task but did not solve it; and `attempted_failed` when the
+  solution was actually tried and failed.
+- Use `incompatible_environment` or `stale_or_outdated` only when observed version/environment facts
+  support that classification. Use `misleading_or_unsafe` for a concrete safety concern; one report
+  queues review but does not by itself penalize ranking or automatically delist the record.
+- Use `not_used` when a selected record was not attempted. Do not include `attemptedAt` for
+  `not_used`; it has zero evidence weight.
+- Include only concise package/platform/version/toolchain metadata and an optional generalized note.
+  Never include repository code, full logs, private paths, identifiers, personal data, prompts,
+  credentials, or chain-of-thought.
+- Do not report success merely because the agent followed steps, a command ran, or the record looked
+  plausible. Wait for the task's actual verification result.
+- If the tool is absent, unauthorized, rejected, or rate-limited, do not retry with changed identity
+  or fabricated IDs. State the limitation briefly and continue.
 
 For realistic Expo and React Native decision examples, read
 [`references/examples.md`](references/examples.md) only when an example would help distinguish a

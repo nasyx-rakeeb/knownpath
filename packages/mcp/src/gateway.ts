@@ -5,6 +5,8 @@ import type {
   KnownPathDetailResponse,
   ContributionSubmissionResponse,
   ContributionSubmissionRequest,
+  OutcomeSubmissionRequest,
+  OutcomeSubmissionResponse,
 } from "@knownpath/domain";
 
 import type {
@@ -25,6 +27,10 @@ export interface KnowledgeMcpGateway {
     input: ContributionSubmissionRequest,
     signal: AbortSignal,
   ): Promise<ContributionSubmissionResponse>;
+  reportOutcome(
+    input: OutcomeSubmissionRequest,
+    signal: AbortSignal,
+  ): Promise<OutcomeSubmissionResponse>;
 }
 
 export type McpGatewayErrorCode =
@@ -50,6 +56,11 @@ export type McpGatewayErrorCode =
   | "contribution_content_rejected"
   | "contribution_idempotency_conflict"
   | "team_contributions_not_supported"
+  | "outcome_idempotency_conflict"
+  | "outcome_execution_conflict"
+  | "outcome_rate_limited"
+  | "outcome_note_rejected"
+  | "outcome_target_not_accessible"
   | "internal_error";
 
 export class McpGatewayError extends Error {

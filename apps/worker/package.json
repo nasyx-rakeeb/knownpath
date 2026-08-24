@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.build.json",
     "canonicalize": "tsx --env-file-if-exists=../../.env src/index.ts canonicalize",
     "contributions": "tsx --env-file-if-exists=../../.env src/index.ts contributions",
+    "outcomes": "tsx --env-file-if-exists=../../.env src/index.ts outcomes",
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "extract": "tsx --env-file-if-exists=../../.env src/index.ts extract",
     "ingest:github": "tsx --env-file-if-exists=../../.env src/index.ts github",
@@ -26,6 +27,7 @@
     "@knownpath/contributions": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/github-ingestion": "workspace:*",
+    "@knownpath/outcomes": "workspace:*",
     "@knownpath/source-ingestion": "workspace:*",
     "@knownpath/search": "workspace:*",
     "@knownpath/verification": "workspace:*"

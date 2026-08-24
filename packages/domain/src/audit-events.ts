@@ -26,6 +26,11 @@ export const auditEventTypeSchema = z.enum([
   "contribution.candidate_projected",
   "contribution.inspected",
   "contribution.settings_updated",
+  "outcome.submitted",
+  "outcome.replayed",
+  "outcome.rejected",
+  "outcome.safety_review_queued",
+  "outcome.assessment_created",
 ]);
 
 export const auditActorSchema = z.discriminatedUnion("kind", [
@@ -47,6 +52,9 @@ export const auditTargetSchema = z.strictObject({
     "known_path",
     "contribution",
     "candidate_experience",
+    "outcome",
+    "outcome_assessment",
+    "safety_review",
   ]),
   id: shortStringSchema,
 });

@@ -27,32 +27,34 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 
 ## Collections and relationships
 
-| Collection                      | Lifecycle and relationship                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `users`                         | Independent account identity referenced by API keys and optional audit/ownership fields.          |
-| `api_keys`                      | Independent credential lifecycle; references one user and stores a hash, never the raw key.       |
-| `auth_sessions`                 | Better Auth server-side sessions; independently revocable and expiring.                           |
-| `auth_accounts`                 | Better Auth provider credentials; Phase 3 stores only scrypt password accounts.                   |
-| `auth_verifications`            | Better Auth verification primitives reserved for deliberately enabled future flows.               |
-| `audit_events`                  | Append-only sensitive-action history without credential material.                                 |
-| `source_registries`             | Independently managed source identity/configuration and ingestion cursor.                         |
-| `source_items`                  | Immutable captured snapshot; references one source registry.                                      |
-| `source_item_states`            | Mutable latest/fetch projection; one per registry and source-native identity.                     |
-| `ingestion_runs`                | Mutable operational attempt history; references one source registry.                              |
-| `extraction_attempts`           | Independent AI lifecycle keyed by source/context/prompt/provider versions.                        |
-| `candidate_experiences`         | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.       |
-| `candidate_assessments`         | Immutable verification/score history; references one candidate and exact source inputs.           |
-| `candidate_similarity_profiles` | Immutable normalized identifiers, shingles, fingerprints, and blocking keys.                      |
-| `candidate_embeddings`          | Immutable provider/model/versioned vectors for public blocked candidates; no vector index.        |
-| `candidate_pair_assessments`    | Immutable deterministic/semantic comparison and merge/review/separate decision.                   |
-| `canonical_memberships`         | Current supporting/conflicting/rejected candidate relationships to stable KnownPaths.             |
-| `canonicalization_events`       | Append-only requested/completed merge, split, reassign, and rebuild audit history.                |
-| `known_path_revisions`          | Immutable complete canonical snapshots keyed by membership/assessment/builder inputs.             |
-| `known_paths`                   | Stable current canonical projection with solution variants, evidence, trust, and latest revision. |
-| `known_path_search_documents`   | Rebuildable versioned retrieval projection with one active row per KnownPath/model tuple.         |
-| `knowledge_search_events`       | Bounded search/selection usage metadata; explicitly not a technical outcome.                      |
-| `agent_contributions`           | Independent proposed lesson/correction; may reference a KnownPath and source items.               |
-| `agent_outcomes`                | Independent usefulness report referencing one KnownPath.                                          |
+| Collection                       | Lifecycle and relationship                                                                        |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `users`                          | Independent account identity referenced by API keys and optional audit/ownership fields.          |
+| `api_keys`                       | Independent credential lifecycle; references one user and stores a hash, never the raw key.       |
+| `auth_sessions`                  | Better Auth server-side sessions; independently revocable and expiring.                           |
+| `auth_accounts`                  | Better Auth provider credentials; Phase 3 stores only scrypt password accounts.                   |
+| `auth_verifications`             | Better Auth verification primitives reserved for deliberately enabled future flows.               |
+| `audit_events`                   | Append-only sensitive-action history without credential material.                                 |
+| `source_registries`              | Independently managed source identity/configuration and ingestion cursor.                         |
+| `source_items`                   | Immutable captured snapshot; references one source registry.                                      |
+| `source_item_states`             | Mutable latest/fetch projection; one per registry and source-native identity.                     |
+| `ingestion_runs`                 | Mutable operational attempt history; references one source registry.                              |
+| `extraction_attempts`            | Independent AI lifecycle keyed by source/context/prompt/provider versions.                        |
+| `candidate_experiences`          | Extracted, reviewable problem/solution candidate with embedded bounded evidence references.       |
+| `candidate_assessments`          | Immutable verification/score history; references one candidate and exact source inputs.           |
+| `candidate_similarity_profiles`  | Immutable normalized identifiers, shingles, fingerprints, and blocking keys.                      |
+| `candidate_embeddings`           | Immutable provider/model/versioned vectors for public blocked candidates; no vector index.        |
+| `candidate_pair_assessments`     | Immutable deterministic/semantic comparison and merge/review/separate decision.                   |
+| `canonical_memberships`          | Current supporting/conflicting/rejected candidate relationships to stable KnownPaths.             |
+| `canonicalization_events`        | Append-only requested/completed merge, split, reassign, and rebuild audit history.                |
+| `known_path_revisions`           | Immutable complete canonical snapshots keyed by membership/assessment/builder inputs.             |
+| `known_paths`                    | Stable current canonical projection with solution variants, evidence, trust, and latest revision. |
+| `known_path_search_documents`    | Rebuildable versioned retrieval projection with one active row per KnownPath/model tuple.         |
+| `knowledge_search_events`        | Bounded search/selection usage metadata; explicitly not a technical outcome.                      |
+| `agent_contributions`            | Independent proposed lesson/correction; may reference a KnownPath and source items.               |
+| `agent_outcomes`                 | Immutable private observed-result reports referencing one KnownPath revision.                     |
+| `known_path_outcome_assessments` | Immutable deterministic reliability/trend history for one KnownPath revision.                     |
+| `known_path_safety_events`       | Immutable safety-review state transitions, separate from ranking and lifecycle.                   |
 
 Source registries, immutable source snapshots, processing runs, candidates, canonical records,
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
@@ -177,21 +179,22 @@ overwritten; the projection can be rebuilt from a KnownPath revision and assessm
 
 ## Lifecycle values
 
-| Entity               | Values                                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| User                 | `active`, `suspended`, `deleted`                                                                                                    |
-| API key              | `active`, `revoked`, `expired`                                                                                                      |
-| Ingestion run        | `queued`, `running`, `succeeded`, `failed`, `cancelled`                                                                             |
-| Extraction attempt   | `queued`, `running`, `succeeded`, `irrelevant`, `insufficient_evidence`, `conflicting_evidence`, `quarantined`, `blocked`, `failed` |
-| Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`                                                                           |
-| Candidate assessment | `completed`, `ineligible`                                                                                                           |
-| Pair assessment      | `auto_merge`, `review`, `separate`                                                                                                  |
-| Canonical membership | `supporting`, `conflicting`, `rejected` plus active/inactive projection                                                             |
-| KnownPath            | `draft`, `review`, `published`, `deprecated`, `superseded`, `archived`                                                              |
-| Contribution         | `pending`, `accepted`, `rejected`, `superseded`                                                                                     |
-| Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`                                                                                     |
-| Agent outcome        | `helpful`, `not_helpful`, `partially_helpful`, `unknown`                                                                            |
-| Source item state    | `active`, `deprecated`, `deleted`                                                                                                   |
+| Entity               | Values                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| User                 | `active`, `suspended`, `deleted`                                                                                                      |
+| API key              | `active`, `revoked`, `expired`                                                                                                        |
+| Ingestion run        | `queued`, `running`, `succeeded`, `failed`, `cancelled`                                                                               |
+| Extraction attempt   | `queued`, `running`, `succeeded`, `irrelevant`, `insufficient_evidence`, `conflicting_evidence`, `quarantined`, `blocked`, `failed`   |
+| Candidate experience | `pending`, `accepted`, `rejected`, `superseded`, `failed`                                                                             |
+| Candidate assessment | `completed`, `ineligible`                                                                                                             |
+| Pair assessment      | `auto_merge`, `review`, `separate`                                                                                                    |
+| Canonical membership | `supporting`, `conflicting`, `rejected` plus active/inactive projection                                                               |
+| KnownPath            | `draft`, `review`, `published`, `deprecated`, `superseded`, `archived`                                                                |
+| Contribution         | `pending`, `accepted`, `rejected`, `superseded`                                                                                       |
+| Moderation           | `unreviewed`, `approved`, `flagged`, `rejected`                                                                                       |
+| Agent outcome v2     | `solved`, `partially_helped`, `attempted_failed`, `incompatible_environment`, `stale_or_outdated`, `misleading_or_unsafe`, `not_used` |
+| Safety review        | `clear`, `review_queued`, `under_review`, `resolved`, `restricted`                                                                    |
+| Source item state    | `active`, `deprecated`, `deleted`                                                                                                     |
 
 Source registries use an `enabled` flag because disabling a configured source is distinct from a
 processing lifecycle transition. Source items are immutable and therefore have no processing status.
@@ -433,9 +436,46 @@ canonical records without future explicit moderation approval.
 
 ### `agent_outcomes`
 
-- `uq_agent_outcomes_deduplication_key`: unique outcome deduplication.
+- `uq_agent_outcomes_deduplication_key_legacy`: schema-v1 outcome deduplication only.
 - `ix_agent_outcomes_known_path_created_at`: outcome history for a KnownPath.
 - `ix_agent_outcomes_outcome_created_at`: analysis by result and time.
+- `uq_agent_outcomes_owner_client_v2`: idempotent client outcome per account.
+- `uq_agent_outcomes_owner_execution_target_v2`: one report per account/execution/KnownPath.
+- `ix_agent_outcomes_api_key_received_v2`: durable per-key throttling.
+- `ix_agent_outcomes_user_received_v2`: durable per-account throttling and history.
+
+Schema-v2 records capture the exact KnownPath revision, private reporter/account/key provenance,
+client idempotency/execution IDs, normalized environment and version bucket, observed state,
+sanitized optional note, influence eligibility, anomaly reasons, and request digest. `not_used` is
+retained with zero evidence weight. A 30-day account/KnownPath/version influence cap prevents repeat
+submissions from dominating while preserving the immutable audit record.
+
+### `known_path_outcome_assessments`
+
+- `uq_outcome_assessments_idempotency`: exact algorithm/policy/input reuse.
+- `ix_outcome_assessments_known_path_calculated`: immutable history newest first.
+- `ix_outcome_assessments_policy_calculated`: algorithm/policy migration and recomputation.
+- `ix_outcome_assessments_confidence_trend`: operational reliability/revalidation inspection.
+
+Every assessment stores all input outcome IDs, algorithm and policy versions/digest, calculated
+time, complete counts, recency weights/effective sample size, Wilson intervals, confidence,
+success/failure timestamps, version distribution, trend, penalties, reason codes, and explanations.
+`known_paths.latestOutcomeAssessmentId` and `latestOutcomeAssessedAt` are mutable fast pointers;
+history is never overwritten.
+
+### `known_path_safety_events`
+
+- `uq_safety_events_idempotency`: one immutable transition per triggering action.
+- `ix_safety_events_known_path_occurred`: safety history for one record.
+- `ix_safety_events_type_occurred`: moderation queue/operations by event type.
+
+`known_paths.safetyReview` projects the latest separate safety state. A single unverified safety
+report queues review without directly changing confidence, lifecycle, moderation, visibility, or
+ranking. Corroboration/moderation policy is documented in [`OUTCOMES.md`](OUTCOMES.md).
+
+KnownPath indexes `latestOutcomeAssessmentId` for assessment navigation and
+`safetyReview.status/latestEventAt` for review queues. Search projections embed only safe aggregate
+outcome fields; they never contain reporter IDs or notes.
 
 Array indexes remain separate: no compound index combines two array fields, avoiding MongoDB's
 parallel-array multikey restriction. Phase 9 adds one ordinary weighted text index. No TTL,

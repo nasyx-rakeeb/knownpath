@@ -15,6 +15,7 @@ import {
 } from "@knownpath/mcp";
 import type { KnowledgeAccessService } from "@knownpath/search";
 import type { ContributionService } from "@knownpath/contributions";
+import type { OutcomeService } from "@knownpath/outcomes";
 import { toNodeHandler } from "@modelcontextprotocol/node";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
@@ -32,6 +33,7 @@ export function registerMcpRoutes(
     readonly database: KnownPathDatabase;
     readonly knowledge: KnowledgeAccessService;
     readonly contributions: ContributionService;
+    readonly outcomes: OutcomeService;
     readonly audit: AuditService;
     readonly rateLimitPolicy: RateLimitPolicy;
     readonly searchConfig: SearchConfig;
@@ -74,6 +76,7 @@ export function registerMcpRoutes(
         database: options.database,
         knowledge: options.knowledge,
         contributions: options.contributions,
+        outcomes: options.outcomes,
         audit: options.audit,
         principal,
         requestId: request.id,
@@ -104,6 +107,7 @@ export function registerMcpRoutes(
         database: options.database,
         knowledge: options.knowledge,
         contributions: options.contributions,
+        outcomes: options.outcomes,
         audit: options.audit,
         principal,
         requestId: request.id,

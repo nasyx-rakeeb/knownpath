@@ -39,6 +39,7 @@ export const apiKeyScopeSchema = z.enum([
   "api-keys:write",
   "knowledge:read",
   "knowledge:contribute",
+  "knowledge:outcome",
 ]);
 
 export const apiKeySchema = z.strictObject({

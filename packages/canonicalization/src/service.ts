@@ -548,6 +548,7 @@ function buildInitialKnownPath(
       },
     ],
     membershipSummary: { supporting: 0, conflicting: 0, rejected: 0 },
+    safetyReview: { status: "clear" },
     audit: { createdAt: now, updatedAt: now },
   };
 }
@@ -631,6 +632,13 @@ function buildCanonicalProjection(
       conflicting: memberships.filter((entry) => entry.disposition === "conflicting").length,
       rejected: memberships.filter((entry) => entry.disposition === "rejected").length,
     },
+    safetyReview: current.safetyReview,
+    ...(current.latestOutcomeAssessmentId === undefined
+      ? {}
+      : { latestOutcomeAssessmentId: current.latestOutcomeAssessmentId }),
+    ...(current.latestOutcomeAssessedAt === undefined
+      ? {}
+      : { latestOutcomeAssessedAt: current.latestOutcomeAssessedAt }),
     ...(current.supersededByKnownPathId === undefined
       ? {}
       : { supersededByKnownPathId: current.supersededByKnownPathId }),

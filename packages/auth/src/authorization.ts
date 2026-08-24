@@ -54,6 +54,16 @@ export function authorizeContributionSubmit(
   return authenticated;
 }
 
+export function authorizeOutcomeSubmit(
+  principal: Principal,
+): Extract<Principal, { kind: "api_key" }> {
+  const authenticated = requireScope(principal, "knowledge:outcome");
+  if (authenticated.kind !== "api_key") {
+    throw new AuthorizationError("Agent outcomes require an API key");
+  }
+  return authenticated;
+}
+
 export interface KnowledgeAccessAuthorization {
   readonly accessMode: "published" | "review";
   readonly principal:

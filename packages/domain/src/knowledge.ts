@@ -8,6 +8,8 @@ import {
   extractionAttemptIdSchema,
   knownPathIdSchema,
   knownPathRevisionIdSchema,
+  outcomeAssessmentIdSchema,
+  safetyEventIdSchema,
   moderationStateSchema,
   nonEmptyStringSchema,
   schemaVersionSchema,
@@ -257,6 +259,16 @@ export const knownPathSchema = z
     solutionVariants: z.array(canonicalSolutionVariantSchema).min(1).max(32),
     membershipSummary: canonicalMembershipSummarySchema,
     latestRevisionId: knownPathRevisionIdSchema.optional(),
+    latestOutcomeAssessmentId: outcomeAssessmentIdSchema.optional(),
+    latestOutcomeAssessedAt: timestampSchema.optional(),
+    safetyReview: z
+      .strictObject({
+        status: z.enum(["clear", "review_queued", "under_review", "resolved", "restricted"]),
+        firstQueuedAt: timestampSchema.optional(),
+        latestEventAt: timestampSchema.optional(),
+        latestSafetyEventId: safetyEventIdSchema.optional(),
+      })
+      .default({ status: "clear" }),
     supersededByKnownPathId: knownPathIdSchema.optional(),
   })
   .superRefine(validateErrorFingerprintProjection);

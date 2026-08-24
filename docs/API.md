@@ -5,7 +5,7 @@
 Phase 10 exposes safe canonical knowledge through Fastify under `/api/v1`. The transport composes
 the reusable authorization and knowledge-access services; route handlers do not query MongoDB or
 implement ranking. The API does not expose anonymous knowledge access, private/team retrieval, raw
-source documents, embeddings, model internals, or agent outcomes.
+source documents, embeddings, model internals, individual agent outcomes, or reporter identity.
 
 Phase 11 additionally mounts the authenticated MCP Streamable HTTP endpoint at `/mcp` and a safe
 bridge-status endpoint at `/api/v1/mcp/status`. They reuse the same access service and policies
@@ -73,7 +73,10 @@ The response returns `searchId`, effective access mode, retrieval capability sta
 ranked results. Each result includes applicability, caveats, deterministic trust/freshness, version
 compatibility, relevance components, penalties, explanations, and bounded safe provenance. It omits
 search-document IDs, assessment/candidate IDs, policy digests, embeddings, provider metadata,
-content hashes, and raw documents.
+content hashes, and raw documents. Privacy-thresholded aggregate outcome verification is included
+separately: fewer than three independent reporters produce only `limited`; qualifying aggregates
+expose conservative confidence, effective sample size, recent successes, compatibility/staleness
+counts, and trend.
 
 Search is deliberately bounded top-k rather than cursor-paginated because the ranking/index corpus
 can change between pages.
@@ -128,6 +131,40 @@ credentials in shell history when manually exercising it.
 sessions can read or update `ask|disabled` at `/api/v1/account/contribution-settings`; submissions
 themselves require a scoped API key. Team submissions fail explicitly.
 
+### Verified outcome
+
+`POST /api/v1/outcomes` requires an API key with both `knowledge:read` and `knowledge:outcome`;
+review targets additionally require the normal explicit admin review authorization. The body is
+strictly versioned and limited to 24 KiB. A typical attempted report is:
+
+```sh
+curl --request POST http://127.0.0.1:3001/api/v1/outcomes \
+  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "contractVersion": 1,
+    "clientOutcomeId": "CLIENT_OUTCOME_UUID",
+    "clientExecutionId": "CLIENT_EXECUTION_UUID",
+    "knownPathId": "KNOWN_PATH_UUID",
+    "outcome": "solved",
+    "attemptedAt": "2026-08-24T00:00:00.000Z",
+    "agentClient": { "name": "codex" },
+    "environment": {
+      "ecosystem": "expo",
+      "packages": [{ "name": "expo", "version": "55.0.0" }],
+      "platforms": ["android"],
+      "versions": ["expo@55.0.0"],
+      "toolchain": ["pnpm"]
+    },
+    "includeReview": false
+  }'
+```
+
+Valid states are `solved`, `partially_helped`, `attempted_failed`, `incompatible_environment`,
+`stale_or_outdated`, `misleading_or_unsafe`, and `not_used`. `not_used` must omit `attemptedAt` and
+has zero evidence weight. See [`OUTCOMES.md`](OUTCOMES.md) for idempotency, privacy, rate limits,
+assessment history, and safety policy.
+
 ## Errors and limits
 
 Errors retain the stable envelope:
@@ -148,12 +185,16 @@ Knowledge-specific codes include `knowledge_not_found`, `knowledge_review_access
 Contribution codes include `contribution_disabled`, `contribution_consent_required`,
 `contribution_content_rejected`, `contribution_idempotency_conflict`,
 `team_contributions_not_supported`, and `contribution_owner_forbidden`. Existing
-auth/validation/rate-limit codes remain stable.
+auth/validation/rate-limit codes remain stable. Outcome codes include
+`outcome_idempotency_conflict`, `outcome_execution_conflict`, `outcome_rate_limited`,
+`outcome_note_rejected`, and `outcome_target_not_accessible`.
 
 Search has a 32 KiB body limit and a 30-request/minute process-local policy. Detail/alternatives
 have a 120-request/minute policy. Selection reporting has a separate 120-request/minute policy. The
 current limiter is IP-oriented and process-local; a distributed store is deferred until a
-multi-instance deployment is introduced.
+multi-instance deployment is introduced. Outcome submission has an additional process-local
+10-request/minute route policy plus durable 10-per-key/hour and 20-per-account/day checks in
+MongoDB.
 
 ## Security notes
 

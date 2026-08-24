@@ -15,6 +15,7 @@
     "build": "turbo run build",
     "canonicalize": "pnpm --filter @knownpath/worker canonicalize",
     "contributions": "pnpm --filter @knownpath/worker contributions",
+    "outcomes": "pnpm --filter @knownpath/worker outcomes",
     "db:init": "pnpm --filter @knownpath/database db:init",
     "db:inspect": "pnpm --filter @knownpath/database db:inspect",
     "db:verify": "pnpm --filter @knownpath/database db:verify",

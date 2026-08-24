@@ -768,7 +768,7 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
           required: ["score", "grade", "assessmentIds", "scoreVersion"],
         },
         freshness: { bsonType: "object", required: ["status"] },
-        outcome: { bsonType: "object", required: ["status", "sampleSize"] },
+        outcome: { bsonType: "object", required: ["status"] },
         embedding: {
           bsonType: "object",
           required: [
@@ -1008,6 +1008,16 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         name: "ix_known_paths_latest_revision",
         partialFilterExpression: { latestRevisionId: { $exists: true } },
       },
+      {
+        key: { latestOutcomeAssessmentId: 1 },
+        name: "ix_known_paths_latest_outcome_assessment",
+        partialFilterExpression: { latestOutcomeAssessmentId: { $exists: true } },
+      },
+      {
+        key: { "safetyReview.status": 1, "safetyReview.latestEventAt": -1 },
+        name: "ix_known_paths_safety_review_status_event",
+        partialFilterExpression: { "safetyReview.status": { $exists: true } },
+      },
     ],
   },
   {
@@ -1058,16 +1068,35 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   },
   {
     name: collectionNames.agentOutcomes,
-    validator: envelopeValidator(["knownPathId", "deduplicationKey", "outcome"], {
+    obsoleteIndexes: ["uq_agent_outcomes_deduplication_key"],
+    validator: envelopeValidator(["knownPathId", "outcome"], {
+      schemaVersion: { bsonType: numericBsonTypes, enum: [1, 2] },
       knownPathId: { bsonType: "string" },
-      deduplicationKey: { bsonType: "object", required: ["value", "version"] },
-      outcome: { enum: ["helpful", "not_helpful", "partially_helpful", "unknown"] },
+      outcome: {
+        enum: [
+          "helpful",
+          "not_helpful",
+          "partially_helpful",
+          "unknown",
+          "solved",
+          "partially_helped",
+          "attempted_failed",
+          "incompatible_environment",
+          "stale_or_outdated",
+          "misleading_or_unsafe",
+          "not_used",
+        ],
+      },
     }),
     indexes: [
       {
         key: { "deduplicationKey.value": 1 },
-        name: "uq_agent_outcomes_deduplication_key",
+        name: "uq_agent_outcomes_deduplication_key_legacy",
         unique: true,
+        partialFilterExpression: {
+          schemaVersion: 1,
+          "deduplicationKey.value": { $exists: true },
+        },
       },
       {
         key: { knownPathId: 1, "audit.createdAt": -1 },
@@ -1077,6 +1106,102 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         key: { outcome: 1, "audit.createdAt": -1 },
         name: "ix_agent_outcomes_outcome_created_at",
       },
+      {
+        key: { "reporter.userId": 1, clientOutcomeId: 1 },
+        name: "uq_agent_outcomes_owner_client_v2",
+        unique: true,
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
+        key: { "reporter.userId": 1, knownPathId: 1, clientExecutionId: 1 },
+        name: "uq_agent_outcomes_owner_execution_target_v2",
+        unique: true,
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
+        key: { "reporter.apiKeyId": 1, receivedAt: -1 },
+        name: "ix_agent_outcomes_api_key_received_v2",
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+      {
+        key: { "reporter.userId": 1, receivedAt: -1 },
+        name: "ix_agent_outcomes_user_received_v2",
+        partialFilterExpression: { schemaVersion: 2 },
+      },
+    ],
+  },
+  {
+    name: collectionNames.outcomeAssessments,
+    validator: envelopeValidator(
+      [
+        "knownPathId",
+        "knownPathRevisionId",
+        "idempotencyKey",
+        "algorithm",
+        "policy",
+        "calculatedAt",
+        "counts",
+        "confidence",
+      ],
+      {
+        knownPathId: { bsonType: "string" },
+        knownPathRevisionId: { bsonType: "string" },
+        idempotencyKey: { bsonType: "object", required: ["value", "version"] },
+        algorithm: { bsonType: "object" },
+        policy: { bsonType: "object" },
+        calculatedAt: { bsonType: "date" },
+        counts: { bsonType: "object" },
+        confidence: { bsonType: "object" },
+      },
+    ),
+    indexes: [
+      {
+        key: { "idempotencyKey.value": 1 },
+        name: "uq_outcome_assessments_idempotency",
+        unique: true,
+      },
+      {
+        key: { knownPathId: 1, calculatedAt: -1 },
+        name: "ix_outcome_assessments_known_path_calculated",
+      },
+      {
+        key: { "policy.version": 1, calculatedAt: -1 },
+        name: "ix_outcome_assessments_policy_calculated",
+      },
+      {
+        key: { "confidence.score": -1, "trend.status": 1 },
+        name: "ix_outcome_assessments_confidence_trend",
+      },
+    ],
+  },
+  {
+    name: collectionNames.safetyEvents,
+    validator: envelopeValidator(
+      [
+        "knownPathId",
+        "idempotencyKey",
+        "eventType",
+        "fromStatus",
+        "toStatus",
+        "reasonCode",
+        "occurredAt",
+      ],
+      {
+        knownPathId: { bsonType: "string" },
+        idempotencyKey: { bsonType: "object", required: ["value", "version"] },
+        eventType: {
+          enum: ["review_queued", "review_started", "review_resolved", "visibility_restricted"],
+        },
+        fromStatus: { enum: ["clear", "review_queued", "under_review", "resolved", "restricted"] },
+        toStatus: { enum: ["clear", "review_queued", "under_review", "resolved", "restricted"] },
+        reasonCode: { bsonType: "string" },
+        occurredAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      { key: { "idempotencyKey.value": 1 }, name: "uq_safety_events_idempotency", unique: true },
+      { key: { knownPathId: 1, occurredAt: -1 }, name: "ix_safety_events_known_path_occurred" },
+      { key: { eventType: 1, occurredAt: -1 }, name: "ix_safety_events_type_occurred" },
     ],
   },
 ];

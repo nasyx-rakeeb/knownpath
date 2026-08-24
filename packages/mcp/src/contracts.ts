@@ -7,12 +7,14 @@ import {
   versionFitSchema,
   contributionSubmissionRequestSchema,
   contributionSubmissionResponseSchema,
+  outcomeSubmissionRequestSchema,
+  outcomeSubmissionResponseSchema,
 } from "@knownpath/domain";
 import { z } from "zod";
 
 export const KNOWNPATH_MCP_CONTRACT_VERSION = 1 as const;
 export const KNOWNPATH_MCP_SERVER_NAME = "knownpath";
-export const KNOWNPATH_MCP_SERVER_VERSION = "0.2.1";
+export const KNOWNPATH_MCP_SERVER_VERSION = "0.3.0";
 
 const boundedString = (maximum: number) => z.string().trim().min(1).max(maximum);
 const optionalReviewSchema = z.boolean().default(false);
@@ -73,6 +75,12 @@ export const knownPathMcpContributeInputSchema = contributionSubmissionRequestSc
 export const knownPathMcpContributeSuccessSchema = contributionSubmissionResponseSchema.extend({
   ok: z.literal(true),
 });
+export const knownPathMcpReportOutcomeInputSchema = outcomeSubmissionRequestSchema.describe(
+  "Report an observable result only after a KnownPath solution was actually attempted. not_used is zero-weight usage metadata.",
+);
+export const knownPathMcpReportOutcomeSuccessSchema = outcomeSubmissionResponseSchema.extend({
+  ok: z.literal(true),
+});
 
 const compactApplicabilitySchema = z.strictObject({
   ecosystem: boundedString(256),
@@ -92,6 +100,24 @@ const compactFreshnessSchema = z.strictObject({
   lastVerifiedAt: z.iso.datetime().optional(),
   staleAfter: z.iso.datetime().optional(),
 });
+
+const compactOutcomesSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("unobserved"), explanation: boundedString(500) }),
+  z.strictObject({
+    status: z.literal("limited"),
+    effectiveSampleSize: z.number().nonnegative(),
+    explanation: boundedString(500),
+  }),
+  z.strictObject({
+    status: z.literal("observed"),
+    confidenceScore: z.int().min(0).max(100),
+    confidenceGrade: z.enum(["very_low", "low", "moderate", "high", "very_high"]),
+    effectiveSampleSize: z.number().nonnegative(),
+    recentSuccesses: z.int().nonnegative(),
+    trend: z.enum(["insufficient_data", "stable", "declining"]),
+    explanation: boundedString(500),
+  }),
+]);
 
 const compactProvenanceSchema = z.strictObject({
   sourceItemId: z.uuidv4(),
@@ -157,6 +183,7 @@ export const knownPathMcpSearchSuccessSchema = z.strictObject({
         caveats: z.array(boundedString(500)).max(5),
         trust: compactTrustSchema,
         freshness: compactFreshnessSchema,
+        outcomes: compactOutcomesSchema,
         match: z.strictObject({
           score: z.int().min(0).max(100),
           versionCompatibility: versionFitSchema,
@@ -186,6 +213,7 @@ export const knownPathMcpGetSuccessSchema = z.strictObject({
   solutions: z.array(compactSolutionSchema).max(2),
   trust: compactTrustSchema,
   freshness: compactFreshnessSchema,
+  outcomes: compactOutcomesSchema,
   evidence: z.array(compactProvenanceSchema).max(8),
   selectionRecorded: z.boolean(),
   truncated: z.strictObject({
@@ -222,6 +250,7 @@ export const mcpStatusResponseSchema = z.strictObject({
     reviewRead: z.boolean(),
     searchBackend: z.enum(["local", "atlas"]),
     contribute: z.boolean(),
+    reportOutcome: z.boolean(),
   }),
 });
 
@@ -254,9 +283,14 @@ export const knownPathMcpContributeOutputSchema = z.union([
   knownPathMcpContributeSuccessSchema,
   mcpToolErrorSchema,
 ]);
+export const knownPathMcpReportOutcomeOutputSchema = z.union([
+  knownPathMcpReportOutcomeSuccessSchema,
+  mcpToolErrorSchema,
+]);
 
 export type KnownPathMcpSearchInput = z.infer<typeof knownPathMcpSearchInputSchema>;
 export type KnownPathMcpGetInput = z.infer<typeof knownPathMcpGetInputSchema>;
 export type KnownPathMcpAlternativesInput = z.infer<typeof knownPathMcpAlternativesInputSchema>;
 export type KnownPathMcpStatus = z.infer<typeof mcpStatusResponseSchema>;
 export type KnownPathMcpContributeInput = z.infer<typeof knownPathMcpContributeInputSchema>;
+export type KnownPathMcpReportOutcomeInput = z.infer<typeof knownPathMcpReportOutcomeInputSchema>;

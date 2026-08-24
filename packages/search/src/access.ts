@@ -22,6 +22,7 @@ import {
   type KnownPathDetailResponse,
   type KnownPathId,
   type SafeProvenance,
+  type OutcomeAssessment,
   type SourceItem,
   type SourceRegistry,
 } from "@knownpath/domain";
@@ -93,6 +94,12 @@ export class KnowledgeAccessService {
       retrieval.results.map((result) => result.knownPathId),
     );
     const recordsById = new Map(records.map((record) => [record._id, record]));
+    const outcomeAssessments = await this.database.repositories.outcomeAssessments.findManyByIds(
+      records.flatMap((record) =>
+        record.latestOutcomeAssessmentId === undefined ? [] : [record.latestOutcomeAssessmentId],
+      ),
+    );
+    const outcomeAssessmentsById = new Map(outcomeAssessments.map((value) => [value._id, value]));
     const safeResults = [];
     for (const result of retrieval.results) {
       const record = recordsById.get(result.knownPathId);
@@ -108,6 +115,11 @@ export class KnowledgeAccessService {
         caveats: unique(record.solutionVariants.flatMap((variant) => variant.caveats)).slice(0, 64),
         trust: toTrust(record.trust.score, record.trust.grade),
         freshness: toFreshness(record),
+        outcomes: toSafeOutcomes(
+          record.latestOutcomeAssessmentId === undefined
+            ? null
+            : (outcomeAssessmentsById.get(record.latestOutcomeAssessmentId) ?? null),
+        ),
         relevance: {
           score: result.score.finalScore,
           versionCompatibility: result.score.versionCompatibility,
@@ -170,6 +182,12 @@ export class KnowledgeAccessService {
     if (record.status === "review") {
       await this.recordReviewAudit("knowledge.review_read", id, context);
     }
+    const outcomeAssessment =
+      record.latestOutcomeAssessmentId === undefined
+        ? null
+        : await this.database.repositories.outcomeAssessments.findById(
+            record.latestOutcomeAssessmentId,
+          );
     return knownPathDetailResponseSchema.parse({
       contractVersion: KNOWLEDGE_API_CONTRACT_VERSION,
       id: record._id,
@@ -185,6 +203,7 @@ export class KnowledgeAccessService {
       solutions: record.solutionVariants.map((variant) => this.toSolution(record, variant)),
       trust: toTrust(record.trust.score, record.trust.grade),
       freshness: toFreshness(record),
+      outcomes: toSafeOutcomes(outcomeAssessment),
       provenance: await this.safeProvenance(record.evidence, 512),
     });
   }
@@ -540,6 +559,39 @@ function toFreshness(record: KnownPath) {
     status,
     ...(lastVerifiedAt === undefined ? {} : { lastVerifiedAt: lastVerifiedAt.toISOString() }),
     ...(staleAfter === undefined ? {} : { staleAfter: staleAfter.toISOString() }),
+  };
+}
+
+function toSafeOutcomes(assessment: OutcomeAssessment | null) {
+  if (assessment === null || assessment.confidence.status === "unobserved")
+    return {
+      status: "unobserved" as const,
+      explanation: "No eligible attempted outcome evidence is available.",
+    };
+  if (assessment.counts.uniqueUsers < 3)
+    return {
+      status: "limited" as const,
+      effectiveSampleSize: assessment.recency.effectiveSampleSize,
+      explanation:
+        "Outcome evidence exists, but detailed aggregates remain hidden until three independent accounts have reported.",
+    };
+  return {
+    status: "observed" as const,
+    confidenceScore: assessment.confidence.score,
+    confidenceGrade: assessment.confidence.grade,
+    effectiveSampleSize: assessment.recency.effectiveSampleSize,
+    recentSuccesses: assessment.counts.recentSuccesses,
+    solved: assessment.counts.solved,
+    partiallyHelped: assessment.counts.partiallyHelped,
+    attemptedFailed: assessment.counts.attemptedFailed,
+    incompatibleEnvironment: assessment.counts.incompatibleEnvironment,
+    staleOrOutdated: assessment.counts.staleOrOutdated,
+    ...(assessment.lastSuccessfulAt === undefined
+      ? {}
+      : { lastSuccessfulAt: assessment.lastSuccessfulAt.toISOString() }),
+    trend: assessment.trend.status,
+    explanation:
+      "Aggregate outcome confidence uses time-decayed Wilson lower bounds and one effective report per account/version window.",
   };
 }
 

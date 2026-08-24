@@ -823,3 +823,69 @@ using unpaid/public AI for private records.
 [NIST Privacy Framework](https://www.nist.gov/privacy-framework),
 [OpenTelemetry sensitive data guidance](https://opentelemetry.io/docs/security/handling-sensitive-data/),
 [MCP security practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)
+
+## 2026-08-24 — Store immutable outcome assessments with conservative small-sample confidence
+
+**Decision:** Store every schema-v2 outcome privately and immutably, then append a separate
+versioned `known_path_outcome_assessments` record for every distinct algorithm/policy/input set.
+Keep only `latestOutcomeAssessmentId` and calculation time on the KnownPath. Compute two 95% Wilson
+lower bounds over independently capped attempted reports, with a 30-day grace period, 180-day
+half-life, and Kish effective sample size. Combine any-help and full-solve lower bounds 65/35; never
+use naive success/total or an LLM-assigned result.
+
+**Why:** Historical assessments are necessary to debug algorithm changes, audit rank movement, and
+reproduce prior decisions. Wilson lower bounds and effective sample size resist perfect-looking tiny
+samples and decayed pseudo-count inflation. Source trust, freshness/version fit, and observed
+outcomes remain separately explainable.
+
+**Rejected:** Overwriting one aggregate destroys audit history. Naive ratios over-rank one success.
+Treating every API key as independent lets one account multiply influence. A Beta-prior-only score
+is reasonable, but Wilson intervals are simpler to inspect and match the current deterministic
+integer ranking contract.
+
+**References:**
+[NIST proportion confidence intervals](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/propconf.htm),
+[NIST Technical Note 2119](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2119.pdf),
+[Elastic decay functions](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/search-functions/decay)
+
+## 2026-08-24 — Separate immediate safety review from ranking and visibility
+
+**Decision:** One eligible `misleading_or_unsafe` report immediately appends an immutable safety
+event and queues the KnownPath for review. It does not directly change ranking, confidence,
+lifecycle, moderation, or visibility. A ranking penalty requires two independent eligible safety
+reporters within 90 days, verified moderation, or separately measured outcome degradation. Only an
+explicit later safety-policy/moderation action may restrict published visibility.
+
+**Why:** Fast review response reduces safety latency, while separation prevents one account from
+gaming rank or delisting content. Account/version/window influence caps, durable rate limits, and
+immutable provenance preserve accountability.
+
+**Rejected:** Automatically penalizing or delisting on one unverified report is easily abused.
+Ignoring a first report delays legitimate investigation. Reusing moderation or lifecycle state hides
+why a record was queued and couples unrelated policies.
+
+**References:**
+[SumUp Sybil-resistant feedback](https://www.usenix.org/legacy/event/nsdi09/tech/full_papers/tran/tran.pdf),
+[Bazaar Sybil-resilient aggregates](https://www.usenix.org/legacy/event/nsdi11/tech/nsdi11_proceedings.pdf),
+[OWASP API4 resource controls](https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/)
+
+## 2026-08-24 — Integrate outcomes through ranking policy version 2 and privacy-thresholded views
+
+**Decision:** Give conservative outcome confidence up to 15/100 ranking points, while exact error,
+lexical/semantic relevance, metadata/version fit, source trust, and freshness remain distinct. Apply
+explicit penalties only for corroborated safety, statistically qualified recent degradation, or a
+failure-heavy matching version bucket. Search projections are regenerated when the latest assessment
+changes but reuse unchanged embeddings. API/MCP responses reveal detailed aggregate distributions
+only after three independent accounts; reporter IDs, notes, raw outcomes, and assessment inputs
+never leave the backend.
+
+**Why:** Real-world results should grow more important than seed popularity without erasing
+first-party evidence or version applicability. Reusing content-identical embeddings avoids provider
+cost. A disclosure threshold provides useful verification while reducing individual-report leakage.
+
+**Rejected:** Ranking solely by outcome confidence discards deterministic technical relevance.
+Semantic-only ranking cannot protect exact/version compatibility. Re-embedding unchanged content on
+every outcome wastes quota. Returning raw reports exposes private operational data.
+
+**References:** [Semantic Versioning](https://semver.org/),
+[NIST Technical Note 2119](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2119.pdf)

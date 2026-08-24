@@ -90,10 +90,12 @@ versions, policy digest, and evaluation timestamp. Normal CLI defaults use UTC-d
 granularity so same-day unchanged reruns reuse an assessment. `--force` intentionally creates
 another immutable record.
 
-Future agent outcomes are represented as `unobserved` with zero samples. The schema reserves an
-observed component containing successes, failures, sample size, observed proportion, Wilson bounds,
-method version, and calculation time. Outcome evidence does not affect Phase 7 seed scores, avoiding
-overconfidence from small samples.
+Phase 15 keeps this seed assessment unchanged and adds a separate immutable KnownPath outcome
+assessment. Its time-decayed Wilson lower bounds, effective sample size, version distribution,
+trend, and penalties never overwrite source-evidence history. Retrieval policy version 2 gives the
+conservative outcome component up to 15 points while source trust, freshness, and version fit remain
+separately inspectable. See [`OUTCOMES.md`](OUTCOMES.md) for the current algorithm and safety-review
+policy.
 
 ## Commands
 

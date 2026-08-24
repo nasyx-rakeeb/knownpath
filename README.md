@@ -4,9 +4,10 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 13 adds the portable installer
-> CLI and safe adapters for five coding agents. Contribution/outcome tools, dashboards, public
-> signup, and public anonymous access are not implemented yet. The installer is published as
+> [!IMPORTANT] KnownPath is under active phased development. Through Phase 15, agents can retrieve
+> evidence-grounded records, submit consented generalized lessons, and report privacy-minimized
+> observed outcomes. Dashboards, public signup, teams, and public anonymous access are not
+> implemented yet. The current released installer is published as
 > [`knownpath`](https://www.npmjs.com/package/knownpath).
 
 ## Prerequisites
@@ -162,6 +163,10 @@ The portable Agent Skill teaches supported coding agents when and how to consult
 without blindly applying retrieved fixes. Manual development installation and the current behavior
 contract are documented in [the Agent Skill guide](docs/AGENT_SKILL.md).
 
+Outcome reporting uses a separate `knowledge:outcome` scope and never treats a search or selection
+as success. The immutable assessment algorithm, safety-review separation, abuse controls, and
+developer recomputation commands are documented in [the outcomes guide](docs/OUTCOMES.md).
+
 Configure the API origin and API key in the environment that launches each agent, then inspect or
 apply the Phase 13 installer plan:
 
@@ -220,6 +225,7 @@ pnpm dev:infra:down
 | `pnpm mcp:inspect`                     | List or invoke MCP tools with the official SDK client                      |
 | `pnpm knownpath …`                     | Run the multi-agent installer CLI from this checkout                       |
 | `pnpm contributions inspect --id <id>` | Inspect a sanitized contribution and processing state                      |
+| `pnpm outcomes …`                      | Recompute or inspect immutable KnownPath outcome assessments               |
 
 ## Structure
 

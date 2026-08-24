@@ -2073,3 +2073,125 @@ Phase 14.**
   skill version 1.1.0 with the five current MCP tool names. The production readiness endpoint
   reported MongoDB and auth healthy, and production OpenAPI exposed 22 paths including contribution
   submission, inspection, and account contribution settings.
+
+## Phase 15 — Verified outcomes and freshness ranking
+
+### Phase goal
+
+Close the feedback loop with authenticated, privacy-minimized reports about solutions agents really
+attempted. Aggregate those reports conservatively, preserve immutable assessment history, identify
+version/freshness degradation, and incorporate transparent outcome evidence into retrieval without
+letting small samples, duplicate reports, or one safety allegation manipulate ranking.
+
+### Research performed and official references consulted
+
+Current references were checked on 2026-08-23 before implementation:
+
+- [NIST proportion confidence intervals](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/propconf.htm)
+  and [NIST Technical Note 2119](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.2119.pdf)
+  for Wilson intervals and honest small-sample uncertainty.
+- [SumUp](https://www.usenix.org/legacy/event/nsdi09/tech/full_papers/tran/tran.pdf) and the
+  [Bazaar paper](https://www.usenix.org/legacy/event/nsdi11/tech/nsdi11_proceedings.pdf) for
+  Sybil-resistant aggregation and limiting correlated identities.
+- [OWASP API4:2023](https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/)
+  for layered quotas and resource-consumption controls.
+- [Elastic decay functions](https://www.elastic.co/docs/reference/query-languages/esql/functions-operators/search-functions/decay)
+  and [Semantic Versioning](https://semver.org/) for time-decay and version-aware applicability.
+
+### Architecture and technology decisions
+
+- Added strict outcome states: `solved`, `partially_helped`, `attempted_failed`,
+  `incompatible_environment`, `stale_or_outdated`, `misleading_or_unsafe`, and `not_used`.
+  `not_used` is recorded but receives zero reliability weight; a view/search is never inferred to be
+  success.
+- Added `@knownpath/outcomes` as the transport-independent submission, throttling, aggregation,
+  safety, and recomputation boundary. `@knownpath/privacy` supplies reusable Secretlint-backed note
+  sanitization. HTTP and MCP share the same service and centralized authorization.
+- Outcome policy version 1 allows one effective report per account, KnownPath, environment version,
+  and 30-day window; enforces durable per-key/per-account limits; applies temporal decay after a
+  30-day grace period with a 180-day half-life; and caps each account's aggregate influence.
+- Outcome confidence uses Wilson 95% lower bounds for any-help and full-solve rates, plus Kish
+  effective sample size. It remains explicitly insufficient below five effective samples and never
+  presents a tiny perfect sample as certainty.
+- Every calculation is a separate immutable `known_path_outcome_assessments` record with algorithm,
+  policy, inputs, counts, intervals, version/environment buckets, trends, score, reason codes, and
+  explanations. KnownPaths hold only a monotonic `latestOutcomeAssessmentId` pointer.
+- One eligible `misleading_or_unsafe` report immediately appends an immutable safety event and
+  queues review. It does not change ranking, confidence, lifecycle, moderation, or visibility by
+  itself. Ranking penalties require independent corroboration or measurable outcome degradation.
+- Retrieval ranking policy version 2 reserves 15/100 points for conservative observed outcomes and
+  keeps exact, lexical, semantic, metadata, version, source-trust, and freshness components visible.
+  Aggregate outcome details are hidden until at least three independent reporters exist.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-23-knownpath-phase-15-verified-outcomes-design.md`](docs/superpowers/specs/2026-08-23-knownpath-phase-15-verified-outcomes-design.md).
+Operational behavior and formulas are documented in [`docs/OUTCOMES.md`](docs/OUTCOMES.md).
+
+### Collections, schemas, indexes, and files
+
+- Evolved schema-version-2 `agent_outcomes`; added immutable `known_path_outcome_assessments` and
+  `known_path_safety_events`; added KnownPath latest-assessment and separate safety-review pointers;
+  and added privacy-thresholded outcome projections to safe search/detail contracts.
+- Added idempotency, execution-window, per-key/per-user throttling, assessment history/policy/trend,
+  safety-event, and KnownPath pointer/review indexes. Initialization removes the obsolete broad
+  legacy outcome deduplication index and replaces it with a partial legacy-only index so old records
+  remain protected without blocking v2 inserts.
+- Added `POST /api/v1/outcomes`, MCP tool `knownpath_report_outcome`, `knowledge:outcome` scope,
+  outcome audit events, `pnpm outcomes recompute|inspect|history`, search projection/ranking v2, and
+  skill version 1.2.0 behavior that reports only after the task result is known.
+- Updated API, MCP, skill, scoring, retrieval, architecture, data-model, installer, README, and
+  decision documentation. No new environment variable was required.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled all 22 workspaces and passed the repository supply-chain policy.
+- With Node 24.18.0, the final repository gates completed: `pnpm typecheck` **35/35** tasks,
+  `pnpm lint` **20/20** tasks, `pnpm build` **20/20** tasks, and `pnpm format:check`. The canonical
+  skill frontmatter parsed as `knownpath` version 1.2.0, and its six referenced MCP tool names match
+  the implemented server registrations. The optional `skills-ref` binary was not installed in this
+  environment; no successful run of that unavailable tool is claimed.
+- Against a dedicated Atlas database, database initialization created 26 collections; immediate
+  repeated initialization retained 26 and created zero new collections. The database was dropped
+  after verification.
+- Copied only the two existing real review KnownPaths and their real source/candidate/scoring
+  provenance into that isolated database. A real authenticated Fastify flow returned 200 for a valid
+  outcome, reused an identical idempotency request, and returned 401 for invalid and revoked keys.
+  OpenAPI contained the outcome route.
+- One success produced rank 18 with 3 outcome points. Five independent successes produced rank 24, 9
+  outcome points, effective sample size 5, and moderate confidence 57 rather than false 100%
+  certainty.
+- Ten older successes followed by five recent failures produced a declining trend with recent and
+  baseline effective sample sizes of 10, a Wilson lower-bound drop of about 0.486, rank 12, and the
+  explicit `recent_outcome_degradation` penalty.
+- One safety report queued review, produced exactly one immutable safety event, and applied no
+  ranking penalty. The isolated run held 21 outcomes and 21 immutable assessments before cleanup.
+- Repeated projection after a new assessment changed ranking deterministically without changing the
+  embedding. The run also exposed and fixed v2 strict-schema serialization, date-idempotency,
+  legacy-index, and stale-projection reuse defects before completion.
+
+### Environment and manual setup still required
+
+- Production API keys intended to report outcomes must be deliberately issued with both
+  `knowledge:read` and `knowledge:outcome`; existing keys do not gain the scope automatically.
+- Phase 15 has not been deployed or published to npm. Installed agents remain on the prior published
+  CLI/skill until a separately requested release and redeploy occur.
+- The HTTP/service path was exercised against Atlas. An official external MCP client invocation of
+  the new write tool remains a post-deployment manual check; its shared schemas and gateway are
+  covered by repository typecheck/build verification.
+
+### Known limitations intentionally left for later phases
+
+- No team ownership, moderation dashboard, distributed rate limiter, account reputation system, or
+  automated safety adjudication exists. Local durable limits are intentionally conservative.
+- A safety allegation queues review but is neither automatically substantiated nor an automatic
+  delisting instruction. Restricting published visibility requires an explicit future safety policy
+  or verified moderation action.
+- Environment/version aggregation uses supplied normalized metadata and does not collect repository
+  code, raw prompts, hidden chain-of-thought, or private transcripts. Notes are optional and
+  bounded.
+- No tests were added by explicit phase requirement. No Phase 16 feature was started.
+
+### Exact next phase
+
+**Phase 16 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt.**

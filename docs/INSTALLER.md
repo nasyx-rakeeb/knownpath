@@ -150,11 +150,16 @@ or credentials.
 
 ## Contribution privacy
 
-Installer 0.2.1 bundles skill 1.1.0 and the real `knownpath_contribute` contract. Installation does
-not enable background sharing: the skill offers a contribution only after observed success and asks
-for explicit consent for that submission. A key must deliberately include `knowledge:contribute`; a
-read-only key continues to retrieve only. Account contribution mode defaults to `ask` and can be
-changed to `disabled` through the authenticated account API.
+Installer 0.3.0 bundles skill 1.2.0 and the real `knownpath_contribute` and
+`knownpath_report_outcome` contracts. Installation does not enable background sharing: the skill
+offers a contribution only after observed success and asks for explicit consent for that submission.
+A key must deliberately include `knowledge:contribute`; a read-only key continues to retrieve only.
+Account contribution mode defaults to `ask` and can be changed to `disabled` through the
+authenticated account API.
+
+Outcome reporting is separate from contribution consent and requires a deliberately scoped
+`knowledge:outcome` key. It occurs only after an actual attempt is known, never from a search/view,
+and sends bounded non-sensitive metadata. A read-only/contribution-only key cannot report outcomes.
 
 The installer still stores only the same environment references. It cannot see, copy, or upload a
 repository. Public/private handling, sanitization, authorization, audit, and provider privacy gates

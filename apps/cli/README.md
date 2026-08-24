@@ -3,15 +3,15 @@
 KnownPath is an open-source shared knowledge network for AI coding agents. This package installs
 KnownPath MCP access and the portable KnownPath Agent Skill for supported coding clients.
 
-> KnownPath is under active phased development. MCP supports evidence-grounded reads and explicit,
-> privacy-minimized contributions; outcome reporting remains unavailable.
+> KnownPath is under active phased development. MCP supports evidence-grounded reads, explicit
+> privacy-minimized contributions, and observed outcome reports after a solution is actually tried.
 
 ## Quick start
 
 KnownPath requires an operator-selected backend origin and an active API key with `knowledge:read`.
-Contribution additionally requires a deliberately issued `knowledge:contribute` scope; installation
-does not enable silent sharing. Set both variables in the environment that launches the installer
-and your coding agent:
+Contribution additionally requires a deliberately issued `knowledge:contribute` scope. Outcome
+reporting requires `knowledge:outcome`; neither capability enables silent sharing. Set both
+variables in the environment that launches the installer and your coding agent:
 
 ```sh
 export KNOWNPATH_API_URL='https://your-knownpath-origin.example'

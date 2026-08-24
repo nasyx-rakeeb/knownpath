@@ -7,8 +7,9 @@ compact, evidence-grounded experience; the coding agent still inspects the actua
 version applicability, and decides whether a proposed fix is safe. A result is not an instruction to
 modify code blindly.
 
-`knownpath_contribute` is a real idempotent additive write. `knownpath_report_outcome` remains
-reserved and is not advertised.
+`knownpath_contribute` and `knownpath_report_outcome` are real idempotent additive writes. The
+former submits a consented generalized lesson; the latter reports only an observed result after an
+actual attempt.
 
 ## Architecture
 
@@ -32,13 +33,14 @@ structured results are still returned with each call.
 
 ## Tools
 
-| Tool                     | Purpose                                                                                       |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `knownpath_search`       | Search with a task plus optional errors, ecosystem, packages, versions, platform, and context |
-| `knownpath_get`          | Reveal deeper steps, caveats, and bounded evidence for one selected ID                        |
-| `knownpath_alternatives` | Page through other solution variants on the same canonical KnownPath                          |
-| `knownpath_status`       | Inspect safe service, key-scope, review-access, and search-backend state                      |
-| `knownpath_contribute`   | Submit a consented generalized lesson after observable success                                |
+| Tool                       | Purpose                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `knownpath_search`         | Search with a task plus optional errors, ecosystem, packages, versions, platform, and context  |
+| `knownpath_get`            | Reveal deeper steps, caveats, and bounded evidence for one selected ID                         |
+| `knownpath_alternatives`   | Page through other solution variants on the same canonical KnownPath                           |
+| `knownpath_status`         | Inspect safe service, key-scope, review-access, and search-backend state                       |
+| `knownpath_contribute`     | Submit a consented generalized lesson after observable success                                 |
+| `knownpath_report_outcome` | Report solved/partial/failed/compatibility/staleness/safety/not-used after the result is known |
 
 Search defaults to five results and allows at most ten. Detail returns at most two solution
 variants, eight steps per solution, and eight bounded evidence references. Alternatives defaults to
@@ -54,6 +56,12 @@ keys cannot receive review records. Retrieval cannot request private/team record
 `clientSubmissionId`. It accepts public or owner-private lessons and rejects team visibility.
 Private data never uses an unpaid/public provider. The response is a receipt for low-trust
 self-reported evidence, not publication or proof.
+
+`knownpath_report_outcome` requires `knowledge:outcome` plus the normal MCP `knowledge:read` scope.
+It accepts one KnownPath/execution result, bounded environment/version metadata, and an optional
+sanitized note. `not_used` has zero evidence weight. Review-record reporting also requires explicit
+`includeReview: true` and an administrator-owned key. One safety report queues a separate review but
+does not itself penalize ranking or delist the record. See [`OUTCOMES.md`](OUTCOMES.md).
 
 ## Configuration
 
@@ -185,6 +193,8 @@ pnpm mcp:inspect --transport stdio
 pnpm mcp:inspect --transport http --tool knownpath_status --input '{}'
 pnpm mcp:inspect --transport http --tool knownpath_search \
   --input '{"task":"Expo EAS build cannot resolve an imported file","includeReview":true}'
+pnpm mcp:inspect --transport http --tool knownpath_report_outcome \
+  --input '{"contractVersion":1,"clientOutcomeId":"UUID","clientExecutionId":"UUID","knownPathId":"UUID","outcome":"not_used","agentClient":{"name":"manual-inspector"},"environment":{},"includeReview":true}'
 ```
 
 The official MCP Inspector is also suitable:

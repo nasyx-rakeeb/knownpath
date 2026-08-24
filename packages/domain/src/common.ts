@@ -45,6 +45,8 @@ export const knownPathSearchDocumentIdSchema = brandedIdSchema<"KnownPathSearchD
 export const knowledgeSearchEventIdSchema = brandedIdSchema<"KnowledgeSearchEventId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
+export const outcomeAssessmentIdSchema = brandedIdSchema<"OutcomeAssessmentId">();
+export const safetyEventIdSchema = brandedIdSchema<"SafetyEventId">();
 
 export type UserId = z.infer<typeof userIdSchema>;
 export type ApiKeyId = z.infer<typeof apiKeyIdSchema>;
@@ -68,6 +70,8 @@ export type KnownPathSearchDocumentId = z.infer<typeof knownPathSearchDocumentId
 export type KnowledgeSearchEventId = z.infer<typeof knowledgeSearchEventIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
+export type OutcomeAssessmentId = z.infer<typeof outcomeAssessmentIdSchema>;
+export type SafetyEventId = z.infer<typeof safetyEventIdSchema>;
 
 export function createUserId(): UserId {
   return userIdSchema.parse(randomUUID());
@@ -155,6 +159,14 @@ export function createAgentContributionId(): AgentContributionId {
 
 export function createAgentOutcomeId(): AgentOutcomeId {
   return agentOutcomeIdSchema.parse(randomUUID());
+}
+
+export function createOutcomeAssessmentId(): OutcomeAssessmentId {
+  return outcomeAssessmentIdSchema.parse(randomUUID());
+}
+
+export function createSafetyEventId(): SafetyEventId {
+  return safetyEventIdSchema.parse(randomUUID());
 }
 
 export const auditMetadataSchema = z.strictObject({

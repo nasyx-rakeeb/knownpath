@@ -5,6 +5,7 @@ import type {
   SafeApplicability,
   SafeFreshness,
   SafeProvenance,
+  SafeOutcomeVerification,
   SafeSolutionVariant,
   SafeTrust,
 } from "@knownpath/domain";
@@ -40,6 +41,7 @@ export function projectSearch(response: KnowledgeSearchResponse) {
         caveats: caveats.map((value) => value.value),
         trust: compactTrust(result.trust),
         freshness: compactFreshness(result.freshness),
+        outcomes: compactOutcomes(result.outcomes),
         match: {
           score: result.relevance.score,
           versionCompatibility: result.relevance.versionCompatibility,
@@ -81,6 +83,7 @@ export function projectDetail(response: KnownPathDetailResponse, selectionRecord
     solutions,
     trust: compactTrust(response.trust),
     freshness: compactFreshness(response.freshness),
+    outcomes: compactOutcomes(response.outcomes),
     evidence,
     selectionRecorded,
     truncated: {
@@ -151,6 +154,26 @@ function compactFreshness(value: SafeFreshness) {
     status: value.status,
     ...(value.lastVerifiedAt === undefined ? {} : { lastVerifiedAt: value.lastVerifiedAt }),
     ...(value.staleAfter === undefined ? {} : { staleAfter: value.staleAfter }),
+  };
+}
+
+function compactOutcomes(value: SafeOutcomeVerification) {
+  if (value.status === "unobserved")
+    return { status: value.status, explanation: truncate(value.explanation, 500).value };
+  if (value.status === "limited")
+    return {
+      status: value.status,
+      effectiveSampleSize: value.effectiveSampleSize,
+      explanation: truncate(value.explanation, 500).value,
+    };
+  return {
+    status: value.status,
+    confidenceScore: value.confidenceScore,
+    confidenceGrade: value.confidenceGrade,
+    effectiveSampleSize: value.effectiveSampleSize,
+    recentSuccesses: value.recentSuccesses,
+    trend: value.trend,
+    explanation: truncate(value.explanation, 500).value,
   };
 }
 

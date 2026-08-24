@@ -1,6 +1,8 @@
 import type {
   AgentContribution,
   AgentOutcome,
+  OutcomeAssessment,
+  SafetyEvent,
   ApiKey,
   AuditEvent,
   CandidateAssessment,
@@ -26,6 +28,8 @@ import type { Collection, Db } from "mongodb";
 export const collectionNames = {
   agentContributions: "agent_contributions",
   agentOutcomes: "agent_outcomes",
+  outcomeAssessments: "known_path_outcome_assessments",
+  safetyEvents: "known_path_safety_events",
   apiKeys: "api_keys",
   auditEvents: "audit_events",
   authAccounts: "auth_accounts",
@@ -53,6 +57,8 @@ export const collectionNames = {
 export interface KnownPathCollections {
   readonly agentContributions: Collection<AgentContribution>;
   readonly agentOutcomes: Collection<AgentOutcome>;
+  readonly outcomeAssessments: Collection<OutcomeAssessment>;
+  readonly safetyEvents: Collection<SafetyEvent>;
   readonly apiKeys: Collection<ApiKey>;
   readonly auditEvents: Collection<AuditEvent>;
   readonly candidateAssessments: Collection<CandidateAssessment>;
@@ -78,6 +84,8 @@ export function getCollections(database: Db): KnownPathCollections {
   return {
     agentContributions: database.collection<AgentContribution>(collectionNames.agentContributions),
     agentOutcomes: database.collection<AgentOutcome>(collectionNames.agentOutcomes),
+    outcomeAssessments: database.collection<OutcomeAssessment>(collectionNames.outcomeAssessments),
+    safetyEvents: database.collection<SafetyEvent>(collectionNames.safetyEvents),
     apiKeys: database.collection<ApiKey>(collectionNames.apiKeys),
     auditEvents: database.collection<AuditEvent>(collectionNames.auditEvents),
     candidateAssessments: database.collection<CandidateAssessment>(

@@ -7,7 +7,8 @@ export interface RateLimitPolicy {
     | "knowledge-search"
     | "knowledge-read"
     | "knowledge-usage"
-    | "contribution-submit";
+    | "contribution-submit"
+    | "outcome-submit";
   readonly timeWindowMs: number;
 }
 
@@ -20,5 +21,6 @@ export function createRateLimitPolicies(defaultMax: number, timeWindowMs: number
     knowledgeRead: { max: 120, name: "knowledge-read", timeWindowMs: 60_000 },
     knowledgeUsage: { max: 120, name: "knowledge-usage", timeWindowMs: 60_000 },
     contributionSubmit: { max: 12, name: "contribution-submit", timeWindowMs: 60_000 },
+    outcomeSubmit: { max: 10, name: "outcome-submit", timeWindowMs: 60_000 },
   } as const satisfies Record<string, RateLimitPolicy>;
 }

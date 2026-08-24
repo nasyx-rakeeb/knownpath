@@ -27,7 +27,7 @@ The artifact follows the open Agent Skills specification. Its frontmatter uses o
 dynamic prompt syntax, pre-approved tools, executable scripts, or UI metadata. Detailed Expo and
 React Native examples are loaded only when useful.
 
-The current skill version is `1.1.0`.
+The current skill version is `1.2.0`.
 
 ## Required MCP setup
 
@@ -38,14 +38,18 @@ Configure KnownPath MCP before using the skill. The skill expects exactly these 
 - `knownpath_alternatives`
 - `knownpath_status`
 - `knownpath_contribute`
+- `knownpath_report_outcome`
 
 See [the MCP guide](MCP.md) for remote Streamable HTTP and local stdio configuration. The local
 bridge needs only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; never place the key in a tracked
 skill file or agent configuration.
 
 `knownpath_contribute` is used only after observable success and fresh explicit user consent. It
-submits generalized structured fields, never source files or chain-of-thought. Outcome reporting is
-still unavailable, so the skill remembers materially used IDs without inventing that tool.
+submits generalized structured fields, never source files or chain-of-thought.
+`knownpath_report_outcome` is used only after a selected solution was actually attempted and its
+result is known. The skill retains the KnownPath/search/execution identity until then, distinguishes
+not-used from failure, and sends only bounded non-sensitive environment metadata. See
+[`OUTCOMES.md`](OUTCOMES.md).
 
 ## Automatic installation
 
@@ -122,6 +126,8 @@ development uses a local link to preserve one editable source.
 4. Prefer exact/version-compatible/current records with stronger deterministic evidence.
 5. Retrieve details only for a plausible selected record and inspect caveats/provenance.
 6. Adapt the evidence to the current codebase and verify the real result before claiming success.
+7. After an actual attempt, report solved/partial/failed/compatibility/staleness/safety/not-used
+   once with stable idempotency IDs; a search or selection alone is never success.
 
 Normal clients search published public KnownPaths. `includeReview` remains false unless an
 authorized administrator explicitly requests moderation access. Popularity and reactions are

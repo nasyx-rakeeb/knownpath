@@ -21,6 +21,7 @@ import {
   RetrievalService,
 } from "@knownpath/search";
 import { ContributionService } from "@knownpath/contributions";
+import { OutcomeService } from "@knownpath/outcomes";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   jsonSchemaTransform,
@@ -33,6 +34,7 @@ import { registerErrorHandler } from "./error-handler.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
 import { registerContributionRoutes } from "./contribution-routes.js";
 import { registerMcpRoutes } from "./mcp-routes.js";
+import { registerOutcomeRoutes } from "./outcome-routes.js";
 import { registerAccountRoutes, registerApiKeyRoutes, registerSystemRoutes } from "./routes.js";
 
 export interface BuildApiOptions {
@@ -140,6 +142,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       request.url.startsWith("/api/v1/knowledge") ||
       request.url.startsWith("/api/v1/known-paths") ||
       request.url.startsWith("/api/v1/contributions") ||
+      request.url.startsWith("/api/v1/outcomes") ||
       request.url.startsWith("/api/v1/mcp") ||
       request.url.startsWith("/mcp")
     ) {
@@ -189,6 +192,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     apiOrigin: options.authConfig.baseUrl,
     digestSecret: options.authConfig.apiKeyPepper,
   });
+  const outcomes = new OutcomeService(options.database);
 
   registerSystemRoutes(api, options.database);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
@@ -207,6 +211,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     audit,
     rateLimitPolicies.contributionSubmit,
   );
+  registerOutcomeRoutes(api, authenticator, outcomes, audit, rateLimitPolicies.outcomeSubmit);
   registerMcpRoutes(api, {
     apiConfig: options.apiConfig,
     authConfig: options.authConfig,
@@ -214,6 +219,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     database: options.database,
     knowledge,
     contributions,
+    outcomes,
     audit,
     rateLimitPolicy: rateLimitPolicies.knowledgeSearch,
     searchConfig: options.searchConfig,

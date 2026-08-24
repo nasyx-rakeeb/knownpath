@@ -206,6 +206,9 @@ importers:
       '@knownpath/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
+      '@knownpath/outcomes':
+        specifier: workspace:*
+        version: link:../../packages/outcomes
       '@knownpath/search':
         specifier: workspace:*
         version: link:../../packages/search
@@ -351,6 +354,9 @@ importers:
       '@knownpath/github-ingestion':
         specifier: workspace:*
         version: link:../../packages/github-ingestion
+      '@knownpath/outcomes':
+        specifier: workspace:*
+        version: link:../../packages/outcomes
       '@knownpath/search':
         specifier: workspace:*
         version: link:../../packages/search
@@ -604,6 +610,47 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      '@knownpath/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/outcomes:
+    dependencies:
+      '@knownpath/database':
+        specifier: workspace:*
+        version: link:../database
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
+      '@knownpath/privacy':
+        specifier: workspace:*
+        version: link:../privacy
+    devDependencies:
+      '@knownpath/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/privacy:
+    dependencies:
+      '@secretlint/core':
+        specifier: 'catalog:'
+        version: 13.0.4
+      '@secretlint/secretlint-rule-preset-recommend':
+        specifier: 'catalog:'
+        version: 13.0.4
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*

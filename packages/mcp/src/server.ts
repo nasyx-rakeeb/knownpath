@@ -11,6 +11,8 @@ import {
   knownPathMcpStatusSuccessSchema,
   knownPathMcpContributeInputSchema,
   knownPathMcpContributeSuccessSchema,
+  knownPathMcpReportOutcomeInputSchema,
+  knownPathMcpReportOutcomeSuccessSchema,
   mcpToolErrorSchema,
 } from "./contracts.js";
 import { McpGatewayError, type KnowledgeMcpGateway } from "./gateway.js";
@@ -149,6 +151,23 @@ export function createKnownPathMcpServer(gateway: KnowledgeMcpGateway): McpServe
       }, renderContribution),
   );
 
+  server.registerTool(
+    "knownpath_report_outcome",
+    {
+      title: "Report a KnownPath outcome",
+      description:
+        "Report what happened only after a KnownPath solution was actually attempted and the task result is known. A view is not success. Send concise non-sensitive environment metadata; use not_used when the record was inspected but not attempted.",
+      inputSchema: knownPathMcpReportOutcomeInputSchema,
+      annotations: CONTRIBUTION_ANNOTATIONS,
+    },
+    async (unparsedInput, context) =>
+      execute(async () => {
+        const input = knownPathMcpReportOutcomeInputSchema.parse(unparsedInput);
+        const result = await gateway.reportOutcome(input, context.mcpReq.signal);
+        return knownPathMcpReportOutcomeSuccessSchema.parse({ ...result, ok: true });
+      }, renderOutcome),
+  );
+
   return server;
 }
 
@@ -194,8 +213,21 @@ function isGateway(value: unknown): value is KnowledgeMcpGateway {
     "status" in value &&
     typeof value.status === "function" &&
     "contribute" in value &&
-    typeof value.contribute === "function"
+    typeof value.contribute === "function" &&
+    "reportOutcome" in value &&
+    typeof value.reportOutcome === "function"
   );
+}
+
+function renderOutcome(output: {
+  outcomeId: string;
+  outcome: string;
+  reused: boolean;
+  influence: { status: string };
+  safetyReviewQueued: boolean;
+  aggregate: { effectiveSampleSize: number; confidenceGrade: string };
+}): string {
+  return `Outcome ${output.outcomeId} (${output.outcome}) was ${output.reused ? "reused idempotently" : "recorded"}; evidence influence is ${output.influence.status}. Aggregate reliability is ${output.aggregate.confidenceGrade} with effective sample ${output.aggregate.effectiveSampleSize.toFixed(2)}.${output.safetyReviewQueued ? " A separate safety review is queued; this report alone did not directly penalize ranking." : ""}`;
 }
 
 function renderContribution(output: {
@@ -260,7 +292,7 @@ function renderSearch(output: ReturnType<typeof projectSearch>): string {
   }
   const results = output.results.map(
     (result, index) =>
-      `${index + 1}. ${result.title} [${result.id}] — score ${result.match.score}, trust ${result.trust.grade}, freshness ${result.freshness.status}, version ${result.match.versionCompatibility}. ${result.solution}`,
+      `${index + 1}. ${result.title} [${result.id}] — score ${result.match.score}, trust ${result.trust.grade}, outcomes ${result.outcomes.status}, freshness ${result.freshness.status}, version ${result.match.versionCompatibility}. ${result.solution}`,
   );
   return `KnownPath search ${output.searchId} (${output.accessMode}; semantic ${output.semantic.state}):\n${results.join("\n")}\nCall knownpath_get with one ID${output.searchId.length > 0 ? " and this searchId" : ""} before applying a fix.`;
 }
@@ -272,7 +304,7 @@ function renderDetail(output: ReturnType<typeof projectDetail>): string {
         `${solutionIndex + 1}.${step.order} ${step.title === undefined ? "" : `${step.title}: `}${step.instruction}`,
     ),
   );
-  return `${output.title} [${output.id}]\nApplicability: ${output.applicability.ecosystem}; ${output.applicability.versions.join(", ") || "version unknown"}\nTrust: ${output.trust.grade} (${output.trust.score}/100); freshness: ${output.freshness.status}\n${output.problem}\nSteps:\n${steps.length === 0 ? "No bounded steps available." : steps.join("\n")}\nVerify these steps against the current codebase and versions before applying them.`;
+  return `${output.title} [${output.id}]\nApplicability: ${output.applicability.ecosystem}; ${output.applicability.versions.join(", ") || "version unknown"}\nTrust: ${output.trust.grade} (${output.trust.score}/100); outcomes: ${output.outcomes.status}; freshness: ${output.freshness.status}\n${output.problem}\nSteps:\n${steps.length === 0 ? "No bounded steps available." : steps.join("\n")}\nVerify these steps against the current codebase and versions before applying them.`;
 }
 
 function renderAlternatives(output: ReturnType<typeof projectAlternatives>): string {
@@ -285,7 +317,7 @@ function renderAlternatives(output: ReturnType<typeof projectAlternatives>): str
 
 function renderStatus(output: {
   status: string;
-  capabilities: { reviewRead: boolean; searchBackend: string };
+  capabilities: { reviewRead: boolean; searchBackend: string; reportOutcome: boolean };
 }): string {
-  return `KnownPath backend is ${output.status}; published read is enabled; review read is ${output.capabilities.reviewRead ? "enabled" : "disabled"}; search backend is ${output.capabilities.searchBackend}.`;
+  return `KnownPath backend is ${output.status}; published read is enabled; review read is ${output.capabilities.reviewRead ? "enabled" : "disabled"}; outcome reporting is ${output.capabilities.reportOutcome ? "enabled" : "disabled"}; search backend is ${output.capabilities.searchBackend}.`;
 }

@@ -2,6 +2,8 @@ import {
   knowledgeSearchResponseSchema,
   contributionSubmissionRequestSchema,
   contributionSubmissionResponseSchema,
+  outcomeSubmissionRequestSchema,
+  outcomeSubmissionResponseSchema,
   knowledgeSelectionResponseSchema,
   knownPathAlternativesResponseSchema,
   knownPathDetailResponseSchema,
@@ -106,6 +108,18 @@ export class HttpKnowledgeMcpGateway implements KnowledgeMcpGateway {
       "api/v1/contributions",
       { method: "POST", body: contributionSubmissionRequestSchema.parse(input) },
       contributionSubmissionResponseSchema,
+      signal,
+    );
+  }
+
+  public reportOutcome(
+    input: import("@knownpath/domain").OutcomeSubmissionRequest,
+    signal: AbortSignal,
+  ) {
+    return this.request(
+      "api/v1/outcomes",
+      { method: "POST", body: outcomeSubmissionRequestSchema.parse(input) },
+      outcomeSubmissionResponseSchema,
       signal,
     );
   }
@@ -260,6 +274,11 @@ function mapBackendCode(
     "rate_limit_exceeded",
     "search_backend_unavailable",
     "semantic_retrieval_unavailable",
+    "outcome_idempotency_conflict",
+    "outcome_execution_conflict",
+    "outcome_rate_limited",
+    "outcome_note_rejected",
+    "outcome_target_not_accessible",
   ];
   if (code !== undefined && allowed.includes(code as McpGatewayErrorCode)) {
     return { code: code as McpGatewayErrorCode, message: "The KnownPath API rejected the request" };
