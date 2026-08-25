@@ -2418,3 +2418,127 @@ move to an always-on worker later.
   the configured thirty-minute cadence. Source-refresh schedules remain deliberately unapplied:
   enabling them immediately begins ingestion and consumes GitHub/Gemini quota, so that requires a
   separate explicit operational decision.
+
+## Phase 17 — User dashboard and onboarding
+
+### Phase goal
+
+Deliver the real developer-facing web product for closed-registration sign-in, agent credential and
+installer onboarding, transparent public knowledge retrieval, owned contribution/outcome activity,
+and explicit account/privacy controls without introducing the Phase 18 administration console.
+
+### Research performed and official references consulted
+
+Current references were checked on 2026-08-24 and 2026-08-25 before implementation:
+
+- Next.js 16.3.2 official [authentication](https://nextjs.org/docs/app/guides/authentication),
+  [data security](https://nextjs.org/docs/app/guides/data-security),
+  [backend-for-frontend](https://nextjs.org/docs/app/guides/backend-for-frontend),
+  [Route Handler](https://nextjs.org/docs/app/getting-started/route-handlers-and-middleware),
+  [data fetching](https://nextjs.org/docs/app/getting-started/fetching-data), and
+  [environment variable](https://nextjs.org/docs/app/guides/environment-variables) guidance.
+- Better Auth official [Next.js integration](https://www.better-auth.com/docs/integrations/next),
+  [React client](https://www.better-auth.com/docs/integrations/react), and
+  [session management](https://www.better-auth.com/docs/concepts/session-management) documentation.
+- W3C [WCAG 2.2](https://www.w3.org/TR/WCAG22/) and
+  [WAI-ARIA Authoring Practices](https://www.w3.org/WAI/ARIA/apg/), plus Radix official
+  [accessibility](https://www.radix-ui.com/primitives/docs/overview/accessibility) and
+  [Dialog](https://www.radix-ui.com/primitives/docs/components/dialog) guidance.
+- Current npm registry metadata confirmed maintained MIT-licensed
+  `@radix-ui/react-dialog`/`@radix-ui/react-alert-dialog` 1.1.23 compatibility with the existing
+  React 19/Next.js stack. The frontend stack was retained and the all-primitives umbrella was
+  deliberately avoided.
+
+### Architecture and technology decisions
+
+- Replaced the Phase 1 status shell with a server-first Next.js App Router dashboard. Fastify
+  remains the only business/authorization boundary; the web app never connects to MongoDB and
+  receives no Gemini, queue, database, API-key pepper, or Better Auth secret.
+- Added an allowlisted same-origin `/api/knownpath/*` bridge configured only by `KNOWNPATH_API_URL`.
+  It supports bounded GET/POST/PATCH product routes, forwards no Authorization header, uses the
+  trusted API origin for the internal auth request, preserves secure session cookies, caps bodies at
+  64 KiB, and has no localhost fallback.
+- Added versioned runtime-validated owner dashboard DTOs, opaque signed cursors, repository-level
+  aggregation/list methods, and safe session management by non-secret session ID. Secret Better Auth
+  tokens never enter browser responses.
+- Normal dashboard retrieval is fixed to published public KnownPaths. Review/private/team knowledge
+  cannot be requested from the ordinary user UI. API-key plaintext exists only in the creation or
+  rotation response and transient component memory with a one-time-save acknowledgement.
+- Extended the established cream/deep-green identity into a restrained, responsive evidence-first
+  system. Semantic badges distinguish trust, freshness, lifecycle, processing, privacy, and safety;
+  Radix dialogs provide focus/escape behavior, focus rings are explicit, and reduced-motion is
+  respected.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-24-knownpath-phase-17-user-dashboard-design.md`](docs/superpowers/specs/2026-08-24-knownpath-phase-17-user-dashboard-design.md).
+Runtime/security behavior is documented in [`docs/DASHBOARD.md`](docs/DASHBOARD.md).
+
+### Files, routes, and boundaries created
+
+- Added `packages/domain/src/dashboard.ts`, `packages/auth/src/dashboard.ts`, and
+  `apps/api/src/dashboard-routes.ts` for safe summary, activity, contribution, outcome, profile, and
+  active-session APIs. Added matching repository methods and the audited `user.profile_updated`
+  event.
+- Added public `/` and `/sign-in`; authenticated `/app`, `/app/explore`, `/app/known-paths/[id]`,
+  `/app/api-keys`, `/app/install`, `/app/contributions`, `/app/outcomes`, and `/app/settings`; plus
+  loading, error, not-found, responsive navigation, and one-time credential dialog components.
+- Added the narrow Next.js bridge, server-only environment/API clients, runtime client contracts,
+  shared formatting/components, the two required Radix 1.1.23 primitives, dashboard documentation,
+  and relevant README, architecture, API, environment, and decision updates.
+- No admin routes/components, public signup, OAuth, password reset, email verification, fake charts,
+  raw source views, or tests were added.
+
+### Commands and behavior successfully verified
+
+- `pnpm install` reconciled all 24 workspaces under the locked pnpm 11.22.0 policy.
+- With Node 24.18.0, `pnpm typecheck` completed **39/39** tasks, `pnpm lint` completed **22/22**
+  tasks, `pnpm build` completed **22/22** tasks, and `pnpm format:check` passed. The Next.js
+  production build compiled every intended static/dynamic route. No tests were added or run.
+- The local API booted against Atlas with queue operation deliberately disabled; readiness reported
+  MongoDB/auth `ok`, and OpenAPI contained 31 paths including seven dashboard/session paths. The web
+  production server booted on port 3000 using only `KNOWNPATH_API_URL`.
+- Through the real same-origin bridge, unauthenticated `/app` redirected, an invalid sign-in
+  returned 401, and the safe CLI-created temporary account signed in successfully. Overview,
+  explore, API-key, install, contribution, outcome, and settings pages each returned 200.
+- The account summary contract returned version 1. Session output contained zero token-named fields.
+  A temporary scoped key was created, authenticated successfully against `/api/v1/account/me`,
+  appeared in a list with zero plaintext/hash/digest fields, was revoked, and then failed with 401.
+- Contribution mode persisted through `ask -> disabled -> ask`; display name persisted through an
+  update/restore; current-session revocation returned true and the same cookie then failed with 401.
+  A 65 KiB bridge request returned 413.
+- A real Atlas-backed public search returned access mode `published`, semantic mode `used`, and zero
+  results, accurately reflecting the current database's zero published canonical records. No review
+  record was exposed or republished to make the UI appear populated.
+- Fastify logs were inspected during all flows and contained method, safe URL, request ID, status,
+  and latency only. They exposed no password, cookie, Authorization header, or API-key plaintext.
+  Desktop landing and 390px sign-in captures were visually inspected; a mobile intrinsic-width risk
+  was corrected with an explicit bounded panel width.
+- The exact temporary verification identity was removed afterward: two sessions, one auth account,
+  one revoked API key, one search event, eleven audit events, and one user were deleted; no
+  contribution, outcome, source, candidate, assessment, or KnownPath record was changed.
+
+### Environment and manual setup still required
+
+- A hosted dashboard deployment is not part of the current Render API Blueprint. Its runtime must
+  set `KNOWNPATH_API_URL` to the trusted HTTPS API origin. No browser-visible secret is required.
+- The product database still has no published public KnownPath. After moderation legitimately
+  publishes a record in a later phase, manually search and open that real detail/provenance page in
+  the deployed dashboard. Phase 17 correctly returns no normal-user result today rather than
+  weakening review authorization or fabricating data.
+- Existing users are still provisioned only with `pnpm auth:user:create`; user-facing signup,
+  verification, reset, and OAuth remain intentionally closed.
+
+### Known limitations intentionally left for later phases
+
+- No administration/moderation, ingestion/job operations, source review, platform analytics, or
+  user-management console is present. Phase 18 owns that surface.
+- Activity is truthful aggregate/list data rather than a full analytics warehouse. Search query text
+  is intentionally not retained, and individual outcome reporters remain private.
+- The light warm-green/cream identity is primary. A secondary dark theme and screenshots in project
+  documentation are deferred; the implementation does not require either for operation.
+- No tests were added by explicit phase rule.
+
+### Exact next phase
+
+**Phase 18 (awaiting its prompt): build only the explicitly requested platform administration and
+moderation capability. Do not begin Phase 18 or another roadmap feature from Phase 17.**

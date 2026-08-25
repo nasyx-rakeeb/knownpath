@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 16. A boundary appearing here does not mean its future product behavior is
+established through Phase 17. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -23,8 +23,10 @@ database.
   contribution, outcome, and maintenance jobs.
 - `@knownpath/mcp-server` is the thin local stdio-to-HTTP MCP bridge. The production Streamable HTTP
   transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
-- `@knownpath/web` owns the future user and administration interface. Phase 1 renders only a static,
-  truthful project-status shell.
+- `@knownpath/web` owns the Phase 17 developer dashboard and public product introduction. Its
+  server-first Next.js routes consume safe API DTOs through a narrow same-origin bridge. It owns no
+  ranking, authorization, contribution, or session business logic and contains no administration
+  console.
 - `knownpath` is the publishable installer CLI. It owns interactive/machine-readable presentation,
   packages the canonical skill, and exposes the thin `mcp` stdio command; it delegates all
   client-specific behavior to `@knownpath/agent-adapters`.
@@ -116,6 +118,13 @@ Transport layers translate requests and responses; they do not own reusable busi
 Infrastructure packages implement capabilities defined by inward-facing contracts. The domain layer
 must not import Fastify, Next.js, MongoDB, MCP, or provider SDKs. This direction keeps the system
 replaceable and prevents circular dependencies.
+
+The dashboard never connects to MongoDB and never receives provider credentials. Browser mutations
+use an allowlisted `/api/knownpath/*` bridge that forwards only cookie, content type, user agent,
+and safe response headers to `KNOWNPATH_API_URL`; it refuses arbitrary API paths and never forwards
+an Authorization header. Fastify remains the authority for session validity, owner scoping,
+visibility, rate policies, audit events, and response serialization. See
+[the dashboard guide](DASHBOARD.md).
 
 ## Intended completed-platform data flow
 

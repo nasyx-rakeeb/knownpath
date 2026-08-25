@@ -1,0 +1,126 @@
+.site-header {
+  display: flex;
+  height: 5rem;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.site-header nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.site-header nav > a:not(.button) {
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+.hero {
+  display: grid;
+  min-height: calc(100vh - 5rem);
+  grid-template-columns: minmax(0, 1.2fr) minmax(21rem, 0.8fr);
+  align-items: center;
+  gap: clamp(3rem, 8vw, 8rem);
+  padding-block: 6rem;
+}
+.hero h1 {
+  max-width: 11ch;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.4rem, 7vw, 6.7rem);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 0.94;
+}
+.hero-copy {
+  max-width: 42rem;
+  margin: 2rem 0 0;
+  color: var(--muted);
+  font-size: clamp(1.05rem, 1.8vw, 1.3rem);
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+.path-preview {
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  padding: 1.25rem;
+  box-shadow: 10px 10px 0 var(--green-soft);
+}
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.8rem;
+  color: var(--muted);
+  font:
+    700 0.68rem "SFMono-Regular",
+    monospace;
+  letter-spacing: 0.08em;
+}
+.preview-label {
+  margin: 1.5rem 0 0.35rem;
+  color: var(--green);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.path-preview > strong {
+  font-size: 1.15rem;
+}
+.preview-rule {
+  height: 1px;
+  margin: 1.5rem 0;
+  background: var(--line);
+}
+.path-preview ol {
+  margin: 0.3rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.path-preview li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--line);
+  padding: 0.8rem 0;
+  font-size: 0.86rem;
+}
+.path-preview li b {
+  color: var(--green);
+}
+.preview-note {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.principles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+.principles > div {
+  min-height: 15rem;
+  padding: 2rem;
+  border-right: 1px solid var(--line);
+}
+.principles > div:last-child {
+  border: 0;
+}
+.principles span {
+  color: var(--green);
+  font-family: monospace;
+}
+.principles h2 {
+  margin: 3rem 0 0.5rem;
+  font-family: Georgia, serif;
+  font-size: 1.5rem;
+}
+.principles p {
+  color: var(--muted);
+}

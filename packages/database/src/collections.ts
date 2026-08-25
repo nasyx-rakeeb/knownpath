@@ -28,6 +28,17 @@ import type {
 } from "@knownpath/domain";
 import type { Collection, Db } from "mongodb";
 
+export interface AuthSessionRecord {
+  readonly _id: string;
+  readonly token: string;
+  readonly userId: string;
+  readonly expiresAt: Date;
+  readonly createdAt: Date;
+  readonly updatedAt: Date;
+  readonly ipAddress?: string;
+  readonly userAgent?: string;
+}
+
 export const collectionNames = {
   agentContributions: "agent_contributions",
   agentOutcomes: "agent_outcomes",
@@ -67,6 +78,7 @@ export interface KnownPathCollections {
   readonly safetyEvents: Collection<SafetyEvent>;
   readonly apiKeys: Collection<ApiKey>;
   readonly auditEvents: Collection<AuditEvent>;
+  readonly authSessions: Collection<AuthSessionRecord>;
   readonly candidateAssessments: Collection<CandidateAssessment>;
   readonly candidateEmbeddings: Collection<CandidateEmbedding>;
   readonly candidateExperiences: Collection<CandidateExperience>;
@@ -97,6 +109,7 @@ export function getCollections(database: Db): KnownPathCollections {
     safetyEvents: database.collection<SafetyEvent>(collectionNames.safetyEvents),
     apiKeys: database.collection<ApiKey>(collectionNames.apiKeys),
     auditEvents: database.collection<AuditEvent>(collectionNames.auditEvents),
+    authSessions: database.collection<AuthSessionRecord>(collectionNames.authSessions),
     candidateAssessments: database.collection<CandidateAssessment>(
       collectionNames.candidateAssessments,
     ),

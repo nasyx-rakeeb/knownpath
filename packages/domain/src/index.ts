@@ -3,6 +3,7 @@ export * from "./canonical-records.js";
 export * from "./assessment.js";
 export * from "./audit-events.js";
 export * from "./common.js";
+export * from "./dashboard.js";
 export * from "./extraction.js";
 export * from "./feedback.js";
 export * from "./identity.js";

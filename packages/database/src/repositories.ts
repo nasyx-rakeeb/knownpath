@@ -92,7 +92,7 @@ import type {
 } from "mongodb";
 import { MongoServerError } from "mongodb";
 
-import type { KnownPathCollections } from "./collections.js";
+import type { AuthSessionRecord, KnownPathCollections } from "./collections.js";
 
 interface StoredEntity {
   readonly _id: string;
@@ -169,6 +169,10 @@ export class UserRepository
   ): Promise<User | null> {
     return this.updateOne({ _id: id }, { contributionMode });
   }
+
+  public async updateDisplayName(id: UserId, displayName: string): Promise<User | null> {
+    return this.updateOne({ _id: id }, { displayName });
+  }
 }
 
 export class AuditEventRepository
@@ -177,6 +181,23 @@ export class AuditEventRepository
 {
   public constructor(collection: Collection<AuditEvent>) {
     super(collection, auditEventSchema, "occurredAt");
+  }
+}
+
+export class AuthSessionRepository {
+  public constructor(private readonly collection: Collection<AuthSessionRecord>) {}
+
+  public async listActiveByUserId(userId: UserId, now: Date): Promise<AuthSessionRecord[]> {
+    return this.collection
+      .find({ userId, expiresAt: { $gt: now } })
+      .sort({ updatedAt: -1, _id: -1 })
+      .limit(100)
+      .toArray();
+  }
+
+  public async revokeOwned(id: string, userId: UserId): Promise<boolean> {
+    const result = await this.collection.deleteOne({ _id: id, userId });
+    return result.deletedCount === 1;
   }
 }
 
@@ -1017,6 +1038,48 @@ export class KnowledgeSearchEventRepository
     super(collection, knowledgeSearchEventSchema);
   }
 
+  public async listByUserId(
+    userId: UserId,
+    before: { readonly createdAt: Date; readonly id: KnowledgeSearchEventId } | undefined,
+    limit: number,
+  ): Promise<KnowledgeSearchEvent[]> {
+    const boundary =
+      before === undefined
+        ? {}
+        : {
+            $or: [
+              { createdAt: { $lt: before.createdAt } },
+              { createdAt: before.createdAt, _id: { $lt: before.id } },
+            ],
+          };
+    const documents = await this.collection
+      .find({ "principal.userId": userId, ...boundary } as Filter<KnowledgeSearchEvent>)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => knowledgeSearchEventSchema.parse(document));
+  }
+
+  public async summarizeByUserSince(
+    userId: UserId,
+    since: Date,
+  ): Promise<{ readonly selected: number; readonly total: number }> {
+    const rows = await this.collection
+      .aggregate<{ selected: number; total: number }>([
+        { $match: { "principal.userId": userId, createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            selected: { $sum: { $cond: [{ $ne: [{ $type: "$selected" }, "missing"] }, 1, 0] } },
+          },
+        },
+        { $project: { _id: 0, selected: 1, total: 1 } },
+      ])
+      .toArray();
+    return rows[0] ?? { selected: 0, total: 0 };
+  }
+
   public async recordSelection(
     id: KnowledgeSearchEventId,
     principal: KnowledgeSearchEvent["principal"],
@@ -1328,6 +1391,112 @@ export class AgentContributionRepository
     });
   }
 
+  public async listV2ByOwner(
+    userId: UserId,
+    options: {
+      readonly before?: { readonly createdAt: Date; readonly id: AgentContributionId };
+      readonly limit: number;
+      readonly status?: AgentContributionV2["status"];
+      readonly visibility?: "public" | "private";
+    },
+  ): Promise<AgentContributionV2[]> {
+    const boundary =
+      options.before === undefined
+        ? {}
+        : {
+            $or: [
+              { "audit.createdAt": { $lt: options.before.createdAt } },
+              { "audit.createdAt": options.before.createdAt, _id: { $lt: options.before.id } },
+            ],
+          };
+    const documents = await this.collection
+      .find({
+        schemaVersion: 2,
+        "contributor.userId": userId,
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...(options.visibility === undefined ? {} : { "visibility.scope": options.visibility }),
+        ...boundary,
+      } as Filter<AgentContribution>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return documents.flatMap((document) => {
+      const parsed = agentContributionSchema.parse(document);
+      return parsed.schemaVersion === 2 ? [parsed] : [];
+    });
+  }
+
+  public async summarizeV2ByOwnerSince(
+    userId: UserId,
+    since: Date,
+  ): Promise<{
+    readonly complete: number;
+    readonly pending: number;
+    readonly private: number;
+    readonly public: number;
+    readonly quarantined: number;
+    readonly total: number;
+    readonly withAssessment: number;
+    readonly withCandidate: number;
+  }> {
+    const rows = await this.collection
+      .aggregate<{
+        complete: number;
+        pending: number;
+        private: number;
+        public: number;
+        quarantined: number;
+        total: number;
+        withAssessment: number;
+        withCandidate: number;
+      }>([
+        {
+          $match: {
+            schemaVersion: 2,
+            "contributor.userId": userId,
+            "audit.createdAt": { $gte: since },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            public: { $sum: { $cond: [{ $eq: ["$visibility.scope", "public"] }, 1, 0] } },
+            private: { $sum: { $cond: [{ $eq: ["$visibility.scope", "private"] }, 1, 0] } },
+            pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+            quarantined: { $sum: { $cond: [{ $eq: ["$status", "quarantined"] }, 1, 0] } },
+            complete: {
+              $sum: { $cond: [{ $eq: ["$processing.stage", "complete"] }, 1, 0] },
+            },
+            withCandidate: {
+              $sum: {
+                $cond: [{ $ne: [{ $type: "$processing.candidateExperienceId" }, "missing"] }, 1, 0],
+              },
+            },
+            withAssessment: {
+              $sum: {
+                $cond: [{ $ne: [{ $type: "$processing.assessmentId" }, "missing"] }, 1, 0],
+              },
+            },
+          },
+        },
+        { $project: { _id: 0 } },
+      ])
+      .toArray();
+    return (
+      rows[0] ?? {
+        complete: 0,
+        pending: 0,
+        private: 0,
+        public: 0,
+        quarantined: 0,
+        total: 0,
+        withAssessment: 0,
+        withCandidate: 0,
+      }
+    );
+  }
+
   public async updateStatus(
     id: AgentContributionId,
     status: AgentContribution["status"],
@@ -1400,6 +1569,104 @@ export class AgentOutcomeRepository
     });
   }
 
+  public async listV2ByOwner(
+    userId: UserId,
+    options: {
+      readonly before?: { readonly id: AgentOutcomeId; readonly receivedAt: Date };
+      readonly limit: number;
+      readonly outcome?: AgentOutcomeV2["outcome"];
+    },
+  ): Promise<AgentOutcomeV2[]> {
+    const boundary =
+      options.before === undefined
+        ? {}
+        : {
+            $or: [
+              { receivedAt: { $lt: options.before.receivedAt } },
+              { receivedAt: options.before.receivedAt, _id: { $lt: options.before.id } },
+            ],
+          };
+    const documents = await this.collection
+      .find({
+        schemaVersion: 2,
+        "reporter.userId": userId,
+        ...(options.outcome === undefined ? {} : { outcome: options.outcome }),
+        ...boundary,
+      } as Filter<AgentOutcome>)
+      .sort({ receivedAt: -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return documents.flatMap((document) => {
+      const parsed = agentOutcomeSchema.parse(document);
+      return parsed.schemaVersion === 2 ? [parsed] : [];
+    });
+  }
+
+  public async summarizeV2ByOwnerSince(
+    userId: UserId,
+    since: Date,
+  ): Promise<{
+    readonly attemptedFailed: number;
+    readonly incompatibleEnvironment: number;
+    readonly misleadingOrUnsafe: number;
+    readonly notUsed: number;
+    readonly partiallyHelped: number;
+    readonly solved: number;
+    readonly staleOrOutdated: number;
+    readonly total: number;
+  }> {
+    const rows = await this.collection
+      .aggregate<{
+        attemptedFailed: number;
+        incompatibleEnvironment: number;
+        misleadingOrUnsafe: number;
+        notUsed: number;
+        partiallyHelped: number;
+        solved: number;
+        staleOrOutdated: number;
+        total: number;
+      }>([
+        { $match: { schemaVersion: 2, "reporter.userId": userId, receivedAt: { $gte: since } } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            solved: { $sum: { $cond: [{ $eq: ["$outcome", "solved"] }, 1, 0] } },
+            partiallyHelped: {
+              $sum: { $cond: [{ $eq: ["$outcome", "partially_helped"] }, 1, 0] },
+            },
+            attemptedFailed: {
+              $sum: { $cond: [{ $eq: ["$outcome", "attempted_failed"] }, 1, 0] },
+            },
+            incompatibleEnvironment: {
+              $sum: { $cond: [{ $eq: ["$outcome", "incompatible_environment"] }, 1, 0] },
+            },
+            staleOrOutdated: {
+              $sum: { $cond: [{ $eq: ["$outcome", "stale_or_outdated"] }, 1, 0] },
+            },
+            misleadingOrUnsafe: {
+              $sum: { $cond: [{ $eq: ["$outcome", "misleading_or_unsafe"] }, 1, 0] },
+            },
+            notUsed: { $sum: { $cond: [{ $eq: ["$outcome", "not_used"] }, 1, 0] } },
+          },
+        },
+        { $project: { _id: 0 } },
+      ])
+      .toArray();
+    return (
+      rows[0] ?? {
+        attemptedFailed: 0,
+        incompatibleEnvironment: 0,
+        misleadingOrUnsafe: 0,
+        notUsed: 0,
+        partiallyHelped: 0,
+        solved: 0,
+        staleOrOutdated: 0,
+        total: 0,
+      }
+    );
+  }
+
   public async countRecentByApiKey(apiKeyId: ApiKeyId, since: Date): Promise<number> {
     return this.collection.countDocuments({
       schemaVersion: 2,
@@ -1458,6 +1725,16 @@ export class OutcomeAssessmentRepository extends MongoEntityRepository<
 export class SafetyEventRepository extends MongoEntityRepository<SafetyEvent, SafetyEventId> {
   public constructor(collection: Collection<SafetyEvent>) {
     super(collection, safetyEventSchema);
+  }
+
+  public async listBySourceOutcomeIds(
+    outcomeIds: readonly AgentOutcomeId[],
+  ): Promise<SafetyEvent[]> {
+    if (outcomeIds.length === 0) return [];
+    const documents = await this.collection
+      .find({ sourceOutcomeId: { $in: [...outcomeIds] } })
+      .toArray();
+    return documents.map((document) => safetyEventSchema.parse(document));
   }
   public async createIfAbsent(entity: SafetyEvent): Promise<SafetyEvent | null> {
     const parsed = safetyEventSchema.parse(entity);
@@ -1599,6 +1876,7 @@ export interface KnownPathRepositories {
   readonly safetyEvents: SafetyEventRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly auditEvents: AuditEventRepository;
+  readonly authSessions: AuthSessionRepository;
   readonly candidateAssessments: CandidateAssessmentRepository;
   readonly candidateEmbeddings: CandidateEmbeddingRepository;
   readonly candidateExperiences: CandidateExperienceRepository;
@@ -1629,6 +1907,7 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     safetyEvents: new SafetyEventRepository(collections.safetyEvents),
     apiKeys: new ApiKeyRepository(collections.apiKeys),
     auditEvents: new AuditEventRepository(collections.auditEvents),
+    authSessions: new AuthSessionRepository(collections.authSessions),
     candidateAssessments: new CandidateAssessmentRepository(collections.candidateAssessments),
     candidateEmbeddings: new CandidateEmbeddingRepository(collections.candidateEmbeddings),
     candidateExperiences: new CandidateExperienceRepository(collections.candidateExperiences),

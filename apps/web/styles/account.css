@@ -1,0 +1,156 @@
+.key-form {
+  max-width: 44rem;
+}
+.key-form fieldset {
+  border: 1px solid var(--line);
+  padding: 1rem;
+}
+.key-form legend {
+  font-weight: 750;
+}
+.check-row {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-weight: 400;
+}
+.check-row input {
+  width: auto;
+  margin-top: 0.25rem;
+}
+.check-row span {
+  display: grid;
+}
+.check-row small {
+  color: var(--muted);
+}
+.secret-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid var(--line);
+  background: #eeeae0;
+  padding: 1rem;
+}
+.secret-value code {
+  overflow-wrap: anywhere;
+  color: var(--green-dark);
+}
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(16, 31, 22, 0.55);
+}
+.dialog-panel,
+.mobile-menu {
+  position: fixed;
+  z-index: 50;
+  top: 50%;
+  left: 50%;
+  width: min(calc(100% - 2rem), 32rem);
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  padding: 1.5rem;
+  box-shadow: 10px 10px 0 rgba(20, 55, 38, 0.25);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+.secret-dialog {
+  display: grid;
+  gap: 1.2rem;
+}
+.install-command {
+  border: 1px solid var(--ink);
+  background: var(--paper);
+  margin-top: 2.5rem;
+  padding: 2rem;
+}
+.install-command > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: #17251d;
+  padding: 1rem;
+  color: #eef4ec;
+}
+.env-grid,
+.client-grid,
+.choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.env-grid > div,
+.client-grid > div,
+.choice {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 1.2rem;
+  text-align: left;
+}
+.client-grid > div {
+  display: grid;
+}
+.client-grid span,
+.choice span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.record-list {
+  margin-top: 2.5rem;
+}
+.record-list > article {
+  border-top: 1px solid var(--ink);
+  padding: 1.5rem 0 2rem;
+}
+.record-list h2 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 1.45rem;
+}
+.inline-facts {
+  display: flex;
+  gap: 2rem;
+}
+.inline-facts div {
+  display: grid;
+}
+.inline-facts dt {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.inline-facts dd {
+  margin: 0;
+}
+.safety-note {
+  border-left: 3px solid var(--red);
+  padding-left: 0.8rem;
+  color: var(--red);
+}
+.settings-form {
+  max-width: 40rem;
+}
+.choice {
+  cursor: pointer;
+  color: var(--ink);
+}
+.choice.active {
+  border: 2px solid var(--green);
+  background: var(--green-soft);
+}
+.choice strong,
+.choice span {
+  display: block;
+}

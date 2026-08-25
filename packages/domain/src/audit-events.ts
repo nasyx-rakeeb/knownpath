@@ -11,6 +11,7 @@ import {
 
 export const auditEventTypeSchema = z.enum([
   "user.created",
+  "user.profile_updated",
   "session.created",
   "session.revoked",
   "api_key.issued",

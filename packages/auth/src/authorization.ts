@@ -4,7 +4,7 @@ import { AuthenticationError, AuthorizationError, KnowledgeReviewAccessError } f
 
 export type Principal =
   | { readonly kind: "anonymous" }
-  | { readonly kind: "session"; readonly user: User }
+  | { readonly kind: "session"; readonly sessionId: string; readonly user: User }
   | { readonly kind: "api_key"; readonly key: ApiKey; readonly user: User };
 
 export const anonymousPrincipal: Principal = { kind: "anonymous" };

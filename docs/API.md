@@ -36,6 +36,26 @@ source content are not included.
 
 ## Routes
 
+### User dashboard data
+
+Phase 17 adds cookie-session-only, owner-scoped dashboard DTOs. These routes do not return raw query
+text, secret session tokens, API-key hashes, source bodies, embeddings, or individual users' outcome
+data:
+
+- `GET /api/v1/account/dashboard` returns 30-day aggregate counts and a bounded safe activity feed.
+- `GET /api/v1/account/search-activity` returns safe query dimensions, result counts, and selections
+  using an integrity-protected cursor.
+- `GET /api/v1/account/contributions` and `GET /api/v1/account/outcomes` return only the current
+  owner's sanitized history.
+- `PATCH /api/v1/account/profile` updates the display name and records an audit event.
+- `GET /api/v1/account/sessions` exposes non-secret session metadata.
+  `POST /api/v1/account/sessions/:id/revoke` revokes an owned session by its non-secret ID and is
+  audited.
+
+API-key creation and rotation continue to reveal the plaintext key exactly once. The dashboard keeps
+that value only in transient component state and requires the user to acknowledge saving it before
+closing the reveal dialog.
+
 ### Search
 
 `POST /api/v1/knowledge/search` accepts natural-language text plus optional errors, ecosystem,

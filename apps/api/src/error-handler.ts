@@ -2,6 +2,7 @@ import {
   AuthenticationError,
   AuthorizationError,
   AuthResourceNotFoundError,
+  DashboardCursorError,
 } from "@knownpath/auth";
 import type { FastifyInstance } from "fastify";
 import { KnowledgeAccessError } from "@knownpath/search";
@@ -29,6 +30,9 @@ export function registerErrorHandler(api: FastifyInstance): void {
     }
     if (error instanceof AuthResourceNotFoundError) {
       return reply.status(404).send(envelope(error.code, error.message, request.id));
+    }
+    if (error instanceof DashboardCursorError) {
+      return reply.status(400).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof KnowledgeAccessError) {
       return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));

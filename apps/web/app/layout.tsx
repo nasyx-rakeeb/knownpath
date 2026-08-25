@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  description: "Shared technical knowledge infrastructure for AI coding agents.",
-  title: "KnownPath",
+  description: "Evidence-grounded shared technical knowledge for AI coding agents.",
+  title: { default: "KnownPath", template: "%s · KnownPath" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

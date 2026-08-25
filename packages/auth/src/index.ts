@@ -3,5 +3,6 @@ export * from "./audit.js";
 export * from "./authenticator.js";
 export * from "./authorization.js";
 export * from "./better-auth.js";
+export * from "./dashboard.js";
 export * from "./errors.js";
 export * from "./rate-limits.js";

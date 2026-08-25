@@ -12,9 +12,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@knownpath/domain": "workspace:*",
     "next": "catalog:",
+    "@radix-ui/react-alert-dialog": "catalog:",
+    "@radix-ui/react-dialog": "catalog:",
     "react": "catalog:",
-    "react-dom": "catalog:"
+    "react-dom": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

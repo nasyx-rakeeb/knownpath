@@ -947,3 +947,34 @@ a provider-specific scheduler would undo Phase 16's queue boundary.
 [Upstash durability](https://upstash.com/docs/redis/features/durability),
 [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions),
 [scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)
+
+## 2026-08-25 — Keep the dashboard server-first behind an allowlisted same-origin bridge
+
+**Decision:** Build the Phase 17 developer dashboard with the existing Next.js 16 App Router and
+warm green/cream identity. Server Components read runtime-validated safe DTOs directly from Fastify.
+Browser mutations use a narrow same-origin route bridge configured by `KNOWNPATH_API_URL`; the
+bridge allowlists product routes, limits request bodies, never forwards Authorization, and preserves
+secure session cookies. Fastify remains the sole authority for auth, ownership, visibility,
+retrieval, privacy, rate policy, and audit events.
+
+Add owner-scoped aggregate/list DTOs and non-secret session-ID management rather than exposing
+Better Auth session tokens to browser application code. Keep review-state knowledge, operational
+queues, ingestion, and moderation out of this ordinary-user surface.
+
+**Why:** Server-first reads reduce client data exposure and bundle work. A same-origin bridge makes
+secure HttpOnly sessions usable when the dashboard and API are separately deployed without copying
+business logic into Next.js. Route allowlisting prevents the bridge from becoming an arbitrary
+credentialed API proxy. Non-secret session IDs preserve useful account control without leaking the
+tokens Better Auth uses for token-oriented session management.
+
+**Rejected:** Direct MongoDB access from Next.js duplicates authorization and persistence
+boundaries. A broad reverse proxy could accidentally expose admin routes. Storing API keys or
+session tokens in local storage weakens credential isolation. Adding public signup, OAuth, or an
+admin console would expand beyond Phase 17 and the closed-registration decision.
+
+**References:** [Next.js authentication](https://nextjs.org/docs/app/guides/authentication),
+[Next.js data security](https://nextjs.org/docs/app/guides/data-security),
+[Next.js backend-for-frontend guide](https://nextjs.org/docs/app/guides/backend-for-frontend),
+[Better Auth Next.js integration](https://www.better-auth.com/docs/integrations/next),
+[WCAG 2.2](https://www.w3.org/TR/WCAG22/),
+[Radix accessibility](https://www.radix-ui.com/primitives/docs/overview/accessibility)

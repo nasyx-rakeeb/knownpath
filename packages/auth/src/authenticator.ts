@@ -40,6 +40,6 @@ export class Authenticator {
       throw new AuthenticationError("The session owner is inactive");
     }
 
-    return { kind: "session", user };
+    return { kind: "session", sessionId: session.session.id, user };
   }
 }

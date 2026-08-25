@@ -9,6 +9,7 @@ import {
   ApiKeyService,
   AuditService,
   Authenticator,
+  UserDashboardService,
   createKnownPathAuth,
   createRateLimitPolicies,
 } from "@knownpath/auth";
@@ -33,6 +34,7 @@ import {
 
 import { registerAuthRoutes } from "./auth-routes.js";
 import { registerErrorHandler } from "./error-handler.js";
+import { registerDashboardRoutes } from "./dashboard-routes.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
 import { registerContributionRoutes } from "./contribution-routes.js";
 import { registerMcpRoutes } from "./mcp-routes.js";
@@ -170,6 +172,11 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.authConfig.apiKeyLastUsedWriteIntervalMs,
   );
   const authenticator = new Authenticator(auth, apiKeys, options.database);
+  const dashboard = new UserDashboardService(
+    options.database.repositories,
+    audit,
+    options.authConfig.apiKeyPepper,
+  );
   const rateLimitPolicies = createRateLimitPolicies(
     options.apiConfig.rateLimitMax,
     options.apiConfig.rateLimitWindowMs,
@@ -220,6 +227,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   registerSystemRoutes(api, options.database, options.queueRegistry);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
+  registerDashboardRoutes(api, authenticator, dashboard);
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
   registerOperationalRoutes(api, authenticator, options.database, options.queueRegistry);
   registerKnowledgeRoutes(api, authenticator, knowledge, {

@@ -1,0 +1,77 @@
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 6rem 1.5rem;
+  position: relative;
+}
+.auth-wordmark {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+}
+.auth-panel {
+  width: 100%;
+  max-width: 31rem;
+  min-width: 0;
+  border-top: 2px solid var(--green);
+  background: var(--paper);
+  padding: 2.5rem;
+}
+.auth-panel h1 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 2.4rem;
+  letter-spacing: -0.04em;
+}
+.auth-panel > p:not(.eyebrow) {
+  color: var(--muted);
+}
+.form-stack,
+.search-form,
+.key-form,
+.settings-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.7rem;
+}
+label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #aeb8ad;
+  border-radius: 0.2rem;
+  background: var(--white);
+  color: var(--ink);
+  padding: 0.72rem 0.8rem;
+}
+input:disabled {
+  background: #ebe8df;
+  color: var(--muted);
+}
+textarea {
+  resize: vertical;
+}
+.form-error,
+.success-message {
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  margin: 0.5rem 0;
+  padding: 0.75rem 1rem;
+  color: #6f2724;
+}
+.success-message {
+  border-color: var(--green);
+  background: var(--green-soft);
+  color: var(--green-dark);
+}
+.auth-footnote {
+  margin: 1.6rem 0 0;
+  font-size: 0.82rem;
+}
