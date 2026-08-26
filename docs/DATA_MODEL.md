@@ -244,6 +244,26 @@ and is omitted below.
 - `auth_accounts_issuer_accountId_uidx`: Better Auth's required unique provider identity.
 - `ix_auth_accounts_user_provider`: credential/provider lookup for one user.
 
+## Phase 18 administration projections
+
+Phase 18 introduces no shadow administration collections. The admin application service reads the
+same source, extraction, candidate, immutable assessment, canonical membership/revision,
+contribution, outcome, pipeline, worker, user, API-key, safety, and audit records used by the domain
+services. List views use their existing lifecycle/time indexes plus opaque signed cursor boundaries;
+safe text filtering is bounded and regex metacharacters are escaped.
+
+Administration mutations preserve the existing product history. Canonical merge/split/reassign
+continues to append `canonicalization_events` and inactive memberships/revisions, now with a user
+actor for admin operations. Failed-step retry creates a new `pipeline_run`/`pipeline_step` while the
+original quarantined record remains. Moderation and user controls update reversible lifecycle state
+with expected-state checks and append `audit_events`.
+
+Private contribution inspection never reads an unsanitized payload because no reversible original
+payload is persisted. General admin detail exposes only visibility, sanitization categories/counts,
+processing, provenance, and moderation metadata. The separately authorized reveal projects only
+`sanitized.payload` from schema-version-2 private contributions and creates an audit event on every
+attempt.
+
 ### `auth_verifications`
 
 - `ix_auth_verifications_identifier`: verification lookup.

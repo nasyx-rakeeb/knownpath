@@ -2542,3 +2542,143 @@ Runtime/security behavior is documented in [`docs/DASHBOARD.md`](docs/DASHBOARD.
 
 **Phase 18 (awaiting its prompt): build only the explicitly requested platform administration and
 moderation capability. Do not begin Phase 18 or another roadmap feature from Phase 17.**
+
+## Phase 18 — Admin and moderation console
+
+### Phase goal
+
+Add the internal operations surface needed to inspect and responsibly operate real KnownPath data,
+workers, moderation, canonicalization, users, safety signals, and audit history. Administration must
+reuse the production domain/API boundaries, enforce authorization on the server, preserve history,
+and keep private or secret material out of ordinary admin responses.
+
+### Research performed and official references consulted
+
+Current official guidance was checked on 2026-08-26 before implementation:
+
+- Better Auth [admin plugin](https://better-auth.com/docs/plugins/admin) and
+  [session management/freshness](https://better-auth.com/docs/concepts/session-management) for
+  persisted administrator authorization and the existing 30-minute freshness window.
+- Next.js 16 [authentication](https://nextjs.org/docs/app/guides/authentication),
+  [data security](https://nextjs.org/docs/app/guides/data-security), and
+  [Server Actions](https://nextjs.org/docs/app/guides/server-actions) for server-side checks at
+  every mutation boundary and narrow DTOs.
+- OWASP
+  [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+  and [Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+  for deny-by-default capabilities, per-request authorization, sensitive-action audit, and secret
+  exclusion.
+- BullMQ [queue](https://docs.bullmq.io/guide/queues),
+  [pause](https://docs.bullmq.io/guide/workers/pausing-queues), and
+  [retry](https://docs.bullmq.io/guide/retrying-failing-jobs) behavior for supported operational
+  controls without custom queue state.
+- W3C WAI-ARIA [dialog](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/),
+  [alert dialog](https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/), and
+  [table](https://www.w3.org/WAI/ARIA/apg/patterns/table/) patterns for focus-safe confirmations and
+  readable dense operational data.
+
+### Architecture and technology decisions
+
+- Added a transport-independent administration service in the existing Fastify application rather
+  than route-to-repository calls, a generic database console, or a separate shadow deployment.
+  Strict version-1 Zod contracts define safe list/detail/overview and mutation boundaries.
+- Added named admin capabilities and centralized `requireFreshAdmin` plus exact action/target
+  confirmation. Read-only routes accept a valid admin session; merge/split/reassign, moderation,
+  source controls, queue controls, job retry, user suspension/restore, and private-content reveal
+  require a session no older than 30 minutes, a reason, and `CONFIRM <action> <target>` on the API.
+- Added signed opaque cursor pagination, status filters, escaped safe search, DTO allowlists, capped
+  escaped source text, safe health/provider projection, and API-key metadata that cannot contain
+  plaintext or hashes.
+- Kept private contribution content hidden by default. A distinct capability, fresh session, reason,
+  and target confirmation can reveal only the persisted sanitized V2 payload. Every allowed or
+  denied attempt is independently audited and responses are `no-store`.
+- Canonical operations now preview/recompute before execution and attribute immutable Phase 8 events
+  to the administrator. Retry creates a new operator-triggered durable run and preserves the
+  quarantined original. Moderation and user controls use reversible expected-state transitions.
+- Extended the Phase 17 warm cream/deep-green identity into a denser, restrained operations console
+  rather than replacing it with a generic dark tool. Admin routing remains server-guarded and the
+  Next.js bridge explicitly allowlists only the new admin endpoints.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-26-knownpath-phase-18-admin-operations-design.md`](docs/superpowers/specs/2026-08-26-knownpath-phase-18-admin-operations-design.md),
+and operating/security behavior is in [`docs/ADMIN_OPERATIONS.md`](docs/ADMIN_OPERATIONS.md).
+
+### Files, APIs, and surfaces created
+
+- Added `packages/domain/src/admin.ts`, expanded admin audit vocabulary, session freshness on the
+  auth principal, centralized capability/confirmation helpers, administrator attribution in
+  canonicalization, repository admin pagination/search/mutations, and BullMQ queue pause/resume plus
+  operator initiator metadata.
+- Added focused `apps/api/src/admin-service.ts`, `admin-details.ts`, and `admin-routes.ts`
+  boundaries, with 12 OpenAPI administration paths for overview, resource list/detail, private
+  reveal, moderation, queues, retry, sources, canonical preview/execute, and users. Error handling
+  now maps administration and malformed-JSON failures to stable safe envelopes.
+- Added `/admin`, `/admin/controls`, resource list/detail routes, administration shell, controlled
+  mutation/canonical/private reveal components, and `styles/admin.css`. Untrusted source material is
+  rendered as escaped text, never injected HTML.
+- Updated the API bridge/contracts, architecture, data model, decisions, operations, README, and the
+  dedicated admin runbook. No tests or Phase 19 code were added.
+
+### Commands and behavior successfully verified
+
+- With Node 24.18.0, final `pnpm typecheck` completed **39/39**, `pnpm lint` completed **22/22**,
+  `pnpm build` completed **22/22**, `pnpm format:check` passed, and `git diff --check` passed. The
+  Next.js production build included all four intended dynamic admin route patterns. No tests were
+  added or run.
+- `pnpm db:init` completed against Atlas idempotently, reconciled collection validators, and exposed
+  the already-defined indexes. This corrected a stale Atlas contribution validator encountered by
+  the real private-contribution verification; the same bounded submission then returned 202.
+- An isolated API/web/Valkey verification stack reported MongoDB/auth/queues ready. A real temporary
+  admin accessed overview and resource details while a real ordinary account received 403 from the
+  admin API and 404 from the server-guarded `/admin` UI. Admin overview reflected the actual Atlas
+  source, extraction, candidate, KnownPath, user, audit, worker, queue, provider, and search state.
+- Sources, source items, extractions, candidates, KnownPaths, users, and audit lists/detail returned
+  real safe projections. A normalized source body/provenance was inspectable as escaped text. A
+  response scan found no API-key hash/plaintext, credentials, raw authorization/cookies, provider
+  interaction payload, embedding vector, MongoDB URI, or Valkey URI.
+- A wrong queue confirmation failed 403. After aging the admin session to 31 minutes in the
+  disposable account, read-only overview remained 200 while the sensitive queue mutation failed with
+  `fresh_admin_session_required`; a new sign-in restored sensitive access. The isolated control
+  queue paused and resumed with observed BullMQ state.
+- A safe intentional `development.fail` job became `quarantined`. Admin retry returned 200 and
+  created a new waiting step/run while the original remained quarantined. A disposable candidate
+  completed quarantine and restore. A canonical merge preview/execute followed by split archived the
+  disposable KnownPath, deactivated its membership, preserved nine canonical events, and every event
+  identified the temporary administrator rather than `system`.
+- A real private contribution detail reported content available but exposed neither sanitized nor
+  submitted payload. Two freshly confirmed reveals returned only the sanitized structured fields;
+  two separate successful reveal audit events retained the stated reason. A user suspension caused
+  that account's existing session to fail 401 and restore returned the user to active.
+- The rendered admin overview/control room returned 200 for the admin and contained the freshness
+  and exact-confirmation guidance. OpenAPI returned 12 administration paths including private reveal
+  and canonical execute. API/web logs contained no verification password, API-key plaintext,
+  Authorization/cookie field, MongoDB URI, or Valkey URI.
+- All disposable services were stopped. Exact cleanup removed two users, three sessions, two auth
+  accounts, one API key, one private contribution, one candidate/assessment/profile, one KnownPath,
+  one membership/revision, nine canonical events, two runs, three steps, and 23 scoped audit events;
+  follow-up counts for the temporary users/candidate/KnownPath/contribution/runs were all zero.
+
+### Environment and manual setup still required
+
+- The hosted Next.js dashboard still needs a deployment with `KNOWNPATH_API_URL` set to the trusted
+  HTTPS API. The Render API and scheduled free worker topology are unchanged by this phase.
+- Production operators still require accounts provisioned through `pnpm auth:user:create`; public
+  signup remains closed. Future specialized moderator/operations roles may use the capability
+  boundary but only the existing `admin` role is persisted today.
+- Source rate-limit/error health is limited to safely persisted run timestamps/failures and current
+  provider configuration. Rich historical operations analytics requires measured production data,
+  not fabricated charts.
+
+### Known limitations intentionally left for later phases
+
+- There is no hard deletion, bulk destructive reprocessing, unsanitized private-content access,
+  automatic moderation, or independent team moderation. Team ownership remains unsupported.
+- Generic list search is bounded escaped MongoDB matching for operator use; Atlas search/vector
+  retrieval remains solely the knowledge retrieval boundary.
+- Admin capability names are ready for narrower roles, but role assignment/workspace ownership and
+  advanced policy administration are deliberately deferred. No tests were added by explicit rule.
+
+### Exact next phase
+
+**Phase 19 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt. Do not infer or begin Phase 19 from Phase 18.**

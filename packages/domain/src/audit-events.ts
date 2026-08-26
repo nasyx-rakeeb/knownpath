@@ -32,6 +32,17 @@ export const auditEventTypeSchema = z.enum([
   "outcome.rejected",
   "outcome.safety_review_queued",
   "outcome.assessment_created",
+  "admin.access_denied",
+  "admin.private_content_revealed",
+  "admin.source_updated",
+  "admin.source_sync_requested",
+  "admin.queue_paused",
+  "admin.queue_resumed",
+  "admin.job_retry_requested",
+  "admin.moderation_changed",
+  "admin.canonicalization_executed",
+  "admin.user_suspended",
+  "admin.user_restored",
 ]);
 
 export const auditActorSchema = z.discriminatedUnion("kind", [
@@ -56,6 +67,13 @@ export const auditTargetSchema = z.strictObject({
     "outcome",
     "outcome_assessment",
     "safety_review",
+    "source_registry",
+    "source_item",
+    "extraction_attempt",
+    "pipeline_run",
+    "pipeline_step",
+    "queue",
+    "canonicalization_operation",
   ]),
   id: shortStringSchema,
 });

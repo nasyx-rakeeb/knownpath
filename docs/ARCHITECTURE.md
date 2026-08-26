@@ -3,7 +3,7 @@
 ## Scope
 
 This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 17. A boundary appearing here does not mean its future product behavior is
+established through Phase 18. A boundary appearing here does not mean its future product behavior is
 implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
@@ -23,10 +23,10 @@ database.
   contribution, outcome, and maintenance jobs.
 - `@knownpath/mcp-server` is the thin local stdio-to-HTTP MCP bridge. The production Streamable HTTP
   transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
-- `@knownpath/web` owns the Phase 17 developer dashboard and public product introduction. Its
-  server-first Next.js routes consume safe API DTOs through a narrow same-origin bridge. It owns no
-  ranking, authorization, contribution, or session business logic and contains no administration
-  console.
+- `@knownpath/web` owns the developer dashboard, public product introduction, and server-guarded
+  Phase 18 administration console. Its server-first Next.js routes consume safe API DTOs through a
+  narrow same-origin bridge. It owns no ranking, authorization, contribution, session, moderation,
+  or queue business logic.
 - `knownpath` is the publishable installer CLI. It owns interactive/machine-readable presentation,
   packages the canonical skill, and exposes the thin `mcp` stdio command; it delegates all
   client-specific behavior to `@knownpath/agent-adapters`.
@@ -125,6 +125,14 @@ and safe response headers to `KNOWNPATH_API_URL`; it refuses arbitrary API paths
 an Authorization header. Fastify remains the authority for session validity, owner scoping,
 visibility, rate policies, audit events, and response serialization. See
 [the dashboard guide](DASHBOARD.md).
+
+The `/admin` route group uses the same bridge through an explicit administration allowlist. Fastify
+projects safe operational DTOs and centrally enforces admin capabilities. Sensitive mutations also
+require a session no older than 30 minutes, an exact target confirmation, and a reason. MongoDB
+repositories, BullMQ controls, canonicalization primitives, and audit writes remain behind an
+administration application service; Next.js never invokes them directly. Private contribution
+content is hidden by default and can reveal only the persisted sanitized payload through a distinct
+fresh-admin capability. See [the administration runbook](ADMIN_OPERATIONS.md).
 
 ## Intended completed-platform data flow
 

@@ -43,9 +43,11 @@ The design was checked against current official guidance on 2026-08-26:
   [Server Actions](https://nextjs.org/docs/app/guides/server-actions) guidance requires secure
   authorization close to the data source, treats every mutation entry point as untrusted, and
   recommends narrow DTOs.
-- OWASP [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+- OWASP
+  [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
   recommends least privilege, deny by default, and permission validation on every request.
-- OWASP [Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+- OWASP
+  [Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
   requires security-relevant auditability while excluding session identifiers, access tokens,
   passwords, connection strings, encryption keys, source code, and sensitive PII.
 - BullMQ [queue](https://docs.bullmq.io/guide/queues),
@@ -65,8 +67,8 @@ Next.js application.
 
 Rejected alternatives:
 
-- Route handlers calling repositories directly would be quick but would scatter authorization,
-  DTO projection, audit, pagination, and domain invariants.
+- Route handlers calling repositories directly would be quick but would scatter authorization, DTO
+  projection, audit, pagination, and domain invariants.
 - A separate administration application and deployment would add operational and authentication
   complexity without improving the current data boundary, because Fastify must still authorize all
   operations.
@@ -117,9 +119,9 @@ centralized and deny-by-default: an unclassified mutation is treated as sensitiv
 
 ## Admin API and service boundary
 
-Administration contracts live in the shared domain package as strict, versioned Zod schemas.
-Fastify routes only authenticate, validate, invoke the administration service, map errors, and
-record request metadata. The administration service owns safe projection and orchestration across
+Administration contracts live in the shared domain package as strict, versioned Zod schemas. Fastify
+routes only authenticate, validate, invoke the administration service, map errors, and record
+request metadata. The administration service owns safe projection and orchestration across
 repositories, canonicalization, queues, and audit.
 
 The initial route families are:
@@ -147,13 +149,13 @@ contribution material have no response fields.
 
 Source registry views show source identity, type, visibility, enabled state, cursor presence, last
 attempt/success, lag, related run counts, and safe failure summaries. Source items show provenance,
-classification, lifecycle, digests, timestamps, and escaped normalized text/blocks. Provider payloads
-are projected through explicit allowlists rather than returned wholesale.
+classification, lifecycle, digests, timestamps, and escaped normalized text/blocks. Provider
+payloads are projected through explicit allowlists rather than returned wholesale.
 
 Extraction views show attempts, status, strategy, provider/model/version, usage, latency, validation
-issues, failure codes, source references, and projected candidate identifiers. Quarantined or invalid
-model output is represented by validated metadata and safe failure information; raw unsafe provider
-responses are not exposed.
+issues, failure codes, source references, and projected candidate identifiers. Quarantined or
+invalid model output is represented by validated metadata and safe failure information; raw unsafe
+provider responses are not exposed.
 
 ### Canonical knowledge operations
 
@@ -182,13 +184,14 @@ Moderation transitions use existing lifecycle and moderation states wherever pos
 - safety events: queued, under review, resolved, or restricted through the KnownPath safety state.
 
 Hard deletion is not available. Every transition validates its allowed source state, records actor,
-reason, previous state, new state, target, request ID, and outcome, and retains the underlying record.
-Approval never promotes private material to public or bypasses provider privacy policy.
+reason, previous state, new state, target, request ID, and outcome, and retains the underlying
+record. Approval never promotes private material to public or bypasses provider privacy policy.
 
 ### Private sanitized-content reveal
 
-Private contribution content is hidden by default. Metadata, sanitization status, finding categories,
-processing state, and moderation state remain visible to admins without revealing content.
+Private contribution content is hidden by default. Metadata, sanitization status, finding
+categories, processing state, and moderation state remain visible to admins without revealing
+content.
 
 Revealing sanitized private content requires:
 
@@ -213,8 +216,8 @@ ephemeral queue infrastructure.
 - Retrying a failed or quarantined business step creates an operator-triggered `reprocess` run using
   the same validated job/target/options through the existing producer. The prior run and step remain
   immutable historical evidence.
-- Broad score/extraction/embedding reprocessing first produces a count/scope preview and then creates
-  bounded version-aware jobs after fresh confirmation.
+- Broad score/extraction/embedding reprocessing first produces a count/scope preview and then
+  creates bounded version-aware jobs after fresh confirmation.
 - Controls fail clearly with `503 queue_unavailable` when Valkey is unavailable. No MongoDB product
   state is discarded or silently treated as queued.
 
@@ -225,9 +228,9 @@ private-content reveals, source changes/syncs, queue controls, retries/reprocess
 transitions, canonicalization actions, user suspension/restoration, and admin reads of sensitive
 views.
 
-Events carry a persisted admin user actor, target, timestamp, outcome, request ID, normalized IP when
-available, and bounded non-secret metadata. Reasons are stored in bounded sanitized metadata or a
-dedicated operation record as appropriate. No cookie, session token, API key, password, provider
+Events carry a persisted admin user actor, target, timestamp, outcome, request ID, normalized IP
+when available, and bounded non-secret metadata. Reasons are stored in bounded sanitized metadata or
+a dedicated operation record as appropriate. No cookie, session token, API key, password, provider
 credential, connection string, source code dump, or revealed private content is logged.
 
 Audit list access is itself admin-authorized. Private-content reveal events are filterable by actor
@@ -236,10 +239,10 @@ and target so repeated access is visible.
 ## Web application
 
 The existing Next.js application gains a separately guarded `/admin` route group. Its server layout
-fetches an admin bootstrap DTO from Fastify; ordinary users receive a server-side 403/not-found-style
-boundary rather than merely hidden navigation. The Phase 17 bridge receives a distinct, explicit
-allowlist for administration endpoints and continues to forward only session cookies, safe content
-headers, and request correlation data.
+fetches an admin bootstrap DTO from Fastify; ordinary users receive a server-side
+403/not-found-style boundary rather than merely hidden navigation. The Phase 17 bridge receives a
+distinct, explicit allowlist for administration endpoints and continues to forward only session
+cookies, safe content headers, and request correlation data.
 
 Navigation:
 
@@ -296,4 +299,3 @@ No automated tests will be created. Verification will record literal observed re
 If live infrastructure or suitable disposable records are unavailable, the implementation will
 complete all safe verification possible and record the exact remaining manual operation rather than
 fabricating a success.
-

@@ -1,4 +1,11 @@
-import { apiKeyScopeSchema } from "@knownpath/domain";
+import {
+  adminCanonicalPreviewResponseSchema,
+  adminDetailResponseSchema,
+  adminListResponseSchema,
+  adminOverviewResponseSchema,
+  adminPrivateRevealResponseSchema,
+  apiKeyScopeSchema,
+} from "@knownpath/domain";
 import { z } from "zod";
 
 export const accountSchema = z.strictObject({
@@ -45,3 +52,13 @@ export const contributionSettingsSchema = z.strictObject({
 
 export type Account = z.infer<typeof accountSchema>;
 export type ApiKeyMetadata = z.infer<typeof apiKeyMetadataSchema>;
+export {
+  adminCanonicalPreviewResponseSchema,
+  adminDetailResponseSchema,
+  adminListResponseSchema,
+  adminOverviewResponseSchema,
+  adminPrivateRevealResponseSchema,
+};
+export type AdminOverview = z.infer<typeof adminOverviewResponseSchema>;
+export type AdminList = z.infer<typeof adminListResponseSchema>;
+export type AdminDetail = z.infer<typeof adminDetailResponseSchema>;

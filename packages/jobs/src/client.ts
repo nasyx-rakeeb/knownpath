@@ -62,6 +62,18 @@ export class QueueRegistry {
     return output;
   }
 
+  public async pause(name: PipelineQueueName): Promise<void> {
+    await this.get(name).pause();
+  }
+
+  public async resume(name: PipelineQueueName): Promise<void> {
+    await this.get(name).resume();
+  }
+
+  public async isPaused(name: PipelineQueueName): Promise<boolean> {
+    return this.get(name).isPaused();
+  }
+
   public async waitUntilRunnableIdle(
     options: {
       readonly idleMs: number;

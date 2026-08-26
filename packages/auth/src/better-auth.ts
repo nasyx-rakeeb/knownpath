@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 
 import type { AuthConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
-import { userContributionModeSchema, userIdSchema, userStatusSchema } from "@knownpath/domain";
+import {
+  ADMIN_FRESH_SESSION_SECONDS,
+  userContributionModeSchema,
+  userIdSchema,
+  userStatusSchema,
+} from "@knownpath/domain";
 import { betterAuth } from "better-auth";
 import { admin } from "better-auth/plugins";
 
@@ -59,7 +64,7 @@ export function createKnownPathAuth(
       modelName: "auth_sessions",
       expiresIn: 60 * 60 * 24 * 7,
       updateAge: 60 * 60 * 24,
-      freshAge: 60 * 30,
+      freshAge: ADMIN_FRESH_SESSION_SECONDS,
     },
     account: {
       modelName: "auth_accounts",

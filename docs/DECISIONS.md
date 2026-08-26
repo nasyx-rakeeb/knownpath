@@ -978,3 +978,54 @@ admin console would expand beyond Phase 17 and the closed-registration decision.
 [Better Auth Next.js integration](https://www.better-auth.com/docs/integrations/next),
 [WCAG 2.2](https://www.w3.org/TR/WCAG22/),
 [Radix accessibility](https://www.radix-ui.com/primitives/docs/overview/accessibility)
+
+## 2026-08-26 — Keep administration in the existing API with centralized step-up controls
+
+**Decision:** Add a dedicated administration application service and versioned contracts inside the
+existing Fastify boundary, consumed by a server-guarded `/admin` area in the existing Next.js app.
+Every route requires a persisted active admin session and named capability. High-impact mutations
+require the existing 30-minute fresh-session window, an exact action/target phrase, and a stated
+reason enforced by one backend wrapper. Canonical operations additionally require a recomputed
+preview digest. Every sensitive result is audited.
+
+Use the existing repositories, immutable assessments, canonical history, pipeline records, BullMQ
+queues, and audit collection rather than creating administration-owned copies. Prefer reversible
+lifecycle transitions and preserved-history retries to hard deletion or in-place history rewrites.
+
+**Why:** Authorization close to the business operation prevents UI bypasses and keeps future CLI or
+moderation clients consistent. Capabilities permit narrower operator roles later without changing
+contracts. Step-up freshness and target confirmation reduce the impact of stale sessions and broad
+operator mistakes, while immutable domain/audit history makes actions explainable and reversible.
+
+**Rejected:** Browser-only confirmation is not authorization. Direct repository calls in Fastify
+handlers would scatter invariants. A separate admin deployment or generic database/queue dashboard
+would add a shadow security surface and bypass KnownPath domain rules. Hard deletion would remove
+evidence needed for correction and audit.
+
+**References:** [Better Auth admin plugin](https://better-auth.com/docs/plugins/admin),
+[session freshness](https://better-auth.com/docs/concepts/session-management),
+[Next.js data security](https://nextjs.org/docs/app/guides/data-security),
+[OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html),
+[BullMQ pausing queues](https://docs.bullmq.io/guide/workers/pausing-queues)
+
+## 2026-08-26 — Reveal only sanitized private contribution content under a separate capability
+
+**Decision:** Keep private contribution content hidden from normal administration DTOs. A dedicated
+`private_content:read` operation requires a fresh admin session, target-specific confirmation, and a
+moderation/security reason, and audits every successful or denied attempt. It may return only the
+persisted sanitized V2 structured payload with `no-store`; original digests, removed fields,
+credentials, and redacted material remain unavailable.
+
+**Why:** Moderators sometimes need the generalized private lesson to investigate abuse or safety,
+but broad or silent visibility would weaken Phase 14's privacy boundary. Separate authorization and
+per-access audit make necessity and repeated access reviewable without pretending the original
+submission can be reconstructed.
+
+**Rejected:** Showing private content on every contribution page overexposes user data. Showing the
+original unsanitized submission is impossible by design and would violate data minimization.
+Frontend-only hiding is bypassable. A single generic admin permission cannot later support least
+privilege cleanly.
+
+**References:**
+[OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html),
+[OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)

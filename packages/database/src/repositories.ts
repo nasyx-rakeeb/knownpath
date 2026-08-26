@@ -98,6 +98,30 @@ interface StoredEntity {
   readonly _id: string;
 }
 
+export interface AdminPageOptions {
+  readonly before?: { readonly at: Date; readonly id: string };
+  readonly limit: number;
+  readonly search?: string;
+  readonly status?: string;
+}
+
+function adminBoundary(before: AdminPageOptions["before"], datePath = "audit.createdAt") {
+  return before === undefined
+    ? {}
+    : {
+        $or: [
+          { [datePath]: { $lt: before.at } },
+          { [datePath]: before.at, _id: { $lt: before.id } },
+        ],
+      };
+}
+
+function adminSearch(search: string | undefined, paths: readonly string[]) {
+  if (search === undefined) return {};
+  const escaped = search.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+  return { $or: paths.map((path) => ({ [path]: { $regex: escaped, $options: "i" } })) };
+}
+
 interface RuntimeSchema<Entity> {
   parse(value: unknown): Entity;
 }
@@ -122,6 +146,10 @@ class MongoEntityRepository<Entity extends StoredEntity, Id extends string> {
 
   public async findById(id: Id): Promise<Entity | null> {
     return this.findOne({ _id: id } as Filter<Entity>);
+  }
+
+  public async count(filter: Filter<Entity> = {} as Filter<Entity>): Promise<number> {
+    return this.collection.countDocuments(filter);
   }
 
   protected async findOne(filter: Filter<Entity>): Promise<Entity | null> {
@@ -173,6 +201,27 @@ export class UserRepository
   public async updateDisplayName(id: UserId, displayName: string): Promise<User | null> {
     return this.updateOne({ _id: id }, { displayName });
   }
+
+  public async listAdmin(options: AdminPageOptions): Promise<User[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...adminSearch(options.search, ["displayName", "email"]),
+        ...adminBoundary(options.before, "createdAt"),
+      } as Filter<User>)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => userSchema.parse(value));
+  }
+
+  public async updateStatusIfCurrent(
+    id: UserId,
+    expected: User["status"],
+    status: User["status"],
+  ): Promise<User | null> {
+    return this.updateOne({ _id: id, status: expected }, { status });
+  }
 }
 
 export class AuditEventRepository
@@ -181,6 +230,19 @@ export class AuditEventRepository
 {
   public constructor(collection: Collection<AuditEvent>) {
     super(collection, auditEventSchema, "occurredAt");
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<AuditEvent[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { eventType: options.status }),
+        ...adminSearch(options.search, ["eventType", "target.id", "requestId"]),
+        ...adminBoundary(options.before, "occurredAt"),
+      } as Filter<AuditEvent>)
+      .sort({ occurredAt: -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => auditEventSchema.parse(value));
   }
 }
 
@@ -297,6 +359,19 @@ export class SourceRegistryRepository
       .sort({ name: 1 })
       .toArray();
     return documents.map((document) => sourceRegistrySchema.parse(document));
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<SourceRegistry[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { enabled: options.status === "enabled" }),
+        ...adminSearch(options.search, ["name", "canonicalUrl", "originalUrl"]),
+        ...adminBoundary(options.before),
+      } as Filter<SourceRegistry>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => sourceRegistrySchema.parse(value));
   }
 
   public async updateDefinition(
@@ -506,6 +581,23 @@ export class SourceItemRepository
       .toArray();
     return documents.map((document) => sourceItemSchema.parse(document));
   }
+
+  public async listAdmin(options: AdminPageOptions): Promise<SourceItem[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { itemType: options.status }),
+        ...adminSearch(options.search, [
+          "title",
+          "provenance.canonicalUrl",
+          "provenance.sourceItemIdentity",
+        ]),
+        ...adminBoundary(options.before),
+      } as Filter<SourceItem>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => sourceItemSchema.parse(value));
+  }
 }
 
 export class ExtractionAttemptRepository
@@ -559,6 +651,19 @@ export class ExtractionAttemptRepository
   public async removeVerificationRecord(id: ExtractionAttemptId): Promise<boolean> {
     const result = await this.collection.deleteOne({ _id: id });
     return result.deletedCount === 1;
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<ExtractionAttempt[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...adminSearch(options.search, ["sourceItemId", "model.name", "failure.message"]),
+        ...adminBoundary(options.before),
+      } as Filter<ExtractionAttempt>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => extractionAttemptSchema.parse(value));
   }
 }
 
@@ -682,6 +787,36 @@ export class CandidateExperienceRepository
   public async removeVerificationRecord(id: CandidateExperienceId): Promise<boolean> {
     const result = await this.collection.deleteOne({ _id: id });
     return result.deletedCount === 1;
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<CandidateExperience[]> {
+    const search =
+      options.search === undefined
+        ? {}
+        : {
+            $and: [
+              { "visibility.scope": { $ne: "private" } },
+              adminSearch(options.search, ["problemStatement", "solutionSummary", "sourceItemId"]),
+            ],
+          };
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...search,
+        ...adminBoundary(options.before),
+      } as Filter<CandidateExperience>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => candidateExperienceSchema.parse(value));
+  }
+
+  public async updateModerationIfCurrent(
+    id: CandidateExperienceId,
+    expectedStatus: CandidateExperience["moderation"]["status"],
+    moderation: CandidateExperience["moderation"],
+  ): Promise<CandidateExperience | null> {
+    return this.updateOne({ _id: id, "moderation.status": expectedStatus }, { moderation });
   }
 }
 
@@ -1027,6 +1162,52 @@ export class KnownPathRepository
       .limit(limit)
       .toArray();
     return documents.map((document) => knownPathSchema.parse(document));
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<KnownPath[]> {
+    const search =
+      options.search === undefined
+        ? {}
+        : {
+            $and: [
+              { "visibility.scope": { $ne: "private" } },
+              adminSearch(options.search, ["title", "problemSummary", "metadata.packages.name"]),
+            ],
+          };
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...search,
+        ...adminBoundary(options.before),
+      } as Filter<KnownPath>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => knownPathSchema.parse(value));
+  }
+
+  public async updateStatusIfCurrent(
+    id: KnownPathId,
+    expected: KnownPath["status"],
+    status: KnownPath["status"],
+  ): Promise<KnownPath | null> {
+    return this.updateOne({ _id: id, status: expected }, { status });
+  }
+
+  public async updateSafetyReviewIfCurrent(
+    id: KnownPathId,
+    expected: KnownPath["safetyReview"]["status"],
+    safetyReview: KnownPath["safetyReview"],
+  ): Promise<KnownPath | null> {
+    return this.updateOne({ _id: id, "safetyReview.status": expected }, { safetyReview });
+  }
+
+  public async moderateIfCurrent(
+    id: KnownPathId,
+    expected: KnownPath["status"],
+    values: Pick<KnownPath, "moderation" | "safetyReview" | "status">,
+  ): Promise<KnownPath | null> {
+    return this.updateOne({ _id: id, status: expected }, values);
   }
 }
 
@@ -1503,6 +1684,33 @@ export class AgentContributionRepository
   ): Promise<AgentContribution | null> {
     return this.updateOne({ _id: id }, { status });
   }
+
+  public async listAdmin(options: AdminPageOptions): Promise<AgentContribution[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        // Searching private lesson text would disclose content through a side channel before the
+        // separately authorized reveal operation. Restrict contribution search to identifiers.
+        ...adminSearch(options.search, ["_id", "processing.candidateExperienceId"]),
+        ...adminBoundary(options.before),
+      } as Filter<AgentContribution>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => agentContributionSchema.parse(value));
+  }
+
+  public async updateModerationIfCurrent(
+    id: AgentContributionId,
+    expectedStatus: AgentContribution["moderation"]["status"],
+    moderation: AgentContribution["moderation"],
+    status?: AgentContribution["status"],
+  ): Promise<AgentContribution | null> {
+    return this.updateOne(
+      { _id: id, "moderation.status": expectedStatus },
+      { moderation, ...(status === undefined ? {} : { status }) },
+    );
+  }
 }
 
 export class AgentOutcomeRepository
@@ -1682,6 +1890,19 @@ export class AgentOutcomeRepository
       receivedAt: { $gte: since },
     } as Filter<AgentOutcome>);
   }
+
+  public async listAdmin(options: AdminPageOptions): Promise<AgentOutcome[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { outcome: options.status }),
+        ...adminSearch(options.search, ["knownPathId", "outcome", "note"]),
+        ...adminBoundary(options.before, "receivedAt"),
+      } as Filter<AgentOutcome>)
+      .sort({ receivedAt: -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => agentOutcomeSchema.parse(value));
+  }
 }
 
 export class OutcomeAssessmentRepository extends MongoEntityRepository<
@@ -1781,6 +2002,19 @@ export class PipelineRunRepository extends MongoEntityRepository<PipelineRun, Pi
     >,
   ): Promise<PipelineRun | null> {
     return this.updateOne({ _id: id }, values as MatchKeysAndValues<PipelineRun>);
+  }
+
+  public async listAdmin(options: AdminPageOptions): Promise<PipelineRun[]> {
+    const values = await this.collection
+      .find({
+        ...(options.status === undefined ? {} : { status: options.status }),
+        ...adminSearch(options.search, ["target.id", "kind", "lastError.message"]),
+        ...adminBoundary(options.before),
+      } as Filter<PipelineRun>)
+      .sort({ "audit.createdAt": -1, _id: -1 })
+      .limit(options.limit)
+      .toArray();
+    return values.map((value) => pipelineRunSchema.parse(value));
   }
 }
 

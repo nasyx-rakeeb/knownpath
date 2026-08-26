@@ -29,6 +29,24 @@ export class KnowledgeReviewAccessError extends AuthorizationError {
   }
 }
 
+export class FreshAdminSessionRequiredError extends AuthorizationError {
+  public override readonly code = "fresh_admin_session_required";
+
+  public constructor() {
+    super("This sensitive administrator action requires a fresh sign-in within 30 minutes");
+    this.name = "FreshAdminSessionRequiredError";
+  }
+}
+
+export class AdminConfirmationError extends AuthorizationError {
+  public override readonly code = "admin_confirmation_invalid";
+
+  public constructor() {
+    super("The administrator confirmation does not match the requested action and target");
+    this.name = "AdminConfirmationError";
+  }
+}
+
 export class AuthResourceNotFoundError extends Error {
   public readonly code = "resource_not_found";
 

@@ -18,6 +18,15 @@ const exactRoutes = new Set([
   "account/sessions",
   "api-keys",
   "knowledge/search",
+  "admin/overview",
+  "admin/moderation",
+  "admin/queues/control",
+  "admin/jobs/retry",
+  "admin/sources/action",
+  "admin/canonicalization/preview",
+  "admin/canonicalization/execute",
+  "admin/users/action",
+  "admin/private-content/reveal",
 ]);
 const patterns = [
   /^account\/sessions\/[0-9a-f-]+\/revoke$/u,
@@ -26,6 +35,8 @@ const patterns = [
   /^known-paths\/[0-9a-f-]+\/alternatives$/u,
   /^knowledge\/searches\/[0-9a-f-]+\/selections$/u,
   /^contributions\/[0-9a-f-]+$/u,
+  /^admin\/resources\/(sources|source-items|jobs|extractions|candidates|known-paths|contributions|outcomes|users|audit)$/u,
+  /^admin\/resources\/(sources|source-items|jobs|extractions|candidates|known-paths|contributions|outcomes|users|audit)\/[0-9a-f-]+$/u,
 ];
 
 type BridgeContext = { params: Promise<{ path: string[] }> };

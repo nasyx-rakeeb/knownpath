@@ -12,6 +12,8 @@ import {
   type PipelineTarget,
   type PipelineStep,
   type PipelineTrigger,
+  type UserId,
+  type ApiKeyId,
 } from "@knownpath/domain";
 import type { KnownPathDatabase } from "@knownpath/database";
 import type { QueueConfig } from "@knownpath/config";
@@ -36,6 +38,11 @@ export interface EnqueueRequest {
   readonly chainDepth?: number;
   readonly processingVersions?: Readonly<Record<string, string>>;
   readonly idempotencyParts?: readonly string[];
+  readonly initiator?: {
+    readonly kind: "api_key" | "system" | "user";
+    readonly userId?: UserId;
+    readonly apiKeyId?: ApiKeyId;
+  };
 }
 
 export interface EnqueueResult {
@@ -91,6 +98,7 @@ export class JobProducer {
               trigger: request.trigger,
               status: "queued",
               scope: { target: request.target, requestedJobName: jobName },
+              ...(request.initiator === undefined ? {} : { initiator: request.initiator }),
               counters: {
                 total: 1,
                 waiting: 1,

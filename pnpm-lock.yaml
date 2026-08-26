@@ -203,6 +203,9 @@ importers:
       '@knownpath/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@knownpath/canonicalization':
+        specifier: workspace:*
+        version: link:../../packages/canonicalization
       '@knownpath/config':
         specifier: workspace:*
         version: link:../../packages/config

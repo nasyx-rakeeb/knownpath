@@ -63,9 +63,9 @@ pnpm jobs resume ai
 pnpm jobs retry-failed ai
 ```
 
-The API exposes `GET /api/v1/admin/jobs` only to an authenticated administrator session. It returns
-safe queue counts, durable runs, and recent worker heartbeats; it never returns job source bodies,
-provider secrets, or credentials.
+The Phase 18 administration API exposes safe queue counts, durable runs, worker heartbeats,
+fresh-session queue pause/resume, and preserved-history retry. It never returns job source bodies,
+provider secrets, or credentials. See [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md).
 
 ## Retry, quarantine, and recovery
 

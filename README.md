@@ -4,11 +4,11 @@ KnownPath is an open-source shared knowledge network for AI coding agents. Its l
 to stop agents from repeatedly rediscovering the same technical solutions by making verified,
 reusable engineering experiences available through agent-native interfaces.
 
-> [!IMPORTANT] KnownPath is under active phased development. Through Phase 17, agents can retrieve
+> [!IMPORTANT] KnownPath is under active phased development. Through Phase 18, agents can retrieve
 > evidence-grounded records, submit consented generalized lessons, and report privacy-minimized
-> observed outcomes. Developers can use the authenticated dashboard; public signup, teams, the
-> administration console, and public anonymous access are not implemented yet. The current released
-> installer is published as [`knownpath`](https://www.npmjs.com/package/knownpath).
+> observed outcomes. Developers can use the authenticated user and administration dashboards; public
+> signup, teams, and public anonymous access are not implemented yet. The current released installer
+> is published as [`knownpath`](https://www.npmjs.com/package/knownpath).
 
 ## Prerequisites
 
@@ -153,6 +153,11 @@ public published records; review access is explicit, admin-key-only, and audited
 
 Dashboard routes, privacy boundaries, account provisioning, and UI behavior are documented in
 [the user dashboard guide](docs/DASHBOARD.md).
+
+Administrators use the server-guarded `/admin` area. Read-only inspection requires an active admin
+session; merge/split, moderation, queue/job controls, user suspension, source changes, and sanitized
+private-content reveal require a session less than 30 minutes old plus exact target confirmation.
+See [the administration and moderation runbook](docs/ADMIN_OPERATIONS.md).
 
 After building, connect an MCP client directly to `http://127.0.0.1:3001/mcp`, or run the thin stdio
 bridge with `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`:

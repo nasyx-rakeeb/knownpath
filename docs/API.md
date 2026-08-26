@@ -1,5 +1,26 @@
 # Knowledge HTTP API
 
+## Administration API
+
+Phase 18 exposes versioned, cookie-session-only administration routes under `/api/v1/admin`. Every
+route validates strict shared contracts and enforces an active administrator on the server. The
+surface includes overview/health, cursor-paginated resource list/detail, source controls,
+moderation, queue controls, preserved-history job retry, private sanitized-content reveal, user
+suspension/restore, and canonical preview/execute.
+
+Sensitive requests include `confirmation.version`, `action`, exact `target`, operator `reason`, and
+the phrase `CONFIRM <action> <target>`. They fail with `fresh_admin_session_required` when the
+session is older than 30 minutes and `admin_confirmation_invalid` when action, target, or phrase do
+not match. Browser confirmation alone cannot authorize a mutation. All sensitive outcomes are
+audited.
+
+Admin responses are safe projections: source content is bounded escaped text; user key data is
+prefix/status/scope metadata only; credentials, session tokens, key hashes/plaintext, provider
+secrets, connection strings, raw embeddings, and hidden reasoning are absent. Private contribution
+detail omits content until `/api/v1/admin/private-content/reveal` verifies a fresh session, the
+dedicated capability, a stated reason, and exact confirmation. Only sanitized V2 content can be
+returned, with `no-store` caching. See [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md).
+
 ## Scope
 
 Phase 10 exposes safe canonical knowledge through Fastify under `/api/v1`. The transport composes

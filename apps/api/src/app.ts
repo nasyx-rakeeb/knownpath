@@ -33,6 +33,8 @@ import {
 } from "fastify-type-provider-zod";
 
 import { registerAuthRoutes } from "./auth-routes.js";
+import { registerAdminRoutes } from "./admin-routes.js";
+import { AdminService } from "./admin-service.js";
 import { registerErrorHandler } from "./error-handler.js";
 import { registerDashboardRoutes } from "./dashboard-routes.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
@@ -155,6 +157,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       request.url.startsWith("/api/v1/contributions") ||
       request.url.startsWith("/api/v1/outcomes") ||
       request.url.startsWith("/api/v1/mcp") ||
+      request.url.startsWith("/api/v1/admin") ||
       request.url.startsWith("/mcp")
     ) {
       reply.header("cache-control", "no-store");
@@ -176,6 +179,17 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.database.repositories,
     audit,
     options.authConfig.apiKeyPepper,
+  );
+  const admin = new AdminService(
+    options.database,
+    options.authConfig.apiKeyPepper,
+    options.queueRegistry,
+    options.jobProducer,
+    {
+      geminiConfigured: options.embeddingConfig.geminiApiKey !== undefined,
+      embeddingModel: options.embeddingConfig.model,
+      searchBackend: options.searchConfig.backend,
+    },
   );
   const rateLimitPolicies = createRateLimitPolicies(
     options.apiConfig.rateLimitMax,
@@ -228,6 +242,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
   registerDashboardRoutes(api, authenticator, dashboard);
+  registerAdminRoutes(api, authenticator, admin, audit);
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
   registerOperationalRoutes(api, authenticator, options.database, options.queueRegistry);
   registerKnowledgeRoutes(api, authenticator, knowledge, {

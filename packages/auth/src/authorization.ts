@@ -1,10 +1,29 @@
-import type { ApiKey, ApiKeyScope, User } from "@knownpath/domain";
+import {
+  ADMIN_FRESH_SESSION_SECONDS,
+  type AdminCapability,
+  type AdminConfirmation,
+  type AdminSensitiveAction,
+  type ApiKey,
+  type ApiKeyScope,
+  type User,
+} from "@knownpath/domain";
 
-import { AuthenticationError, AuthorizationError, KnowledgeReviewAccessError } from "./errors.js";
+import {
+  AdminConfirmationError,
+  AuthenticationError,
+  AuthorizationError,
+  FreshAdminSessionRequiredError,
+  KnowledgeReviewAccessError,
+} from "./errors.js";
 
 export type Principal =
   | { readonly kind: "anonymous" }
-  | { readonly kind: "session"; readonly sessionId: string; readonly user: User }
+  | {
+      readonly kind: "session";
+      readonly sessionId: string;
+      readonly sessionCreatedAt: Date;
+      readonly user: User;
+    }
   | { readonly kind: "api_key"; readonly key: ApiKey; readonly user: User };
 
 export const anonymousPrincipal: Principal = { kind: "anonymous" };
@@ -31,6 +50,71 @@ export function requireAdmin(principal: Principal): Extract<Principal, { kind: "
     throw new AuthorizationError("Administrator access is required");
   }
   return session;
+}
+
+const ADMIN_CAPABILITIES: ReadonlySet<AdminCapability> = new Set([
+  "operations:read",
+  "operations:write",
+  "sources:read",
+  "sources:write",
+  "knowledge:read",
+  "knowledge:moderate",
+  "contributions:read",
+  "contributions:moderate",
+  "private_content:read",
+  "users:read",
+  "users:write",
+  "audit:read",
+]);
+
+export function requireAdminCapability(
+  principal: Principal,
+  capability: AdminCapability,
+): Extract<Principal, { kind: "session" }> {
+  const admin = requireAdmin(principal);
+  if (!ADMIN_CAPABILITIES.has(capability)) {
+    throw new AuthorizationError(`Administrator capability ${capability} is required`);
+  }
+  return admin;
+}
+
+export function requireFreshAdmin(
+  principal: Principal,
+  capability: AdminCapability,
+  now = new Date(),
+): Extract<Principal, { kind: "session" }> {
+  const admin = requireAdminCapability(principal, capability);
+  const ageMs = now.getTime() - admin.sessionCreatedAt.getTime();
+  if (ageMs < 0 || ageMs > ADMIN_FRESH_SESSION_SECONDS * 1_000) {
+    throw new FreshAdminSessionRequiredError();
+  }
+  return admin;
+}
+
+export function expectedAdminConfirmationPhrase(
+  action: AdminSensitiveAction,
+  target: string,
+): string {
+  return `CONFIRM ${action} ${target}`;
+}
+
+export function validateAdminConfirmation(
+  confirmation: AdminConfirmation,
+  action: AdminSensitiveAction,
+  target: string,
+): void {
+  if (
+    confirmation.action !== action ||
+    confirmation.target !== target ||
+    confirmation.phrase !== expectedAdminConfirmationPhrase(action, target)
+  ) {
+    throw new AdminConfirmationError();
+  }
+}
+
+export function listAdminCapabilities(principal: Principal): AdminCapability[] {
+  requireAdmin(principal);
+  return [...ADMIN_CAPABILITIES];
 }
 
 export function requireScope(

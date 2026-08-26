@@ -9,6 +9,7 @@ import { KnowledgeAccessError } from "@knownpath/search";
 import { ContributionError } from "@knownpath/contributions";
 import { OutcomeError } from "@knownpath/outcomes";
 import { z } from "zod";
+import { AdminOperationError } from "./admin-service.js";
 
 export function registerErrorHandler(api: FastifyInstance): void {
   api.setNotFoundHandler(async (request, reply) =>
@@ -33,6 +34,9 @@ export function registerErrorHandler(api: FastifyInstance): void {
     }
     if (error instanceof DashboardCursorError) {
       return reply.status(400).send(envelope(error.code, error.message, request.id));
+    }
+    if (error instanceof AdminOperationError) {
+      return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof KnowledgeAccessError) {
       return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));
@@ -96,6 +100,11 @@ export function registerErrorHandler(api: FastifyInstance): void {
       return reply
         .status(413)
         .send(envelope("payload_too_large", "The request payload is too large", request.id));
+    }
+    if (isFastifyCode(error, "FST_ERR_CTP_INVALID_JSON_BODY")) {
+      return reply
+        .status(400)
+        .send(envelope("validation_failed", "The request body is not valid JSON", request.id));
     }
     if (isCodedSearchError(error)) {
       return reply

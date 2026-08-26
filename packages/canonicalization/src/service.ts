@@ -51,7 +51,10 @@ export class SimilarityProfileService {
 }
 
 export class CanonicalRecordService {
-  public constructor(private readonly database: KnownPathDatabase) {}
+  public constructor(
+    private readonly database: KnownPathDatabase,
+    private readonly actor: CanonicalizationEvent["actor"] = { kind: "system" },
+  ) {}
 
   public async mergeCandidates(input: {
     readonly candidateIds: readonly CandidateExperienceId[];
@@ -455,7 +458,7 @@ export class CanonicalRecordService {
       operationId,
       sequence,
       eventType,
-      actor: { kind: "system" },
+      actor: this.actor,
       reason,
       knownPathIds: [...knownPathIds],
       candidateExperienceIds: [...candidateExperienceIds],
