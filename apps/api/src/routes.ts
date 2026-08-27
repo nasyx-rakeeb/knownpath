@@ -34,6 +34,10 @@ const accountResponseSchema = z.object({
       keyId: z.uuidv4(),
       prefix: z.string(),
       scopes: z.array(z.string()),
+      binding: z.discriminatedUnion("kind", [
+        z.strictObject({ kind: z.literal("personal") }),
+        z.strictObject({ kind: z.literal("workspace"), workspaceId: z.uuidv4() }),
+      ]),
     }),
   ]),
 });
@@ -170,6 +174,7 @@ export function registerAccountRoutes(api: FastifyInstance, authenticator: Authe
                 keyId: principal.key._id,
                 prefix: principal.key.prefix,
                 scopes: principal.key.scopes,
+                binding: principal.key.binding,
               },
       };
     },

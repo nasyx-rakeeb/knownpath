@@ -70,6 +70,10 @@ async function main(): Promise<void> {
       : { projectDirectory: arguments_.projectDirectory }),
     scope: arguments_.scope,
     skillSourceDirectory: await resolvePackagedSkillDirectory(),
+    ...(arguments_.profileName === undefined ? {} : { profileName: arguments_.profileName }),
+    ...(arguments_.expectedWorkspaceId === undefined
+      ? {}
+      : { expectedWorkspaceId: arguments_.expectedWorkspaceId }),
   } as const;
 
   if (arguments_.command === "status" || arguments_.command === "doctor") {

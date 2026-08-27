@@ -185,6 +185,127 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
     ],
   },
   {
+    name: collectionNames.workspaces,
+    validator: envelopeValidator(
+      ["name", "slug", "status", "ownerUserId", "defaultContributionScope"],
+      {
+        name: { bsonType: "string" },
+        slug: { bsonType: "string" },
+        status: { enum: ["active", "archived"] },
+        ownerUserId: { bsonType: "string" },
+        defaultContributionScope: { enum: ["private", "team"] },
+      },
+    ),
+    indexes: [
+      { key: { slug: 1 }, name: "uq_workspaces_slug", unique: true },
+      { key: { ownerUserId: 1, status: 1 }, name: "ix_workspaces_owner_status" },
+      { key: { status: 1, "audit.updatedAt": -1 }, name: "ix_workspaces_status_updated" },
+    ],
+  },
+  {
+    name: collectionNames.workspaceMemberships,
+    obsoleteIndexes: ["uq_workspace_memberships_workspace_user"],
+    validator: envelopeValidator(["workspaceId", "userId", "role", "status", "joinedAt"], {
+      workspaceId: { bsonType: "string" },
+      userId: { bsonType: "string" },
+      role: { enum: ["owner", "admin", "member"] },
+      status: { enum: ["active", "removed"] },
+      joinedAt: { bsonType: "date" },
+    }),
+    indexes: [
+      {
+        key: { workspaceId: 1, userId: 1 },
+        name: "uq_workspace_memberships_active_workspace_user",
+        unique: true,
+        partialFilterExpression: { status: "active" },
+      },
+      {
+        key: { userId: 1, status: 1, "audit.updatedAt": -1 },
+        name: "ix_workspace_memberships_user_status",
+      },
+      {
+        key: { workspaceId: 1, status: 1, role: 1, joinedAt: 1 },
+        name: "ix_workspace_memberships_workspace_status_role",
+      },
+    ],
+  },
+  {
+    name: collectionNames.workspaceInvitations,
+    validator: envelopeValidator(
+      [
+        "workspaceId",
+        "inviterUserId",
+        "inviteeUserId",
+        "invitedEmail",
+        "role",
+        "status",
+        "createdAt",
+        "expiresAt",
+      ],
+      {
+        workspaceId: { bsonType: "string" },
+        inviterUserId: { bsonType: "string" },
+        inviteeUserId: { bsonType: "string" },
+        invitedEmail: { bsonType: "string" },
+        role: { enum: ["admin", "member"] },
+        status: { enum: ["pending", "accepted", "rejected", "revoked", "expired"] },
+        createdAt: { bsonType: "date" },
+        expiresAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      {
+        key: { workspaceId: 1, inviteeUserId: 1, status: 1 },
+        name: "uq_workspace_invitations_pending_invitee",
+        unique: true,
+        partialFilterExpression: { status: "pending" },
+      },
+      {
+        key: { inviteeUserId: 1, status: 1, expiresAt: 1 },
+        name: "ix_workspace_invitations_invitee_status_expiry",
+      },
+      {
+        key: { workspaceId: 1, status: 1, createdAt: -1 },
+        name: "ix_workspace_invitations_workspace_status_created",
+      },
+      { key: { status: 1, expiresAt: 1 }, name: "ix_workspace_invitations_expiry" },
+    ],
+  },
+  {
+    name: collectionNames.knowledgeShareRequests,
+    validator: envelopeValidator(
+      [
+        "sourceKnownPathId",
+        "sourceScope",
+        "requestedByUserId",
+        "status",
+        "publicPayload",
+        "sanitization",
+        "consent",
+      ],
+      {
+        sourceKnownPathId: { bsonType: "string" },
+        sourceScope: { bsonType: "object", required: ["scope"] },
+        requestedByUserId: { bsonType: "string" },
+        status: { enum: ["draft", "submitted", "quarantined", "rejected"] },
+        publicPayload: { bsonType: "object" },
+        sanitization: { bsonType: "object" },
+        consent: { bsonType: "object" },
+      },
+    ),
+    indexes: [
+      {
+        key: { sourceKnownPathId: 1, requestedByUserId: 1, "audit.createdAt": -1 },
+        name: "ix_knowledge_share_requests_source_user_created",
+      },
+      {
+        key: { "sourceScope.scope": 1, "sourceScope.workspaceId": 1, status: 1 },
+        name: "ix_knowledge_share_requests_workspace_status",
+        partialFilterExpression: { "sourceScope.scope": "team" },
+      },
+    ],
+  },
+  {
     name: collectionNames.apiKeys,
     validator: envelopeValidator(["userId", "keyHash", "status"], {
       userId: { bsonType: "string" },
@@ -197,6 +318,11 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
       {
         key: { userId: 1, status: 1, "audit.createdAt": -1 },
         name: "ix_api_keys_user_status_created_at",
+      },
+      {
+        key: { "binding.workspaceId": 1, status: 1, "audit.createdAt": -1 },
+        name: "ix_api_keys_workspace_status_created",
+        partialFilterExpression: { "binding.kind": "workspace" },
       },
     ],
   },
@@ -278,6 +404,7 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   },
   {
     name: collectionNames.sourceRegistries,
+    obsoleteIndexes: ["ix_source_registries_visibility_team"],
     validator: envelopeValidator(["kind", "identityKey", "enabled", "visibility"], {
       kind: {
         enum: ["github_repository", "documentation_site", "release_feed", "agent_contribution"],
@@ -298,8 +425,8 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         partialFilterExpression: { "visibility.scope": "private" },
       },
       {
-        key: { "visibility.scope": 1, "visibility.teamId": 1 },
-        name: "ix_source_registries_visibility_team",
+        key: { "visibility.scope": 1, "visibility.workspaceId": 1 },
+        name: "ix_source_registries_visibility_workspace",
         partialFilterExpression: { "visibility.scope": "team" },
       },
     ],
@@ -906,6 +1033,16 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         name: "ix_known_path_search_documents_scope_status_trust",
       },
       {
+        key: { active: 1, visibilityScope: 1, ownerUserId: 1, knownPathStatus: 1 },
+        name: "ix_known_path_search_documents_personal_scope",
+        partialFilterExpression: { visibilityScope: "private" },
+      },
+      {
+        key: { active: 1, visibilityScope: 1, workspaceId: 1, knownPathStatus: 1 },
+        name: "ix_known_path_search_documents_workspace_scope",
+        partialFilterExpression: { visibilityScope: "team" },
+      },
+      {
         key: { active: 1, ecosystem: 1, packages: 1 },
         name: "ix_known_path_search_documents_ecosystem_packages",
       },
@@ -1054,6 +1191,7 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
   },
   {
     name: collectionNames.knownPaths,
+    obsoleteIndexes: ["ix_known_paths_visibility_team_status_updated_at"],
     validator: envelopeValidator(["canonicalKey", "status", "metadata", "visibility"], {
       canonicalKey: { bsonType: "object", required: ["value", "version"] },
       status: { enum: ["draft", "review", "published", "deprecated", "superseded", "archived"] },
@@ -1084,11 +1222,11 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
       {
         key: {
           "visibility.scope": 1,
-          "visibility.teamId": 1,
+          "visibility.workspaceId": 1,
           status: 1,
           "audit.updatedAt": -1,
         },
-        name: "ix_known_paths_visibility_team_status_updated_at",
+        name: "ix_known_paths_visibility_workspace_status_updated_at",
         partialFilterExpression: { "visibility.scope": "team" },
       },
       {
@@ -1227,6 +1365,26 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         name: "ix_agent_outcomes_user_received_v2",
         partialFilterExpression: { schemaVersion: 2 },
       },
+      {
+        key: {
+          knownPathId: 1,
+          "aggregationScope.scope": 1,
+          "aggregationScope.workspaceId": 1,
+          receivedAt: 1,
+        },
+        name: "ix_agent_outcomes_workspace_aggregate_v2",
+        partialFilterExpression: { schemaVersion: 2, "aggregationScope.scope": "team" },
+      },
+      {
+        key: {
+          knownPathId: 1,
+          "aggregationScope.scope": 1,
+          "aggregationScope.ownerUserId": 1,
+          receivedAt: 1,
+        },
+        name: "ix_agent_outcomes_private_aggregate_v2",
+        partialFilterExpression: { schemaVersion: 2, "aggregationScope.scope": "private" },
+      },
     ],
   },
   {
@@ -1262,6 +1420,15 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
       {
         key: { knownPathId: 1, calculatedAt: -1 },
         name: "ix_outcome_assessments_known_path_calculated",
+      },
+      {
+        key: {
+          knownPathId: 1,
+          "aggregationScope.scope": 1,
+          "aggregationScope.workspaceId": 1,
+          calculatedAt: -1,
+        },
+        name: "ix_outcome_assessments_workspace_calculated",
       },
       {
         key: { "policy.version": 1, calculatedAt: -1 },

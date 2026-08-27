@@ -9,7 +9,7 @@ description:
   unrelated requests.
 license: Apache-2.0
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   project: "KnownPath"
 ---
 
@@ -52,7 +52,9 @@ lookup: skip the call if brief repository inspection makes the solution obvious.
 2. Call `knownpath_search` with `task` and any useful structured fields: `errors`, `ecosystem`,
    `packages`, `versions`, `platforms`, `environment`, and concise `context`. Omit unknown facts
    rather than guessing. Leave `includeReview` false unless an authorized administrator explicitly
-   requests moderation access.
+   requests moderation access. Use `scope: { kind: "public" }` by default. A workspace-bound key may
+   use `{ kind: "workspace_and_public", workspaceId }` or `{ kind: "workspace", workspaceId }`; a
+   personal key may use `{ kind: "personal" }`. Never probe another workspace ID.
 3. Compare results using exact error match, version compatibility, platform and package fit,
    deterministic trust, freshness, caveats, and provenance. Popularity or reactions are supporting
    signals only, never truth.
@@ -80,14 +82,19 @@ actually applied. After the task has observably succeeded, you may offer to call
 `knownpath_contribute`. Never call it silently or before success.
 
 - Get explicit user consent for every submission. Public consent covers submission and possible
-  future publication; private consent covers backend storage only. Never silently change private to
-  public. Team contributions are not supported.
+  future publication; private consent covers personal backend storage only; team consent covers
+  storage inside the workspace named by `workspaceId`. Never silently change private or team
+  knowledge to public. Team submission requires a workspace-bound API key for that same workspace.
+  When a workspace key is active, `knownpath_status` reports its configured default contribution
+  scope; still obtain explicit consent for the actual submission.
 - Submit a generalized problem, environment, errors, solution steps, caveats, and concise observable
   success checks. Do not submit repository files, source code, prompts, conversation history,
   credentials, personal data, or hidden chain-of-thought.
 - Use `clientSubmissionId` for safe idempotent retries and set `agentClient` accurately.
 - Treat the response as receipt of low-trust self-reported evidence. It is not proof, publication,
   or a highly trusted KnownPath.
+- Sharing a private/team lesson publicly is a separate dashboard workflow that creates a sanitized
+  public contribution. Do not simulate it by resubmitting proprietary content or changing scope.
 - If the contribution tool is absent, disabled, unauthorized, quarantined, or rejected, do not work
   around the boundary. Explain the result briefly and continue without submission.
 
@@ -112,6 +119,8 @@ KnownPath/execution pair once and reuse the same `clientOutcomeId` only for an i
   plausible. Wait for the task's actual verification result.
 - If the tool is absent, unauthorized, rejected, or rate-limited, do not retry with changed identity
   or fabricated IDs. State the limitation briefly and continue.
+- Match outcome `scope` to the selected KnownPath. Workspace-bound outcomes remain private to that
+  workspace and must not be reported as public evidence.
 
 For realistic Expo and React Native decision examples, read
 [`references/examples.md`](references/examples.md) only when an example would help distinguish a

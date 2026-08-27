@@ -16,6 +16,10 @@ export const apiKeyMetadataSchema = z.object({
   prefix: z.string(),
   scopes: z.array(apiKeyScopeSchema),
   status: z.enum(["active", "revoked", "expired"]),
+  binding: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("personal") }),
+    z.strictObject({ kind: z.literal("workspace"), workspaceId: z.uuidv4() }),
+  ]),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   expiresAt: z.iso.datetime().optional(),
@@ -57,6 +61,8 @@ export function toApiKeyMetadata(key: {
   readonly revokedAt?: Date | undefined;
   readonly scopes: readonly ApiKeyScope[];
   readonly status: "active" | "revoked" | "expired";
+  readonly binding:
+    { readonly kind: "personal" } | { readonly kind: "workspace"; readonly workspaceId: string };
 }) {
   return {
     id: key._id,
@@ -64,6 +70,7 @@ export function toApiKeyMetadata(key: {
     prefix: key.prefix,
     scopes: key.scopes,
     status: key.status,
+    binding: key.binding,
     createdAt: key.audit.createdAt.toISOString(),
     updatedAt: key.audit.updatedAt.toISOString(),
     ...(key.expiresAt === undefined ? {} : { expiresAt: key.expiresAt.toISOString() }),

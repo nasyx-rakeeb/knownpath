@@ -4,13 +4,29 @@ import { notFound } from "next/navigation";
 import { PageHeading, StatusBadge } from "../../../../components/page-heading";
 import { apiGet, KnownPathApiError } from "../../../../lib/api";
 import { formatDate, words } from "../../../../lib/format";
+import { PublicShareForm } from "../../../../components/public-share-form";
 
-export default async function KnownPathPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function KnownPathPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ scope?: string; workspaceId?: string }>;
+}) {
   const { id } = await params;
+  const requestedScope = await searchParams;
+  const scope = ["public", "personal", "workspace", "workspace_and_public"].includes(
+    requestedScope.scope ?? "public",
+  )
+    ? (requestedScope.scope ?? "public")
+    : "public";
+  const query = new URLSearchParams({ scope });
+  if (requestedScope.workspaceId !== undefined)
+    query.set("workspaceId", requestedScope.workspaceId);
   let path;
   try {
     path = await apiGet(
-      `/api/v1/known-paths/${encodeURIComponent(id)}`,
+      `/api/v1/known-paths/${encodeURIComponent(id)}?${query.toString()}`,
       knownPathDetailResponseSchema,
     );
   } catch (error) {
@@ -149,6 +165,7 @@ export default async function KnownPathPage({ params }: { params: Promise<{ id: 
           </section>
         </aside>
       </div>
+      {path.visibility.scope === "public" ? null : <PublicShareForm path={path} />}
     </>
   );
 }

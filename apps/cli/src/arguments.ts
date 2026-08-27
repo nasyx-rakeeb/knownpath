@@ -17,6 +17,8 @@ export interface CliArguments {
   readonly help: boolean;
   readonly json: boolean;
   readonly projectDirectory?: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
   readonly scope: InstallationScope;
   readonly version: boolean;
   readonly yes: boolean;
@@ -32,6 +34,8 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
       help: { type: "boolean", short: "h", default: false },
       json: { type: "boolean", default: false },
       "project-dir": { type: "string" },
+      profile: { type: "string" },
+      "workspace-id": { type: "string" },
       scope: { type: "string", default: "global" },
       version: { type: "boolean", short: "v", default: false },
       yes: { type: "boolean", short: "y", default: false },
@@ -50,6 +54,25 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
     throw new InstallerError("invalid_scope", "--scope must be global or project");
   }
   const agents = parseAgents(parsed.values.agent);
+  const profileName = parsed.values.profile?.trim();
+  const expectedWorkspaceId = parsed.values["workspace-id"]?.trim();
+  if (profileName !== undefined && (profileName.length < 1 || profileName.length > 80)) {
+    throw new InstallerError("invalid_profile", "--profile must be between 1 and 80 characters");
+  }
+  if (
+    expectedWorkspaceId !== undefined &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      expectedWorkspaceId,
+    )
+  ) {
+    throw new InstallerError("invalid_workspace_id", "--workspace-id must be a UUID v4");
+  }
+  if (expectedWorkspaceId !== undefined && profileName === undefined) {
+    throw new InstallerError(
+      "profile_required",
+      "--workspace-id requires a non-secret --profile label",
+    );
+  }
   return {
     ...(agents === undefined ? {} : { agents }),
     ...(command === undefined ? {} : { command: command as CliCommand }),
@@ -59,6 +82,8 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
     ...(parsed.values["project-dir"] === undefined
       ? {}
       : { projectDirectory: parsed.values["project-dir"] }),
+    ...(profileName === undefined ? {} : { profileName }),
+    ...(expectedWorkspaceId === undefined ? {} : { expectedWorkspaceId }),
     scope,
     version: parsed.values.version ?? false,
     yes: parsed.values.yes ?? false,

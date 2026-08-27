@@ -230,6 +230,9 @@ importers:
       '@knownpath/search':
         specifier: workspace:*
         version: link:../../packages/search
+      '@knownpath/workspaces':
+        specifier: workspace:*
+        version: link:../../packages/workspaces
       '@modelcontextprotocol/node':
         specifier: 'catalog:'
         version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.3)
@@ -865,6 +868,28 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.4.3
+    devDependencies:
+      '@knownpath/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/workspaces:
+    dependencies:
+      '@knownpath/auth':
+        specifier: workspace:*
+        version: link:../auth
+      '@knownpath/database':
+        specifier: workspace:*
+        version: link:../database
+      '@knownpath/domain':
+        specifier: workspace:*
+        version: link:../domain
     devDependencies:
       '@knownpath/typescript-config':
         specifier: workspace:*

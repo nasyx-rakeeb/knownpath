@@ -21,6 +21,11 @@ export function printReport(report: InstallerReport, json: boolean): void {
     process.stdout.write(
       `  ${agent.displayName}: MCP ${agent.mcp}; skill ${agent.skill}; client ${agent.detected ? "detected" : "not detected"}\n`,
     );
+    if (agent.profileName !== undefined) {
+      process.stdout.write(
+        `    profile ${agent.profileName}${agent.expectedWorkspaceId === undefined ? " (personal)" : `; workspace ${agent.expectedWorkspaceId}`}\n`,
+      );
+    }
   }
   if (report.changes.length === 0) process.stdout.write("  No changes required.\n");
   else {
@@ -57,6 +62,8 @@ Options:
   --agent <id|all>      Target one or more agents, or all supported agents; repeatable
   --scope <scope>       global (default) or project
   --project-dir <path>  Project root for project-scoped configuration
+  --profile <label>     Record a non-secret key profile label
+  --workspace-id <id>   Require the profile key to match this workspace UUID
   --dry-run             Show the exact change plan without writing
   --yes, -y             Confirm changes non-interactively
   --json                Emit machine-readable JSON

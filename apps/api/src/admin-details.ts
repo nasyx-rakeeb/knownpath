@@ -157,7 +157,7 @@ export async function loadAdminDetail(
     );
     if (value === null) return null;
     const assessments = await database.repositories.candidateAssessments.listByCandidate(value._id);
-    if (value.visibility.scope === "private")
+    if (value.visibility.scope !== "public")
       return {
         contractVersion: 1,
         resource,
@@ -236,7 +236,7 @@ export async function loadAdminDetail(
       database.repositories.outcomeAssessments.listByKnownPath(value._id),
       database.repositories.safetyEvents.listByKnownPath(value._id),
     ]);
-    if (value.visibility.scope === "private")
+    if (value.visibility.scope !== "public")
       return {
         contractVersion: 1,
         resource,
@@ -314,7 +314,7 @@ export async function loadAdminDetail(
     );
     if (value === null) return null;
     const isV2 = value.schemaVersion === 2;
-    const isPrivate = value.visibility.scope === "private";
+    const isPrivate = value.visibility.scope !== "public";
     return {
       contractVersion: 1,
       resource,

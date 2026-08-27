@@ -6,7 +6,11 @@ import {
   type ApiKey,
   type ApiKeyScope,
   type User,
+  type Workspace,
+  type WorkspaceMembership,
+  type KnowledgeSearchScope,
 } from "@knownpath/domain";
+import type { KnownPathDatabase } from "@knownpath/database";
 
 import {
   AdminConfirmationError,
@@ -24,7 +28,13 @@ export type Principal =
       readonly sessionCreatedAt: Date;
       readonly user: User;
     }
-  | { readonly kind: "api_key"; readonly key: ApiKey; readonly user: User };
+  | {
+      readonly kind: "api_key";
+      readonly key: ApiKey;
+      readonly user: User;
+      readonly workspace?: Workspace;
+      readonly workspaceMembership?: WorkspaceMembership;
+    };
 
 export const anonymousPrincipal: Principal = { kind: "anonymous" };
 
@@ -188,4 +198,48 @@ export function authorizeKnowledgeRead(
             apiKeyId: authenticated.key._id,
           },
   };
+}
+
+export interface ScopedKnowledgeAccessAuthorization extends KnowledgeAccessAuthorization {
+  readonly scope: KnowledgeSearchScope;
+  readonly workspaceMembership?: WorkspaceMembership;
+}
+
+export async function authorizeScopedKnowledgeRead(
+  principal: Principal,
+  scope: KnowledgeSearchScope,
+  includeReview: boolean,
+  database: KnownPathDatabase,
+): Promise<ScopedKnowledgeAccessAuthorization> {
+  const base = authorizeKnowledgeRead(principal, includeReview);
+  const authenticated = requireAuthenticated(principal);
+  if (includeReview) {
+    if (scope.kind !== "public")
+      throw new AuthorizationError("Administrator review access is limited to public knowledge");
+    return { ...base, scope };
+  }
+  if (scope.kind === "public") return { ...base, scope };
+  if (scope.kind === "personal") {
+    if (authenticated.kind === "api_key" && authenticated.key.binding.kind === "workspace")
+      throw new AuthorizationError("A workspace-bound API key cannot access personal knowledge");
+    return { ...base, scope };
+  }
+  if (
+    authenticated.kind === "api_key" &&
+    (authenticated.key.binding.kind !== "workspace" ||
+      authenticated.key.binding.workspaceId !== scope.workspaceId)
+  )
+    throw new AuthorizationError("The API key is not bound to the requested workspace");
+  const membership =
+    authenticated.kind === "api_key" &&
+    authenticated.workspaceMembership?.workspaceId === scope.workspaceId
+      ? authenticated.workspaceMembership
+      : await database.repositories.workspaceMemberships.findActive(
+          scope.workspaceId,
+          authenticated.user._id,
+        );
+  const workspace = await database.repositories.workspaces.findById(scope.workspaceId);
+  if (membership === null || membership === undefined || workspace?.status !== "active")
+    throw new AuthorizationError("The requested workspace is not available to this principal");
+  return { ...base, scope, workspaceMembership: membership };
 }

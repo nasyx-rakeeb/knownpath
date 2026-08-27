@@ -62,6 +62,8 @@ interface PreparedContext {
   readonly skillDigest: string;
   readonly skillSourceDirectory: string;
   readonly skillVersion: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
 }
 
 interface AgentSnapshot {
@@ -135,7 +137,30 @@ export class KnownPathInstaller {
       ...snapshots.flatMap((snapshot) => installationChecks(snapshot)),
     ];
     if (environmentStatus.apiUrl !== undefined && environmentStatus.apiKeyPresent) {
-      checks.push(...(await this.networkChecks(environmentStatus.apiUrl, context.environment)));
+      const expectedWorkspaceIds = [
+        ...new Set(
+          snapshots.flatMap((snapshot) =>
+            snapshot.status.expectedWorkspaceId === undefined
+              ? []
+              : [snapshot.status.expectedWorkspaceId],
+          ),
+        ),
+      ];
+      if (expectedWorkspaceIds.length > 1)
+        checks.push({
+          code: "workspace_profile_conflict",
+          message:
+            "Selected installations expect different workspace keys but share KNOWNPATH_API_KEY",
+          status: "fail",
+        });
+      checks.push(
+        ...(await this.networkChecks(
+          environmentStatus.apiUrl,
+          context.environment,
+          context.expectedWorkspaceId ??
+            (expectedWorkspaceIds.length === 1 ? expectedWorkspaceIds[0] : undefined),
+        )),
+      );
     } else {
       checks.push({
         code: "backend_skipped",
@@ -296,6 +321,18 @@ export class KnownPathInstaller {
       skillPath: snapshot.paths.skillPath,
       skillVersion: context.skillVersion,
       updatedAt: new Date().toISOString(),
+      ...(context.profileName === undefined
+        ? snapshot.owned?.profileName === undefined
+          ? {}
+          : { profileName: snapshot.owned.profileName }
+        : { profileName: context.profileName }),
+      ...(context.profileName !== undefined
+        ? context.expectedWorkspaceId === undefined
+          ? {}
+          : { expectedWorkspaceId: context.expectedWorkspaceId }
+        : snapshot.owned?.expectedWorkspaceId === undefined
+          ? {}
+          : { expectedWorkspaceId: snapshot.owned.expectedWorkspaceId }),
     };
     const stateChange = changes.find((change) => change.kind === "write_state");
     if (stateChange !== undefined) applied.push(stateChange);
@@ -343,6 +380,10 @@ export class KnownPathInstaller {
       skillDigest,
       skillSourceDirectory,
       skillVersion,
+      ...(request.profileName === undefined ? {} : { profileName: request.profileName }),
+      ...(request.expectedWorkspaceId === undefined
+        ? {}
+        : { expectedWorkspaceId: request.expectedWorkspaceId }),
     };
   }
 
@@ -388,6 +429,10 @@ export class KnownPathInstaller {
             skill: skillStatus(skillActualDigest, context.skillDigest, owned),
             skillPath: paths.skillPath,
             ...(installedSkillVersion === undefined ? {} : { version: installedSkillVersion }),
+            ...(owned?.profileName === undefined ? {} : { profileName: owned.profileName }),
+            ...(owned?.expectedWorkspaceId === undefined
+              ? {}
+              : { expectedWorkspaceId: owned.expectedWorkspaceId }),
           },
         };
       }),
@@ -407,6 +452,7 @@ export class KnownPathInstaller {
   private async networkChecks(
     apiUrl: string,
     environment: NodeJS.ProcessEnv,
+    expectedWorkspaceId?: string,
   ): Promise<DoctorCheck[]> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5_000);
@@ -425,7 +471,7 @@ export class KnownPathInstaller {
           signal: controller.signal,
         },
       );
-      return [
+      const checks: DoctorCheck[] = [
         {
           code: "backend_readiness",
           message: readiness.ok
@@ -441,6 +487,18 @@ export class KnownPathInstaller {
           status: authorization.ok ? "pass" : "fail",
         },
       ];
+      if (authorization.ok && expectedWorkspaceId !== undefined) {
+        const binding = await readWorkspaceBinding(authorization);
+        checks.push({
+          code: "workspace_key_binding",
+          message:
+            binding === expectedWorkspaceId
+              ? `API key is bound to expected workspace ${expectedWorkspaceId}`
+              : "API key is not bound to the workspace expected by this installer profile",
+          status: binding === expectedWorkspaceId ? "pass" : "fail",
+        });
+      }
+      return checks;
     } catch {
       return [
         {
@@ -452,6 +510,20 @@ export class KnownPathInstaller {
     } finally {
       clearTimeout(timeout);
     }
+  }
+}
+
+async function readWorkspaceBinding(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as {
+      authentication?: { binding?: { kind?: unknown; workspaceId?: unknown } };
+    };
+    const binding = body.authentication?.binding;
+    return binding?.kind === "workspace" && typeof binding.workspaceId === "string"
+      ? binding.workspaceId
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 

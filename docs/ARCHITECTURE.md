@@ -69,6 +69,8 @@ database.
   the transport-independent safe knowledge-access service.
 - `@knownpath/agent-adapters` owns client detection, merge-safe MCP configuration, canonical skill
   installation, backups, ownership state, status/doctor checks, updates, and uninstall behavior.
+- `@knownpath/workspaces` owns workspace lifecycle, live membership and role authorization,
+  existing-user invitations, and tenant administration services.
 - `@knownpath/typescript-config` publishes reusable strict compiler configurations.
 
 The Agent Skill distribution is the versioned `skills/knownpath` artifact, not an HTTP/UI concern.
@@ -111,6 +113,7 @@ packages/jobs --> packages/database --> MongoDB
 
 packages/domain ---> no workspace dependencies
 packages/auth ----> packages/domain + packages/database + packages/config
+packages/workspaces --> packages/auth + packages/domain + packages/database
 packages/* -------> never depend on apps/*
 ```
 
@@ -490,10 +493,10 @@ adapters receive identical instructions and version metadata. See
 
 ## Phase 14 contribution boundary
 
-`@knownpath/contributions` accepts only strict, consented, generalized public or owner-private
-lessons. Sanitized structured content becomes immutable source/candidate/assessment provenance at a
-low self-report trust cap; it never publishes canonical truth directly. Team scope is rejected, and
-private records cannot cross a public/unpaid provider boundary. See
+`@knownpath/contributions` accepts only strict, consented, generalized public, owner-private, or
+workspace-scoped lessons. Sanitized structured content becomes immutable source/candidate/assessment
+provenance at a low self-report trust cap; it never publishes canonical truth directly. Private and
+workspace records cannot cross a public/unpaid provider boundary. See
 [`docs/CONTRIBUTIONS.md`](CONTRIBUTIONS.md).
 
 ## Phase 15 outcome boundary

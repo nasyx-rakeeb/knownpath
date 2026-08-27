@@ -26,6 +26,10 @@ import {
   sourceRegistrySchema,
   userSchema,
   workerHeartbeatSchema,
+  workspaceSchema,
+  workspaceMembershipSchema,
+  workspaceInvitationSchema,
+  knowledgeShareRequestSchema,
   type AgentContribution,
   type AgentContributionV2,
   type AgentContributionId,
@@ -34,6 +38,7 @@ import {
   type AgentOutcomeId,
   type OutcomeAssessment,
   type OutcomeAssessmentId,
+  type OutcomeAggregationScope,
   type SafetyEvent,
   type SafetyEventId,
   type ApiKey,
@@ -80,8 +85,17 @@ import {
   type User,
   type UserId,
   type VersionedKey,
+  type RetrievalAccess,
   type WorkerHeartbeat,
   type WorkerHeartbeatId,
+  type Workspace,
+  type WorkspaceId,
+  type WorkspaceMembership,
+  type WorkspaceMembershipId,
+  type WorkspaceInvitation,
+  type WorkspaceInvitationId,
+  type KnowledgeShareRequest,
+  type KnowledgeShareRequestId,
 } from "@knownpath/domain";
 import type {
   Collection,
@@ -287,6 +301,14 @@ export class ApiKeyRepository
     return documents.map((document) => apiKeySchema.parse(document));
   }
 
+  public async listByWorkspaceId(workspaceId: WorkspaceId): Promise<ApiKey[]> {
+    const documents = await this.collection
+      .find({ "binding.kind": "workspace", "binding.workspaceId": workspaceId })
+      .sort({ "audit.createdAt": -1 })
+      .toArray();
+    return documents.map((document) => apiKeySchema.parse(document));
+  }
+
   public async replaceSecret(
     id: ApiKeyId,
     keyHash: string,
@@ -312,6 +334,262 @@ export class ApiKeyRepository
   }
 }
 
+export class WorkspaceRepository
+  extends MongoEntityRepository<Workspace, WorkspaceId>
+  implements EntityRepository<Workspace, WorkspaceId>
+{
+  public constructor(collection: Collection<Workspace>) {
+    super(collection, workspaceSchema);
+  }
+
+  public async createIfSlugAvailable(entity: Workspace): Promise<Workspace | null> {
+    const parsed = workspaceSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findBySlug(slug: string): Promise<Workspace | null> {
+    return this.findOne({ slug });
+  }
+
+  public async findManyByIds(ids: readonly WorkspaceId[]): Promise<Workspace[]> {
+    if (ids.length === 0) return [];
+    const values = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return values.map((value) => workspaceSchema.parse(value));
+  }
+
+  public async updateSettings(
+    id: WorkspaceId,
+    values: Partial<Pick<Workspace, "name" | "defaultContributionScope" | "ownerUserId">> & {
+      readonly description?: string | null;
+    },
+  ): Promise<Workspace | null> {
+    if (values.description === null) {
+      const { description, ...remaining } = values;
+      void description;
+      const result = await this.collection.findOneAndUpdate(
+        { _id: id, status: "active" },
+        { $set: { ...remaining, "audit.updatedAt": new Date() }, $unset: { description: "" } },
+        { returnDocument: "after" },
+      );
+      return result === null ? null : workspaceSchema.parse(result);
+    }
+    const { description, ...remaining } = values;
+    return this.updateOne(
+      { _id: id, status: "active" },
+      { ...remaining, ...(description === undefined ? {} : { description }) },
+    );
+  }
+
+  public async setStatus(
+    id: WorkspaceId,
+    expected: Workspace["status"],
+    status: Workspace["status"],
+  ): Promise<Workspace | null> {
+    return this.updateOne({ _id: id, status: expected }, { status });
+  }
+}
+
+export class WorkspaceMembershipRepository extends MongoEntityRepository<
+  WorkspaceMembership,
+  WorkspaceMembershipId
+> {
+  public constructor(collection: Collection<WorkspaceMembership>) {
+    super(collection, workspaceMembershipSchema);
+  }
+
+  public async createIfAbsent(entity: WorkspaceMembership): Promise<WorkspaceMembership | null> {
+    const parsed = workspaceMembershipSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findCurrent(
+    workspaceId: WorkspaceId,
+    userId: UserId,
+  ): Promise<WorkspaceMembership | null> {
+    return this.findOne({ workspaceId, userId });
+  }
+
+  public async findActive(
+    workspaceId: WorkspaceId,
+    userId: UserId,
+  ): Promise<WorkspaceMembership | null> {
+    return this.findOne({ workspaceId, userId, status: "active" });
+  }
+
+  public async listActiveByWorkspace(workspaceId: WorkspaceId): Promise<WorkspaceMembership[]> {
+    const values = await this.collection
+      .find({ workspaceId, status: "active" })
+      .sort({ role: 1, joinedAt: 1, _id: 1 })
+      .toArray();
+    return values.map((value) => workspaceMembershipSchema.parse(value));
+  }
+
+  public async listActiveByUser(userId: UserId): Promise<WorkspaceMembership[]> {
+    const values = await this.collection
+      .find({ userId, status: "active" })
+      .sort({ joinedAt: 1, _id: 1 })
+      .toArray();
+    return values.map((value) => workspaceMembershipSchema.parse(value));
+  }
+
+  public async updateRole(
+    workspaceId: WorkspaceId,
+    userId: UserId,
+    expectedRole: WorkspaceMembership["role"],
+    role: WorkspaceMembership["role"],
+  ): Promise<WorkspaceMembership | null> {
+    return this.updateOne({ workspaceId, userId, status: "active", role: expectedRole }, { role });
+  }
+
+  public async remove(
+    workspaceId: WorkspaceId,
+    userId: UserId,
+    removedAt = new Date(),
+  ): Promise<WorkspaceMembership | null> {
+    return this.updateOne(
+      { workspaceId, userId, status: "active", role: { $ne: "owner" } },
+      { status: "removed", removedAt },
+    );
+  }
+}
+
+export class WorkspaceInvitationRepository extends MongoEntityRepository<
+  WorkspaceInvitation,
+  WorkspaceInvitationId
+> {
+  public constructor(collection: Collection<WorkspaceInvitation>) {
+    super(collection, workspaceInvitationSchema);
+  }
+
+  public async createPending(entity: WorkspaceInvitation): Promise<WorkspaceInvitation | null> {
+    const parsed = workspaceInvitationSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findPending(
+    workspaceId: WorkspaceId,
+    inviteeUserId: UserId,
+  ): Promise<WorkspaceInvitation | null> {
+    return this.findOne({ workspaceId, inviteeUserId, status: "pending" });
+  }
+
+  public async listByWorkspace(workspaceId: WorkspaceId): Promise<WorkspaceInvitation[]> {
+    const values = await this.collection
+      .find({ workspaceId })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(500)
+      .toArray();
+    return values.map((value) => workspaceInvitationSchema.parse(value));
+  }
+
+  public async listPendingByInvitee(inviteeUserId: UserId): Promise<WorkspaceInvitation[]> {
+    const values = await this.collection
+      .find({ inviteeUserId, status: "pending" })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(200)
+      .toArray();
+    return values.map((value) => workspaceInvitationSchema.parse(value));
+  }
+
+  public async transition(
+    id: WorkspaceInvitationId,
+    inviteeUserId: UserId | undefined,
+    status: Exclude<WorkspaceInvitation["status"], "pending">,
+    at = new Date(),
+  ): Promise<WorkspaceInvitation | null> {
+    const timestamp =
+      status === "revoked"
+        ? { revokedAt: at }
+        : status === "expired"
+          ? { expiredAt: at }
+          : { respondedAt: at };
+    return this.updateOne(
+      {
+        _id: id,
+        status: "pending",
+        ...(inviteeUserId === undefined ? {} : { inviteeUserId }),
+        ...(status === "accepted" ? { expiresAt: { $gt: at } } : {}),
+      },
+      { status, ...timestamp },
+    );
+  }
+
+  public async expireDue(now = new Date(), limit = 500): Promise<WorkspaceInvitation[]> {
+    const ids = await this.collection
+      .find({ status: "pending", expiresAt: { $lte: now } }, { projection: { _id: 1 } })
+      .sort({ expiresAt: 1 })
+      .limit(limit)
+      .toArray();
+    const expired: WorkspaceInvitation[] = [];
+    for (const value of ids) {
+      const updated = await this.transition(value._id, undefined, "expired", now);
+      if (updated !== null) expired.push(updated);
+    }
+    return expired;
+  }
+}
+
+export class KnowledgeShareRequestRepository extends MongoEntityRepository<
+  KnowledgeShareRequest,
+  KnowledgeShareRequestId
+> {
+  public constructor(collection: Collection<KnowledgeShareRequest>) {
+    super(collection, knowledgeShareRequestSchema);
+  }
+
+  public async createIfAbsent(
+    entity: KnowledgeShareRequest,
+  ): Promise<KnowledgeShareRequest | null> {
+    const parsed = knowledgeShareRequestSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async complete(
+    id: KnowledgeShareRequestId,
+    status: "submitted" | "quarantined" | "rejected",
+    publicContributionId?: AgentContributionId,
+  ): Promise<KnowledgeShareRequest | null> {
+    return this.updateOne(
+      { _id: id, status: "draft" },
+      {
+        status,
+        ...(publicContributionId === undefined ? {} : { publicContributionId }),
+      },
+    );
+  }
+}
+
+function sourceAccessFilter(access: RetrievalAccess): Record<string, unknown> {
+  if (access.scope === "public") return { "visibility.scope": "public" };
+  if (access.scope === "private")
+    return { "visibility.scope": "private", "visibility.ownerUserId": access.ownerUserId };
+  return { "visibility.scope": "team", "visibility.workspaceId": access.workspaceId };
+}
+
 export class SourceRegistryRepository
   extends MongoEntityRepository<SourceRegistry, SourceRegistryId>
   implements EntityRepository<SourceRegistry, SourceRegistryId>
@@ -322,6 +600,17 @@ export class SourceRegistryRepository
 
   public async findByIdentityKey(identityKey: VersionedKey): Promise<SourceRegistry | null> {
     return this.findOne({ "identityKey.value": identityKey.value });
+  }
+
+  public async findAccessibleById(
+    id: SourceRegistryId,
+    access: readonly RetrievalAccess[],
+  ): Promise<SourceRegistry | null> {
+    if (access.length === 0) return null;
+    return this.findOne({
+      _id: id,
+      $or: access.map(sourceAccessFilter),
+    } as Filter<SourceRegistry>);
   }
 
   public async createIfAbsent(entity: SourceRegistry): Promise<SourceRegistry | null> {
@@ -498,6 +787,20 @@ export class SourceItemRepository
   public async findByIds(ids: readonly SourceItemId[]): Promise<SourceItem[]> {
     if (ids.length === 0) return [];
     const documents = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return documents.map((document) => sourceItemSchema.parse(document));
+  }
+
+  public async findAccessibleByIds(
+    ids: readonly SourceItemId[],
+    access: readonly RetrievalAccess[],
+  ): Promise<SourceItem[]> {
+    if (ids.length === 0 || access.length === 0) return [];
+    const documents = await this.collection
+      .find({
+        _id: { $in: [...ids] },
+        $or: access.map(sourceAccessFilter),
+      } as Filter<SourceItem>)
+      .toArray();
     return documents.map((document) => sourceItemSchema.parse(document));
   }
 
@@ -1074,6 +1377,13 @@ export class KnownPathRevisionRepository
   }
 }
 
+function knownPathAccessFilter(access: RetrievalAccess): Filter<KnownPath> {
+  if (access.scope === "public") return { "visibility.scope": "public" };
+  if (access.scope === "private")
+    return { "visibility.scope": "private", "visibility.ownerUserId": access.ownerUserId };
+  return { "visibility.scope": "team", "visibility.workspaceId": access.workspaceId };
+}
+
 export class KnownPathRepository
   extends MongoEntityRepository<KnownPath, KnownPathId>
   implements EntityRepository<KnownPath, KnownPathId>
@@ -1089,6 +1399,25 @@ export class KnownPathRepository
   public async findManyByIds(ids: readonly KnownPathId[]): Promise<KnownPath[]> {
     if (ids.length === 0) return [];
     const documents = await this.collection.find({ _id: { $in: [...ids] } }).toArray();
+    return documents.map((document) => knownPathSchema.parse(document));
+  }
+
+  public async findAccessibleById(
+    id: KnownPathId,
+    access: readonly RetrievalAccess[],
+  ): Promise<KnownPath | null> {
+    if (access.length === 0) return null;
+    return this.findOne({ _id: id, $or: access.map(knownPathAccessFilter) });
+  }
+
+  public async findManyAccessibleByIds(
+    ids: readonly KnownPathId[],
+    access: readonly RetrievalAccess[],
+  ): Promise<KnownPath[]> {
+    if (ids.length === 0 || access.length === 0) return [];
+    const documents = await this.collection
+      .find({ _id: { $in: [...ids] }, $or: access.map(knownPathAccessFilter) })
+      .toArray();
     return documents.map((document) => knownPathSchema.parse(document));
   }
 
@@ -1275,6 +1604,33 @@ export interface SearchChannelHit {
   readonly score: number;
 }
 
+function searchAccessFilter(access: RetrievalAccess): Filter<KnownPathSearchDocument> {
+  if (access.scope === "public") return { visibilityScope: "public" };
+  if (access.scope === "private")
+    return { visibilityScope: "private", ownerUserId: access.ownerUserId };
+  return { visibilityScope: "team", workspaceId: access.workspaceId };
+}
+
+function atlasSearchAccessFilters(access: RetrievalAccess): Record<string, unknown>[] {
+  if (access.scope === "public") return [{ equals: { path: "visibilityScope", value: "public" } }];
+  if (access.scope === "private")
+    return [
+      { equals: { path: "visibilityScope", value: "private" } },
+      { equals: { path: "ownerUserId", value: access.ownerUserId } },
+    ];
+  return [
+    { equals: { path: "visibilityScope", value: "team" } },
+    { equals: { path: "workspaceId", value: access.workspaceId } },
+  ];
+}
+
+function vectorSearchAccessFilter(access: RetrievalAccess): Record<string, unknown> {
+  if (access.scope === "public") return { visibilityScope: "public" };
+  if (access.scope === "private")
+    return { visibilityScope: "private", ownerUserId: access.ownerUserId };
+  return { visibilityScope: "team", workspaceId: access.workspaceId };
+}
+
 export class KnownPathSearchDocumentRepository
   extends MongoEntityRepository<KnownPathSearchDocument, KnownPathSearchDocumentId>
   implements EntityRepository<KnownPathSearchDocument, KnownPathSearchDocumentId>
@@ -1357,7 +1713,7 @@ export class KnownPathSearchDocumentRepository
 
   public async exactCandidates(input: {
     statuses: readonly KnownPath["status"][];
-    visibilityScope: "public" | "private" | "team";
+    access: RetrievalAccess;
     errorFingerprints: readonly string[];
     errorCodes: readonly string[];
     ecosystem?: string;
@@ -1376,7 +1732,7 @@ export class KnownPathSearchDocumentRepository
     const documents = await this.collection
       .find({
         active: true,
-        visibilityScope: input.visibilityScope,
+        ...searchAccessFilter(input.access),
         knownPathStatus: { $in: [...input.statuses] },
         $or: signals,
       })
@@ -1388,7 +1744,7 @@ export class KnownPathSearchDocumentRepository
   public async localTextSearch(
     text: string,
     statuses: readonly KnownPath["status"][],
-    visibilityScope: "public" | "private" | "team",
+    access: RetrievalAccess,
     limit: number,
   ): Promise<SearchChannelHit[]> {
     const documents = (await this.collection
@@ -1396,7 +1752,7 @@ export class KnownPathSearchDocumentRepository
         {
           $text: { $search: text },
           active: true,
-          visibilityScope,
+          ...searchAccessFilter(access),
           knownPathStatus: { $in: [...statuses] },
         },
         { projection: { score: { $meta: "textScore" } } },
@@ -1413,7 +1769,7 @@ export class KnownPathSearchDocumentRepository
   public async atlasTextSearch(
     text: string,
     statuses: readonly KnownPath["status"][],
-    visibilityScope: "public" | "private" | "team",
+    access: RetrievalAccess,
     index: string,
     limit: number,
   ): Promise<SearchChannelHit[]> {
@@ -1439,7 +1795,7 @@ export class KnownPathSearchDocumentRepository
               ],
               filter: [
                 { equals: { path: "active", value: true } },
-                { equals: { path: "visibilityScope", value: visibilityScope } },
+                ...atlasSearchAccessFilters(access),
                 { in: { path: "knownPathStatus", value: [...statuses] } },
               ],
             },
@@ -1458,7 +1814,7 @@ export class KnownPathSearchDocumentRepository
   public async atlasVectorSearch(
     vector: readonly number[],
     statuses: readonly KnownPath["status"][],
-    visibilityScope: "public" | "private" | "team",
+    access: RetrievalAccess,
     modelIdentifier: string,
     modelVersion: string,
     dimensions: number,
@@ -1477,7 +1833,7 @@ export class KnownPathSearchDocumentRepository
             limit,
             filter: {
               active: true,
-              visibilityScope,
+              ...vectorSearchAccessFilter(access),
               knownPathStatus: { $in: [...statuses] },
               "embedding.modelIdentifier": modelIdentifier,
               "embedding.modelVersion": modelVersion,
@@ -1578,7 +1934,7 @@ export class AgentContributionRepository
       readonly before?: { readonly createdAt: Date; readonly id: AgentContributionId };
       readonly limit: number;
       readonly status?: AgentContributionV2["status"];
-      readonly visibility?: "public" | "private";
+      readonly visibility?: "public" | "private" | "team";
     },
   ): Promise<AgentContributionV2[]> {
     const boundary =
@@ -1615,6 +1971,7 @@ export class AgentContributionRepository
     readonly pending: number;
     readonly private: number;
     readonly public: number;
+    readonly team: number;
     readonly quarantined: number;
     readonly total: number;
     readonly withAssessment: number;
@@ -1626,6 +1983,7 @@ export class AgentContributionRepository
         pending: number;
         private: number;
         public: number;
+        team: number;
         quarantined: number;
         total: number;
         withAssessment: number;
@@ -1644,6 +2002,7 @@ export class AgentContributionRepository
             total: { $sum: 1 },
             public: { $sum: { $cond: [{ $eq: ["$visibility.scope", "public"] }, 1, 0] } },
             private: { $sum: { $cond: [{ $eq: ["$visibility.scope", "private"] }, 1, 0] } },
+            team: { $sum: { $cond: [{ $eq: ["$visibility.scope", "team"] }, 1, 0] } },
             pending: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
             quarantined: { $sum: { $cond: [{ $eq: ["$status", "quarantined"] }, 1, 0] } },
             complete: {
@@ -1670,6 +2029,7 @@ export class AgentContributionRepository
         pending: 0,
         private: 0,
         public: 0,
+        team: 0,
         quarantined: 0,
         total: 0,
         withAssessment: 0,
@@ -1711,6 +2071,22 @@ export class AgentContributionRepository
       { moderation, ...(status === undefined ? {} : { status }) },
     );
   }
+}
+
+function outcomeAggregationFilter(scope: OutcomeAggregationScope): Record<string, unknown> {
+  if (scope.scope === "public")
+    return {
+      $or: [{ "aggregationScope.scope": "public" }, { aggregationScope: { $exists: false } }],
+    };
+  if (scope.scope === "private")
+    return {
+      "aggregationScope.scope": "private",
+      "aggregationScope.ownerUserId": scope.ownerUserId,
+    };
+  return {
+    "aggregationScope.scope": "team",
+    "aggregationScope.workspaceId": scope.workspaceId,
+  };
 }
 
 export class AgentOutcomeRepository
@@ -1764,10 +2140,15 @@ export class AgentOutcomeRepository
 
   public async listV2ByKnownPath(
     knownPathId: KnownPathId,
+    aggregationScope: OutcomeAggregationScope = { scope: "public" },
     limit = 10_000,
   ): Promise<AgentOutcomeV2[]> {
     const documents = await this.collection
-      .find({ schemaVersion: 2, knownPathId } as Filter<AgentOutcome>)
+      .find({
+        schemaVersion: 2,
+        knownPathId,
+        ...outcomeAggregationFilter(aggregationScope),
+      } as Filter<AgentOutcome>)
       .sort({ receivedAt: 1, _id: 1 })
       .limit(limit)
       .toArray();
@@ -1940,6 +2321,17 @@ export class OutcomeAssessmentRepository extends MongoEntityRepository<
       .limit(limit)
       .toArray();
     return values.map((value) => outcomeAssessmentSchema.parse(value));
+  }
+
+  public async findLatestForScope(
+    knownPathId: KnownPathId,
+    aggregationScope: OutcomeAggregationScope,
+  ): Promise<OutcomeAssessment | null> {
+    const value = await this.collection.findOne(
+      { knownPathId, ...outcomeAggregationFilter(aggregationScope) } as Filter<OutcomeAssessment>,
+      { sort: { calculatedAt: -1, _id: -1 } },
+    );
+    return value === null ? null : outcomeAssessmentSchema.parse(value);
   }
 }
 
@@ -2131,6 +2523,10 @@ export interface KnownPathRepositories {
   readonly sourceRegistries: SourceRegistryRepository;
   readonly users: UserRepository;
   readonly workerHeartbeats: WorkerHeartbeatRepository;
+  readonly workspaces: WorkspaceRepository;
+  readonly workspaceMemberships: WorkspaceMembershipRepository;
+  readonly workspaceInvitations: WorkspaceInvitationRepository;
+  readonly knowledgeShareRequests: KnowledgeShareRequestRepository;
 }
 
 export function createRepositories(collections: KnownPathCollections): KnownPathRepositories {
@@ -2168,5 +2564,9 @@ export function createRepositories(collections: KnownPathCollections): KnownPath
     sourceRegistries: new SourceRegistryRepository(collections.sourceRegistries),
     users: new UserRepository(collections.users),
     workerHeartbeats: new WorkerHeartbeatRepository(collections.workerHeartbeats),
+    workspaces: new WorkspaceRepository(collections.workspaces),
+    workspaceMemberships: new WorkspaceMembershipRepository(collections.workspaceMemberships),
+    workspaceInvitations: new WorkspaceInvitationRepository(collections.workspaceInvitations),
+    knowledgeShareRequests: new KnowledgeShareRequestRepository(collections.knowledgeShareRequests),
   };
 }

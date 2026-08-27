@@ -10,6 +10,7 @@ const navigation = [
   ["Explore", "/app/explore"],
   ["API keys", "/app/api-keys"],
   ["Install", "/app/install"],
+  ["Workspaces", "/app/workspaces"],
   ["Contributions", "/app/contributions"],
   ["Outcomes", "/app/outcomes"],
   ["Settings", "/app/settings"],

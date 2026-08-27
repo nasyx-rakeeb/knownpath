@@ -1,0 +1,9 @@
+{
+  "extends": "@knownpath/typescript-config/node-library.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

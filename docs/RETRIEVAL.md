@@ -45,9 +45,9 @@ version/hash, generated time, and latency are stored so vectors can be regenerat
 The configured unpaid provider capability is `public_only`. A KnownPath, every supporting candidate,
 and every referenced source must be public before a document provider is constructed. Private/team
 query text is likewise rejected before query embedding. There is no fallback or silent downgrade to
-the public provider. The Phase 9 CLI also rejects non-public non-semantic retrieval because it has
-no authenticated owner/team authorization context; a later transport must supply that context before
-private/team records can be queried safely.
+the public provider. Authenticated API/MCP retrieval supplies server-derived owner/workspace context
+and uses exact/lexical fallback with semantic mode blocked. The direct Phase 9 CLI remains public-
+only because it has no authenticated tenant principal.
 
 ## Staged retrieval and ranking
 

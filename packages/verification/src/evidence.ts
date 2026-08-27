@@ -162,9 +162,15 @@ function sourceText(item: SourceItem): string {
 function visibilityAllows(candidate: CandidateExperience, item: SourceItem): boolean {
   if (candidate.visibility.scope !== item.visibility.scope) return false;
   if (candidate.visibility.scope === "private")
-    return candidate.visibility.ownerUserId === item.visibility.ownerUserId;
+    return (
+      item.visibility.scope === "private" &&
+      candidate.visibility.ownerUserId === item.visibility.ownerUserId
+    );
   if (candidate.visibility.scope === "team")
-    return candidate.visibility.teamId === item.visibility.teamId;
+    return (
+      item.visibility.scope === "team" &&
+      candidate.visibility.workspaceId === item.visibility.workspaceId
+    );
   return true;
 }
 

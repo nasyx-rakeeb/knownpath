@@ -23,6 +23,8 @@ export function createAtlasSearchIndexDefinitions(names: SearchIndexNames, dimen
           fields: {
             active: { type: "boolean" },
             visibilityScope: { type: "token" },
+            ownerUserId: { type: "token" },
+            workspaceId: { type: "token" },
             knownPathStatus: { type: "token" },
             ecosystem: { type: "token" },
             packages: { type: "token" },
@@ -50,6 +52,8 @@ export function createAtlasSearchIndexDefinitions(names: SearchIndexNames, dimen
           },
           { type: "filter", path: "active" },
           { type: "filter", path: "visibilityScope" },
+          { type: "filter", path: "ownerUserId" },
+          { type: "filter", path: "workspaceId" },
           { type: "filter", path: "knownPathStatus" },
           { type: "filter", path: "embedding.modelIdentifier" },
           { type: "filter", path: "embedding.modelVersion" },

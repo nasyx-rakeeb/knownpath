@@ -223,7 +223,7 @@ export class UserDashboardService {
         kind: record.kind,
         problem: record.payload.problem,
         solutionSummary: record.payload.solutionSummary,
-        visibility: record.visibility.scope === "public" ? "public" : "private",
+        visibility: record.visibility.scope,
         consentIntent: record.consent.intent,
         consentConfirmedAt: record.consent.confirmedAt.toISOString(),
         sanitization: {

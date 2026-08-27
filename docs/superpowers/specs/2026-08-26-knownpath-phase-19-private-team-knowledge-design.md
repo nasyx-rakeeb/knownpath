@@ -23,8 +23,8 @@ provider, billing, enterprise identity federation, hard deletion, or tests.
 - Public API/MCP knowledge access always projects `queryVisibility: public`; review access is a
   separate audited administrator mode.
 - search projections contain visibility, owner, and team fields, but candidate-generation queries
-  filter only by visibility. Owner/workspace predicates are therefore not yet safe enough for
-  tenant retrieval.
+  filter only by visibility. Owner/workspace predicates are therefore not yet safe enough for tenant
+  retrieval.
 - public-only Gemini extraction and embedding providers already reject non-public records. This
   privacy boundary must remain hard.
 - private contributions are owner-scoped and team contributions are explicitly rejected. The
@@ -43,7 +43,8 @@ provider, billing, enterprise identity federation, hard deletion, or tests.
 
 Current official guidance was reviewed on 2026-08-26:
 
-- MongoDB's [multi-tenant architecture guidance](https://www.mongodb.com/docs/atlas/build-multi-tenant-arch/)
+- MongoDB's
+  [multi-tenant architecture guidance](https://www.mongodb.com/docs/atlas/build-multi-tenant-arch/)
   supports shared collections with a tenant identifier when every query enforces tenant scope, and
   warns that logical isolation is the application's responsibility.
 - MongoDB Vector Search's
@@ -57,16 +58,19 @@ Current official guidance was reviewed on 2026-08-26:
 - Better Auth's [API Key plugin](https://better-auth.com/docs/plugins/api-key) documents
   organization-bound keys and permission checks. KnownPath retains its existing hashed-key service
   and adds an immutable workspace binding rather than introducing a second key system.
-- The MCP [authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+- The MCP
+  [authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
   requires bearer authentication on protected requests, least-privilege scopes, and clear 401/403
   handling. Stdio clients continue to obtain credentials from their environment.
-- OWASP's [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+- OWASP's
+  [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
   recommends deny-by-default authorization, validating permission on every request, and using
   relationship/attribute-aware controls for multi-organization access.
 - OWASP API Security's
   [Broken Object Level Authorization](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
   guidance requires authorization checks on every endpoint that accepts an object identifier.
-- OWASP's [Multi-Tenant Security guidance](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
+- OWASP's
+  [Multi-Tenant Security guidance](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
   recommends deriving tenant context from verified identity, including tenant scope in every query
   and cache key, avoiding client-trusted tenant headers, and auditing cross-tenant attempts.
 
@@ -84,9 +88,9 @@ context for every source, candidate, outcome, and search query.
 
 ### 2. KnownPath workspace domain integrated with existing identity
 
-Add workspace, membership, and invitation entities to the KnownPath domain. Better Auth continues
-to authenticate browser sessions; the existing API-key service continues to authenticate agents.
-A central workspace service derives authorization from persisted membership.
+Add workspace, membership, and invitation entities to the KnownPath domain. Better Auth continues to
+authenticate browser sessions; the existing API-key service continues to authenticate agents. A
+central workspace service derives authorization from persisted membership.
 
 **Selected.** This keeps one product authorization model, reuses existing identity, auditing, and
 repository conventions, and does not duplicate extraction, scoring, canonicalization, or retrieval
@@ -168,9 +172,9 @@ cannot switch workspaces. A browser session may select only an active workspace 
 or inaccessible records return the same not-found response as nonexistent records to avoid object
 enumeration.
 
-Central helpers own `requireWorkspaceRole`, `authorizeKnowledgeScope`,
-`authorizeContributionScope`, `authorizeOutcomeScope`, and workspace-key management. Fastify,
-MCP, the dashboard, and workers call these services rather than recreating predicates.
+Central helpers own `requireWorkspaceRole`, `authorizeKnowledgeScope`, `authorizeContributionScope`,
+`authorizeOutcomeScope`, and workspace-key management. Fastify, MCP, the dashboard, and workers call
+these services rather than recreating predicates.
 
 ## API keys and installer profiles
 
@@ -179,9 +183,9 @@ workspace. They remain user-owned for provenance and are usable only while both 
 membership are active. Workspace owners/admins may list safe workspace-key metadata and revoke a
 bound key; plaintext remains visible only once at issuance/rotation.
 
-Scopes remain capability-based (`knowledge:read`, `knowledge:contribute`, and
-`knowledge:outcome`). Workspace binding narrows those scopes; it never broadens them. Key status and
-MCP status responses expose safe workspace ID/name/role metadata, never hashes or secrets.
+Scopes remain capability-based (`knowledge:read`, `knowledge:contribute`, and `knowledge:outcome`).
+Workspace binding narrows those scopes; it never broadens them. Key status and MCP status responses
+expose safe workspace ID/name/role metadata, never hashes or secrets.
 
 Installer support adds a non-secret profile label and expected workspace binding. Agent
 configuration continues to reference only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`. The API key's
@@ -276,9 +280,9 @@ principal:
 
 Immutable outcome assessments include the aggregation scope and owner/workspace ID in their
 idempotency keys. KnownPaths use scoped latest-assessment pointers rather than one pointer shared by
-all audiences. Workspace search combines public source confidence with only that workspace's
-private outcome overlay. Public search never reads workspace outcome records, counts, timestamps,
-safety events, or trend signals.
+all audiences. Workspace search combines public source confidence with only that workspace's private
+outcome overlay. Public search never reads workspace outcome records, counts, timestamps, safety
+events, or trend signals.
 
 A workspace safety report can queue a workspace review without publicly flagging or delisting a
 public KnownPath. The existing corroboration and abuse protections remain scoped to independent

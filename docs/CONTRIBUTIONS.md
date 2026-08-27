@@ -9,7 +9,7 @@ data, or hidden chain-of-thought.
 1. An API key with `knowledge:contribute` submits the versioned structured contract.
 2. Account mode must be `ask` (the default); `disabled` blocks submission. Public consent means
    submission and possible future publication. Private consent means owner-scoped backend storage.
-   Team visibility is rejected until team ownership and authorization exist.
+   Team consent means storage in the named workspace and requires a matching active workspace key.
 3. The backend normalizes Unicode and strips control characters, redacts Secretlint findings, email
    addresses, home-directory usernames, URL credentials, and sensitive query values, then rescans.
    High-risk residue or excessive source-like content is rejected. Prompt-injection-like language is
@@ -24,7 +24,9 @@ data, or hidden chain-of-thought.
 Private visibility is enforced in persisted source, contribution, and candidate records. The
 generalizer provider interface declares `public_only` or `approved_private`; a gate runs before any
 provider call. Phase 14 configures no external generalizer, so private payloads remain entirely in
-the KnownPath backend and MongoDB. There is no silent public fallback or visibility conversion.
+the KnownPath backend and MongoDB. The same rule applies to team payloads. There is no silent public
+fallback or visibility conversion; a future private-approved provider can use the existing
+capability boundary without changing storage contracts.
 
 ## API
 

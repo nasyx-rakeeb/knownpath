@@ -53,6 +53,10 @@ export function parseSearchArgs(
   if (action === "inspect")
     return { action, knownPathId: knownPathIdSchema.parse(requireOption(values, "known-path")) };
   if (action === "query") {
+    if ((values.get("visibility")?.[0] ?? "public") !== "public")
+      throw new Error(
+        "Private and workspace searches require the authenticated API/MCP path; the database CLI is public-only.",
+      );
     const versions = (values.get("version") ?? []).map((entry) => {
       const separator = entry.indexOf("=");
       if (separator < 1 || separator === entry.length - 1)
@@ -72,7 +76,7 @@ export function parseSearchArgs(
         platforms: values.get("platform") ?? [],
         environment: values.get("environment") ?? [],
         context: values.get("context")?.[0] ?? "",
-        queryVisibility: values.get("visibility")?.[0] ?? "public",
+        access: { scope: "public" },
         allowedStatuses: values.has("include-review") ? ["published", "review"] : ["published"],
         semanticMode: values.get("semantic")?.[0] ?? "optional",
         limit,

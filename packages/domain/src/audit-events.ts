@@ -43,6 +43,18 @@ export const auditEventTypeSchema = z.enum([
   "admin.canonicalization_executed",
   "admin.user_suspended",
   "admin.user_restored",
+  "workspace.created",
+  "workspace.updated",
+  "workspace.invitation_created",
+  "workspace.invitation_accepted",
+  "workspace.invitation_rejected",
+  "workspace.invitation_revoked",
+  "workspace.invitation_expired",
+  "workspace.member_role_updated",
+  "workspace.member_removed",
+  "workspace.api_key_revoked",
+  "knowledge.public_share_submitted",
+  "knowledge.public_share_quarantined",
 ]);
 
 export const auditActorSchema = z.discriminatedUnion("kind", [
@@ -74,6 +86,10 @@ export const auditTargetSchema = z.strictObject({
     "pipeline_step",
     "queue",
     "canonicalization_operation",
+    "workspace",
+    "workspace_membership",
+    "workspace_invitation",
+    "knowledge_share_request",
   ]),
   id: shortStringSchema,
 });
@@ -94,3 +110,4 @@ export const auditEventSchema = z.strictObject({
 export type AuditActor = z.infer<typeof auditActorSchema>;
 export type AuditEvent = z.infer<typeof auditEventSchema>;
 export type AuditEventType = z.infer<typeof auditEventTypeSchema>;
+export type AuditTarget = z.infer<typeof auditTargetSchema>;

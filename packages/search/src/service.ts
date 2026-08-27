@@ -46,17 +46,6 @@ export class RetrievalService {
 
   public async search(input: unknown): Promise<RetrievalResponse> {
     const query = retrievalQuerySchema.parse(input);
-    if (query.queryVisibility !== "public") {
-      if (query.semanticMode !== "disabled")
-        throw capabilityError(
-          "embedding_provider_visibility_forbidden",
-          "Private/team query text cannot use the public/unpaid Gemini embedding provider.",
-        );
-      throw capabilityError(
-        "retrieval_visibility_context_required",
-        "Private/team retrieval requires authenticated owner/team authorization context, which is not available in the Phase 9 developer CLI.",
-      );
-    }
     const normalized = normalizeRetrievalQuery({
       text: query.text,
       errors: query.errors,
@@ -71,7 +60,7 @@ export class RetrievalService {
     );
     const exact = await this.database.repositories.knownPathSearchDocuments.exactCandidates({
       statuses: query.allowedStatuses,
-      visibilityScope: query.queryVisibility,
+      access: query.access,
       errorFingerprints: normalized.errorFingerprints,
       errorCodes: normalized.errorCodes,
       ...(normalized.ecosystem === undefined ? {} : { ecosystem: normalized.ecosystem }),
@@ -86,7 +75,7 @@ export class RetrievalService {
         lexical = await this.database.repositories.knownPathSearchDocuments.atlasTextSearch(
           query.text,
           query.allowedStatuses,
-          query.queryVisibility,
+          query.access,
           this.options.atlasLexicalIndex,
           poolLimit,
         );
@@ -98,7 +87,7 @@ export class RetrievalService {
         lexical = await this.database.repositories.knownPathSearchDocuments.localTextSearch(
           query.text,
           query.allowedStatuses,
-          query.queryVisibility,
+          query.access,
           poolLimit,
         );
         lexicalCapability = {
@@ -110,7 +99,7 @@ export class RetrievalService {
       lexical = await this.database.repositories.knownPathSearchDocuments.localTextSearch(
         query.text,
         query.allowedStatuses,
-        query.queryVisibility,
+        query.access,
         poolLimit,
       );
       lexicalCapability = {
@@ -143,7 +132,7 @@ export class RetrievalService {
     } else {
       try {
         const provider = this.options.providerFactory();
-        assertEmbeddingVisibility({ scope: query.queryVisibility }, provider.capability);
+        assertEmbeddingVisibility(query.access, provider.capability);
         const embedded = await provider.embed({
           input: [query.text, ...query.errors, query.context].filter(Boolean).join("\n"),
           dimensions: this.options.dimensions,
@@ -152,7 +141,7 @@ export class RetrievalService {
         semantic = await this.database.repositories.knownPathSearchDocuments.atlasVectorSearch(
           embedded.values,
           query.allowedStatuses,
-          query.queryVisibility,
+          query.access,
           this.options.modelIdentifier,
           this.options.modelVersion,
           this.options.dimensions,
@@ -162,7 +151,7 @@ export class RetrievalService {
         );
         semanticCapability = {
           state: "used",
-          reason: "MongoDB Vector Search returned public semantic candidates.",
+          reason: `MongoDB Vector Search returned ${query.access.scope} semantic candidates.`,
         };
       } catch (error) {
         if (query.semanticMode === "required") throw error;

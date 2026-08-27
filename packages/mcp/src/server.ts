@@ -67,6 +67,7 @@ export function createKnownPathMcpServer(gateway: KnowledgeMcpGateway): McpServe
               limit: input.limit,
               minimumScore: input.minimumScore,
               includeReview: input.includeReview,
+              scope: input.scope,
             },
             context.mcpReq.signal,
           ),

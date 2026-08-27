@@ -522,6 +522,41 @@ credentials remain in their owning collections/configuration.
 Run and step records are retained for audit until an explicit volume-based archival policy is
 adopted. BullMQ retention is shorter and configurable because Valkey is not the source of truth.
 
+## Phase 19 tenant collections and fields
+
+### `workspaces`, `workspace_memberships`, and `workspace_invitations`
+
+`workspaces` are independently managed tenant roots with a stable ID/slug, owner, active/archived
+state, and default contribution scope. `workspace_memberships` preserve user/role/status history;
+the active `(workspaceId,userId)` partial unique index prevents duplicate live membership.
+`workspace_invitations` preserve inviter/invitee/email/role/expiry and lifecycle history. A partial
+unique `(workspaceId,inviteeUserId)` index prevents conflicting pending invitations.
+
+- workspace slug and owner/status indexes support lookup and account views;
+- membership workspace/user and user/status indexes support authorization in either direction;
+- invitation invitee/status/expiry and workspace/status indexes support dashboard and lifecycle
+  processing.
+
+### `knowledge_share_requests`
+
+Each record links one private/team KnownPath to a separately reviewed, sanitized public payload and
+explicit consent. It stores no unsanitized source. Status is `draft`, `submitted`, `quarantined`, or
+`rejected`; a public contribution ID links successful handoff without changing source visibility.
+Owner/time, source/time, and status/time indexes support user history and moderation.
+
+### Tenant fields on existing collections
+
+The shared `visibility` union is strict: `public`, `private + ownerUserId`, or `team + workspaceId`.
+Source registries/items, candidates, canonical KnownPaths, search documents, contributions, and
+outcomes keep the same domain structures with this scope. Partial owner and workspace indexes
+provide efficient authorization predicates. Outcome assessments add an explicit aggregation scope so
+personal/workspace evidence never updates the public assessment pointer.
+
+API keys add an immutable personal/workspace binding and an index on workspace binding/status.
+Search events persist the requested scope for auditable usage without retaining plaintext query
+text. Atlas lexical/vector mappings expose owner/workspace fields only as prefilters; embeddings are
+never generated for private/team data through the public provider path.
+
 ## Initialization and inspection
 
 With `.env` configured and MongoDB running:

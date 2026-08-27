@@ -8,6 +8,7 @@ import {
   shortStringSchema,
   timestampSchema,
   userIdSchema,
+  workspaceIdSchema,
 } from "./common.js";
 
 export const userStatusSchema = z.enum(["active", "suspended", "deleted"]);
@@ -33,6 +34,10 @@ export const userSchema = z.strictObject({
 });
 
 export const apiKeyStatusSchema = z.enum(["active", "revoked", "expired"]);
+export const apiKeyBindingSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("personal") }),
+  z.strictObject({ kind: z.literal("workspace"), workspaceId: workspaceIdSchema }),
+]);
 export const apiKeyScopeSchema = z.enum([
   "account:read",
   "api-keys:read",
@@ -50,6 +55,7 @@ export const apiKeySchema = z.strictObject({
   prefix: z.string().regex(/^kp_[a-zA-Z0-9]{12}$/u),
   keyHash: sha256Schema,
   hashVersion: z.int().positive(),
+  binding: apiKeyBindingSchema.default({ kind: "personal" }),
   scopes: z.array(apiKeyScopeSchema).max(32),
   status: apiKeyStatusSchema,
   expiresAt: timestampSchema.optional(),
@@ -62,3 +68,4 @@ export type User = z.infer<typeof userSchema>;
 export type ApiKey = z.infer<typeof apiKeySchema>;
 export type ApiKeyScope = z.infer<typeof apiKeyScopeSchema>;
 export type UserRole = z.infer<typeof userRoleSchema>;
+export type ApiKeyBinding = z.infer<typeof apiKeyBindingSchema>;

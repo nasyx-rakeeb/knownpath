@@ -12,6 +12,8 @@ import {
 export interface PlanningContext {
   readonly scope: InstallationScope;
   readonly skillDigest: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
 }
 
 export interface PlanningSnapshot {
@@ -105,7 +107,11 @@ export function planAgent(
       ),
     );
   }
-  if (snapshot.owned === undefined || changes.length > 0) {
+  const profileChanged =
+    context.profileName !== undefined &&
+    (snapshot.owned?.profileName !== context.profileName ||
+      snapshot.owned?.expectedWorkspaceId !== context.expectedWorkspaceId);
+  if (snapshot.owned === undefined || changes.length > 0 || profileChanged) {
     changes.push(
       change(agent, "write_state", undefined, "Record non-secret installer ownership metadata"),
     );

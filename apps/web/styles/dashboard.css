@@ -118,6 +118,95 @@
   border-top: 1px solid var(--ink);
   padding-top: 1.5rem;
 }
+.workspace-invites {
+  margin-top: 2rem;
+  border: 1px solid #b5a36f;
+  background: var(--amber-soft);
+  padding: 1.25rem;
+}
+.workspace-invites h2 {
+  margin: 0;
+  font-family: Georgia, serif;
+}
+.workspace-invites article,
+.workspace-list button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  padding: 1rem 0;
+  color: inherit;
+  text-align: left;
+}
+.workspace-invites small,
+.workspace-list small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+.workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(17rem, 0.65fr) minmax(28rem, 1.35fr);
+  gap: 3rem;
+  margin-top: 3rem;
+  align-items: start;
+}
+.workspace-index {
+  border-top: 2px solid var(--green);
+  padding-top: 1.25rem;
+}
+.workspace-index h2,
+.workspace-detail h2 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 1.8rem;
+}
+.workspace-list {
+  margin-top: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.workspace-list button {
+  cursor: pointer;
+}
+.workspace-list button:hover,
+.workspace-list button[aria-pressed="true"] {
+  background: var(--green-soft);
+  color: var(--green-dark);
+  padding-inline: 0.75rem;
+}
+.workspace-detail {
+  min-width: 0;
+}
+.workspace-detail > .record-top {
+  border-top: 1px solid var(--ink);
+  padding-top: 1.25rem;
+}
+.scope-note {
+  margin-top: 1.5rem;
+  border-left: 3px solid var(--green);
+  background: var(--green-soft);
+  padding: 1rem 1.25rem;
+}
+.scope-note p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+.stack-form {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+.stack-form h2,
+.stack-form h3 {
+  margin: 0;
+}
+.stack-form .button {
+  width: max-content;
+}
 .section-block h2,
 .side-section h2 {
   margin: 0;

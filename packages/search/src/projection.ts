@@ -62,8 +62,12 @@ export class SearchProjectionService {
     const input = buildRetrievalDocumentInput(base);
     const inputHash = sha256(input);
     const mode =
-      useEmbedding && this.options.providerFactory !== undefined ? "ready" : "unavailable";
-    if (mode === "unavailable") {
+      knownPath.visibility.scope !== "public" && this.options.providerCapability === "public_only"
+        ? "blocked"
+        : useEmbedding && this.options.providerFactory !== undefined
+          ? "ready"
+          : "unavailable";
+    if (mode !== "ready") {
       const active = await this.database.repositories.knownPathSearchDocuments.findActive(
         knownPath._id,
         this.options.providerModel,
@@ -144,7 +148,7 @@ export class SearchProjectionService {
       }
     } else {
       embedding = {
-        status: "unavailable",
+        status: mode,
         providerIdentifier: this.options.providerIdentifier,
         providerCapability: this.options.providerCapability,
         modelIdentifier: this.options.providerModel,
@@ -152,7 +156,10 @@ export class SearchProjectionService {
         dimensions: this.options.dimensions,
         inputFormatVersion: INPUT_FORMAT_VERSION,
         inputHash,
-        reasonCode: "embedding_not_requested_or_configured",
+        reasonCode:
+          mode === "blocked"
+            ? "embedding_provider_visibility_forbidden"
+            : "embedding_not_requested_or_configured",
       };
     }
     const now = new Date();
@@ -364,10 +371,12 @@ function buildProjectionBase(
     versionConstraints,
     environmentTokens,
     visibilityScope: knownPath.visibility.scope,
-    ...(knownPath.visibility.ownerUserId === undefined
+    ...(knownPath.visibility.scope !== "private"
       ? {}
       : { ownerUserId: knownPath.visibility.ownerUserId }),
-    ...(knownPath.visibility.teamId === undefined ? {} : { teamId: knownPath.visibility.teamId }),
+    ...(knownPath.visibility.scope !== "team"
+      ? {}
+      : { workspaceId: knownPath.visibility.workspaceId }),
     knownPathStatus: knownPath.status,
     moderationStatus: knownPath.moderation.status,
     conflictCount: knownPath.membershipSummary.conflicting,

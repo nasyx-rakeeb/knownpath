@@ -30,7 +30,7 @@ export const dashboardPageQuerySchema = z.strictObject({
 
 export const contributionHistoryQuerySchema = dashboardPageQuerySchema.extend({
   status: contributionStatusSchema.optional(),
-  visibility: z.enum(["public", "private"]).optional(),
+  visibility: z.enum(["public", "private", "team"]).optional(),
 });
 
 export const outcomeHistoryQuerySchema = dashboardPageQuerySchema.extend({
@@ -98,6 +98,7 @@ export const accountDashboardResponseSchema = z.strictObject({
     total: z.int().nonnegative(),
     public: z.int().nonnegative(),
     private: z.int().nonnegative(),
+    team: z.int().nonnegative(),
     pending: z.int().nonnegative(),
     complete: z.int().nonnegative(),
     quarantined: z.int().nonnegative(),
@@ -150,8 +151,12 @@ export const contributionHistoryItemSchema = z.strictObject({
   kind: contributionKindSchema,
   problem: z.string().trim().min(1).max(3_000),
   solutionSummary: z.string().trim().min(1).max(3_000),
-  visibility: z.enum(["public", "private"]),
-  consentIntent: z.enum(["private_backend_storage", "public_submission_and_future_publication"]),
+  visibility: z.enum(["public", "private", "team"]),
+  consentIntent: z.enum([
+    "private_backend_storage",
+    "workspace_backend_storage",
+    "public_submission_and_future_publication",
+  ]),
   consentConfirmedAt: z.iso.datetime(),
   sanitization: z.strictObject({
     status: z.enum(["clean", "sanitized", "quarantined"]),

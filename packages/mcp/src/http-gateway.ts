@@ -74,8 +74,10 @@ export class HttpKnowledgeMcpGateway implements KnowledgeMcpGateway {
         signal,
       );
     }
+    const query = scopeQuery(input.scope);
+    query.set("includeReview", String(input.includeReview));
     return this.request(
-      `api/v1/known-paths/${encodeURIComponent(input.id)}?includeReview=${String(input.includeReview)}`,
+      `api/v1/known-paths/${encodeURIComponent(input.id)}?${query.toString()}`,
       { method: "GET" },
       knownPathDetailResponseSchema,
       signal,
@@ -87,6 +89,7 @@ export class HttpKnowledgeMcpGateway implements KnowledgeMcpGateway {
       includeReview: String(input.includeReview),
       limit: String(input.limit),
     });
+    for (const [key, value] of scopeQuery(input.scope)) query.set(key, value);
     if (input.cursor !== undefined) query.set("cursor", input.cursor);
     return this.request(
       `api/v1/known-paths/${encodeURIComponent(input.id)}/alternatives?${query.toString()}`,
@@ -182,6 +185,13 @@ export class HttpKnowledgeMcpGateway implements KnowledgeMcpGateway {
       callerSignal.removeEventListener("abort", abortFromCaller);
     }
   }
+}
+
+function scopeQuery(scope: import("@knownpath/domain").KnowledgeSearchScope): URLSearchParams {
+  const query = new URLSearchParams({ scope: scope.kind });
+  if (scope.kind === "workspace" || scope.kind === "workspace_and_public")
+    query.set("workspaceId", scope.workspaceId);
+  return query;
 }
 
 function normalizeApiUrl(value: string): URL {

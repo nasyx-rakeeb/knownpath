@@ -1,7 +1,7 @@
 import {
   AuthenticationError,
   AuthorizationError,
-  authorizeKnowledgeRead,
+  authorizeScopedKnowledgeRead,
   authorizeOutcomeSubmit,
   requireScope,
   type Principal,
@@ -44,7 +44,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   public search(input: KnowledgeSearchRequest, signal: AbortSignal) {
     return this.safe(async () => {
       throwIfAborted(signal);
-      const authorization = authorizeKnowledgeRead(this.options.principal, input.includeReview);
+      const authorization = await authorizeScopedKnowledgeRead(
+        this.options.principal,
+        input.scope,
+        input.includeReview,
+        this.options.database,
+      );
       const response = await this.options.knowledge.search(input, this.context(authorization));
       throwIfAborted(signal);
       return response;
@@ -54,7 +59,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   public get(input: KnownPathMcpGetInput, signal: AbortSignal) {
     return this.safe(async () => {
       throwIfAborted(signal);
-      const authorization = authorizeKnowledgeRead(this.options.principal, input.includeReview);
+      const authorization = await authorizeScopedKnowledgeRead(
+        this.options.principal,
+        input.scope,
+        input.includeReview,
+        this.options.database,
+      );
       const context = this.context(authorization);
       if (input.searchId !== undefined) {
         await this.options.knowledge.recordSelection(input.searchId, input.id, context);
@@ -69,7 +79,12 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   public alternatives(input: KnownPathMcpAlternativesInput, signal: AbortSignal) {
     return this.safe(async () => {
       throwIfAborted(signal);
-      const authorization = authorizeKnowledgeRead(this.options.principal, input.includeReview);
+      const authorization = await authorizeScopedKnowledgeRead(
+        this.options.principal,
+        input.scope,
+        input.includeReview,
+        this.options.database,
+      );
       const response = await this.options.knowledge.alternatives(
         input.id,
         input.cursor,
@@ -103,6 +118,16 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
           scopes: principal.key.scopes,
           ownerRole: principal.user.role,
           ownerStatus: principal.user.status,
+          binding:
+            principal.key.binding.kind === "workspace"
+              ? {
+                  kind: "workspace" as const,
+                  workspaceId: principal.key.binding.workspaceId,
+                  workspaceName: principal.workspace?.name ?? "Workspace",
+                  role: principal.workspaceMembership?.role ?? "member",
+                  defaultContributionScope: principal.workspace?.defaultContributionScope ?? "team",
+                }
+              : { kind: "personal" as const },
         },
         capabilities: {
           publishedRead: true as const,
@@ -123,7 +148,13 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
       try {
         result = await this.options.contributions.submit(
           input,
-          { user: principal.user, apiKeyId: principal.key._id },
+          {
+            user: principal.user,
+            apiKeyId: principal.key._id,
+            ...(principal.key.binding.kind === "workspace"
+              ? { workspaceId: principal.key.binding.workspaceId }
+              : {}),
+          },
           signal,
         );
       } catch (error) {
@@ -163,12 +194,22 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
     return this.safe(async () => {
       throwIfAborted(signal);
       const principal = authorizeOutcomeSubmit(this.options.principal);
-      const access = authorizeKnowledgeRead(principal, input.includeReview);
+      const scope = input.scope;
+      const access = await authorizeScopedKnowledgeRead(
+        principal,
+        scope,
+        input.includeReview,
+        this.options.database,
+      );
       try {
         const response = await this.options.outcomes.submit(input, {
           userId: principal.user._id,
           apiKeyId: principal.key._id,
           accessMode: access.accessMode,
+          scope: input.scope,
+          ...(principal.key.binding.kind === "workspace"
+            ? { workspaceId: principal.key.binding.workspaceId }
+            : {}),
         });
         await this.options.audit.record({
           actor: {
@@ -224,9 +265,10 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
     });
   }
 
-  private context(authorization: ReturnType<typeof authorizeKnowledgeRead>) {
+  private context(authorization: Awaited<ReturnType<typeof authorizeScopedKnowledgeRead>>) {
     return {
       accessMode: authorization.accessMode,
+      scope: authorization.scope,
       principal: authorization.principal,
       requestId: this.options.requestId,
       ...(this.options.ipAddress === undefined ? {} : { ipAddress: this.options.ipAddress }),

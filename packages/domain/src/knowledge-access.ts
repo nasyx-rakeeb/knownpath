@@ -12,9 +12,11 @@ import {
   sourceItemIdSchema,
   timestampSchema,
   userIdSchema,
+  workspaceIdSchema,
 } from "./common.js";
 import { retrievalCapabilityStateSchema, versionFitSchema } from "./search.js";
 import { sourceAuthoritySchema, sourceItemTypeSchema, sourceKindSchema } from "./sources.js";
+import { knowledgeSearchScopeSchema } from "./workspaces.js";
 
 export const KNOWLEDGE_API_CONTRACT_VERSION = 1 as const;
 
@@ -36,7 +38,14 @@ export const knowledgeSearchRequestSchema = z.strictObject({
   limit: z.int().min(1).max(25).default(10),
   minimumScore: z.int().min(0).max(100).default(35),
   includeReview: z.boolean().default(false),
+  scope: knowledgeSearchScopeSchema.default({ kind: "public" }),
 });
+
+export const safeKnowledgeScopeSchema = z.discriminatedUnion("scope", [
+  z.strictObject({ scope: z.literal("public") }),
+  z.strictObject({ scope: z.literal("private") }),
+  z.strictObject({ scope: z.literal("team"), workspaceId: workspaceIdSchema }),
+]);
 
 export const safeProvenanceSchema = z.strictObject({
   sourceItemId: sourceItemIdSchema,
@@ -145,6 +154,7 @@ export const knowledgeSearchResultSchema = z.strictObject({
   problemSummary: nonEmptyStringSchema,
   solutionSummary: nonEmptyStringSchema,
   status: z.enum(["review", "published", "deprecated"]),
+  visibility: safeKnowledgeScopeSchema,
   applicability: safeApplicabilitySchema,
   caveats: z.array(nonEmptyStringSchema).max(64),
   trust: safeTrustSchema,
@@ -163,6 +173,7 @@ export const knowledgeSearchResponseSchema = z.strictObject({
   contractVersion: z.literal(KNOWLEDGE_API_CONTRACT_VERSION),
   searchId: knowledgeSearchEventIdSchema,
   accessMode: knowledgeAccessModeSchema,
+  scope: knowledgeSearchScopeSchema,
   capabilities: z.strictObject({
     exact: retrievalCapabilitySchema,
     lexical: retrievalCapabilitySchema,
@@ -195,6 +206,7 @@ export const knownPathDetailResponseSchema = z.strictObject({
   title: shortStringSchema,
   problemSummary: nonEmptyStringSchema,
   status: z.enum(["review", "published", "deprecated"]),
+  visibility: safeKnowledgeScopeSchema,
   symptoms: z
     .array(
       z.strictObject({ summary: nonEmptyStringSchema, category: shortStringSchema.optional() }),
@@ -211,11 +223,34 @@ export const knownPathDetailResponseSchema = z.strictObject({
 
 export const knownPathIdParamsSchema = z.strictObject({ id: knownPathIdSchema });
 
-export const alternativesQuerySchema = z.strictObject({
-  cursor: z.string().trim().min(1).max(2_048).optional(),
-  limit: z.coerce.number().int().min(1).max(25).default(10),
-  includeReview: queryBooleanSchema().default(false),
+const scopedKnowledgeQuerySchema = z.strictObject({
+  scope: z.enum(["public", "personal", "workspace", "workspace_and_public"]).default("public"),
+  workspaceId: workspaceIdSchema.optional(),
 });
+
+function validateQueryScope(
+  value: z.infer<typeof scopedKnowledgeQuerySchema>,
+  context: z.RefinementCtx,
+) {
+  const requiresWorkspace = value.scope === "workspace" || value.scope === "workspace_and_public";
+  if (requiresWorkspace !== (value.workspaceId !== undefined))
+    context.addIssue({
+      code: "custom",
+      path: ["workspaceId"],
+      message: requiresWorkspace
+        ? "workspace scope requires workspaceId"
+        : "workspaceId is valid only for workspace scope",
+    });
+}
+
+export const alternativesQuerySchema = z
+  .strictObject({
+    cursor: z.string().trim().min(1).max(2_048).optional(),
+    limit: z.coerce.number().int().min(1).max(25).default(10),
+    includeReview: queryBooleanSchema().default(false),
+    ...scopedKnowledgeQuerySchema.shape,
+  })
+  .superRefine(validateQueryScope);
 
 export const knownPathAlternativesResponseSchema = z.strictObject({
   contractVersion: z.literal(KNOWLEDGE_API_CONTRACT_VERSION),
@@ -224,9 +259,12 @@ export const knownPathAlternativesResponseSchema = z.strictObject({
   nextCursor: z.string().trim().min(1).max(2_048).nullable(),
 });
 
-export const knownPathDetailQuerySchema = z.strictObject({
-  includeReview: queryBooleanSchema().default(false),
-});
+export const knownPathDetailQuerySchema = z
+  .strictObject({
+    includeReview: queryBooleanSchema().default(false),
+    ...scopedKnowledgeQuerySchema.shape,
+  })
+  .superRefine(validateQueryScope);
 
 export const knowledgeSelectionRequestSchema = z.strictObject({
   knownPathId: knownPathIdSchema,
@@ -253,6 +291,7 @@ export const knowledgeSearchEventSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
   principal: knowledgeSearchPrincipalSchema,
   accessMode: knowledgeAccessModeSchema,
+  scope: knowledgeSearchScopeSchema.default({ kind: "public" }),
   requestId: z.string().trim().min(8).max(128),
   queryDigest: sha256Schema,
   digestVersion: z.int().positive(),

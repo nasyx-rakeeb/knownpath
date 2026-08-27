@@ -10,6 +10,7 @@ import { ContributionError } from "@knownpath/contributions";
 import { OutcomeError } from "@knownpath/outcomes";
 import { z } from "zod";
 import { AdminOperationError } from "./admin-service.js";
+import { WorkspaceError } from "@knownpath/workspaces";
 
 export function registerErrorHandler(api: FastifyInstance): void {
   api.setNotFoundHandler(async (request, reply) =>
@@ -36,6 +37,9 @@ export function registerErrorHandler(api: FastifyInstance): void {
       return reply.status(400).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof AdminOperationError) {
+      return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));
+    }
+    if (error instanceof WorkspaceError) {
       return reply.status(error.statusCode).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof KnowledgeAccessError) {

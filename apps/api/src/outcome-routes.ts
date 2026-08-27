@@ -1,5 +1,5 @@
 import {
-  authorizeKnowledgeRead,
+  authorizeScopedKnowledgeRead,
   authorizeOutcomeSubmit,
   type AuditService,
   type Authenticator,
@@ -29,6 +29,7 @@ export function registerOutcomeRoutes(
   service: OutcomeService,
   audit: AuditService,
   policy: RateLimitPolicy,
+  database: import("@knownpath/database").KnownPathDatabase,
   producer?: JobProducer,
 ): void {
   api.post(
@@ -73,12 +74,25 @@ export function registerOutcomeRoutes(
     async (request) => {
       const input = outcomeSubmissionRequestSchema.parse(request.body);
       const principal = authorizeOutcomeSubmit(await authenticator.authenticate(request.headers));
-      const access = authorizeKnowledgeRead(principal, input.includeReview);
+      const targetScope =
+        input.scope.kind === "workspace"
+          ? { kind: "workspace" as const, workspaceId: input.scope.workspaceId }
+          : input.scope;
+      const access = await authorizeScopedKnowledgeRead(
+        principal,
+        targetScope,
+        input.includeReview,
+        database,
+      );
       try {
         const response = await service.submit(input, {
           userId: principal.user._id,
           apiKeyId: principal.key._id,
           accessMode: access.accessMode,
+          scope: input.scope,
+          ...(principal.key.binding.kind === "workspace"
+            ? { workspaceId: principal.key.binding.workspaceId }
+            : {}),
         });
         if (producer !== undefined) {
           try {

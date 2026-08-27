@@ -23,8 +23,9 @@ import {
   KnowledgeAccessService,
   RetrievalService,
 } from "@knownpath/search";
-import { ContributionService } from "@knownpath/contributions";
+import { ContributionService, PublicKnowledgeShareService } from "@knownpath/contributions";
 import { OutcomeService } from "@knownpath/outcomes";
+import { WorkspaceService } from "@knownpath/workspaces";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   jsonSchemaTransform,
@@ -47,6 +48,7 @@ import {
   registerOperationalRoutes,
   registerSystemRoutes,
 } from "./routes.js";
+import { registerWorkspaceRoutes } from "./workspace-routes.js";
 
 export interface BuildApiOptions {
   readonly apiConfig: ApiConfig;
@@ -237,15 +239,24 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
         }),
   });
   const outcomes = new OutcomeService(options.database);
+  const workspaces = new WorkspaceService(options.database, audit);
+  const publicShares = new PublicKnowledgeShareService(options.database, contributions, audit);
 
   registerSystemRoutes(api, options.database, options.queueRegistry);
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
   registerDashboardRoutes(api, authenticator, dashboard);
+  registerWorkspaceRoutes(
+    api,
+    authenticator,
+    workspaces,
+    apiKeys,
+    rateLimitPolicies.apiKeyMutation,
+  );
   registerAdminRoutes(api, authenticator, admin, audit);
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
   registerOperationalRoutes(api, authenticator, options.database, options.queueRegistry);
-  registerKnowledgeRoutes(api, authenticator, knowledge, {
+  registerKnowledgeRoutes(api, authenticator, knowledge, options.database, {
     read: rateLimitPolicies.knowledgeRead,
     search: rateLimitPolicies.knowledgeSearch,
     usage: rateLimitPolicies.knowledgeUsage,
@@ -258,6 +269,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     audit,
     rateLimitPolicies.contributionSubmit,
     options.jobProducer,
+    publicShares,
   );
   registerOutcomeRoutes(
     api,
@@ -265,6 +277,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     outcomes,
     audit,
     rateLimitPolicies.outcomeSubmit,
+    options.database,
     options.jobProducer,
   );
   registerMcpRoutes(api, {

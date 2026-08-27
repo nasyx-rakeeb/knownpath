@@ -16,16 +16,10 @@ export function assertContributionProviderVisibility(
   visibility: Visibility,
   capability: ContributionProviderCapability,
 ): void {
-  if (visibility.scope === "team") {
-    throw new ContributionError(
-      "team_contributions_not_supported",
-      "Team contributions require team ownership and authorization that are not available yet",
-    );
-  }
-  if (visibility.scope === "private" && capability !== "approved_private") {
+  if (visibility.scope !== "public" && capability !== "approved_private") {
     throw new ContributionError(
       "contribution_provider_visibility_forbidden",
-      "Private contributions require an explicitly configured provider approved for private data",
+      "Private and workspace contributions require an explicitly configured provider approved for private data",
     );
   }
 }

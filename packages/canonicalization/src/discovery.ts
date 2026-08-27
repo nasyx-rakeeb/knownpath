@@ -120,8 +120,12 @@ export class CandidateDiscoveryService {
 function sameVisibility(left: CandidateExperience, right: CandidateExperience): boolean {
   return (
     left.visibility.scope === right.visibility.scope &&
-    left.visibility.ownerUserId === right.visibility.ownerUserId &&
-    left.visibility.teamId === right.visibility.teamId
+    (left.visibility.scope !== "private" ||
+      (right.visibility.scope === "private" &&
+        left.visibility.ownerUserId === right.visibility.ownerUserId)) &&
+    (left.visibility.scope !== "team" ||
+      (right.visibility.scope === "team" &&
+        left.visibility.workspaceId === right.visibility.workspaceId))
   );
 }
 

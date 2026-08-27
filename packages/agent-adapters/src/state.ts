@@ -21,6 +21,8 @@ export interface OwnedInstallation {
   readonly skillPath: string;
   readonly skillVersion: string;
   readonly updatedAt: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
 }
 
 export interface InstallerState {
@@ -113,7 +115,9 @@ function isOwnedInstallation(value: unknown): value is OwnedInstallation {
     typeof entry["skillDigest"] === "string" &&
     typeof entry["skillVersion"] === "string" &&
     typeof entry["skillManaged"] === "boolean" &&
-    typeof entry["updatedAt"] === "string"
+    typeof entry["updatedAt"] === "string" &&
+    (entry["profileName"] === undefined || typeof entry["profileName"] === "string") &&
+    (entry["expectedWorkspaceId"] === undefined || typeof entry["expectedWorkspaceId"] === "string")
   );
 }
 

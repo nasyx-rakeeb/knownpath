@@ -2,7 +2,8 @@
 
 Phase 15 records what happened after an agent actually attempted a KnownPath solution. A search,
 view, selection, or self-asserted plan is not success. Outcomes are private operational evidence;
-only privacy-thresholded aggregates appear in knowledge responses.
+personal and workspace aggregates are isolated from public assessment and from one another. Only
+privacy-thresholded aggregates appear in knowledge responses.
 
 ## Contract and authorization
 

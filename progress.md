@@ -2682,3 +2682,147 @@ and operating/security behavior is in [`docs/ADMIN_OPERATIONS.md`](docs/ADMIN_OP
 
 **Phase 19 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt. Do not infer or begin Phase 19 from Phase 18.**
+
+## Phase 19 — Private and team KnownPath knowledge
+
+### Phase goal
+
+Add personal-private and workspace-scoped shared memory without duplicating the public knowledge
+architecture or weakening its privacy boundary. All API, MCP, retrieval, contribution, outcome,
+dashboard, and installer paths must derive scope server-side, enforce live membership, and prevent
+tenant content or aggregate signals from leaking into public results.
+
+### Research performed and official references consulted
+
+Current official guidance was checked on 2026-08-27 before implementation:
+
+- MongoDB [multi-tenant architecture](https://www.mongodb.com/docs/atlas/build-multi-tenant-arch/)
+  and
+  [Vector Search multi-tenancy](https://www.mongodb.com/docs/atlas/atlas-vector-search/multi-tenant-architecture/)
+  for shared-collection tenant identifiers, mandatory per-query filters, and vector prefiltering.
+- Better Auth [organization](https://better-auth.com/docs/plugins/organization) and
+  [API key](https://better-auth.com/docs/plugins/api-key) plugin documentation for current
+  workspace/member/invitation and scoped-key patterns. KnownPath retained its existing closed
+  registration and key model so authorization remains shared by API, MCP, installer, and dashboard.
+- The MCP
+  [authorization specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+  for server-side bearer authorization and protected-resource boundaries.
+- OWASP
+  [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html),
+  [API object-level authorization](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/),
+  and
+  [multi-tenant security](https://cheatsheetseries.owasp.org/cheatsheets/Multi_Tenant_Security_Cheat_Sheet.html)
+  for deny-by-default object access, live tenant checks, non-leaking not-found behavior, and audit.
+
+### Architecture and technology decisions
+
+- Added one strict visibility union: `public`, personal `private + ownerUserId`, or
+  `team + workspaceId`. Public/private/team records reuse the existing source, candidate,
+  assessment, canonical, search, contribution, and outcome structures.
+- Added active workspaces and owner/admin/member memberships. Authorization combines the requested
+  scope, API-key binding, workspace state, and a live membership lookup on every request; removing a
+  member revokes their workspace keys. Direct-ID reads and repository queries receive the same
+  server-derived tenant predicates as search.
+- Added existing-user-only invitations by normalized email. Invitation creation rejects unknown
+  users and duplicate active invitations; membership is created only after the exact invitee accepts
+  in the dashboard. Creation, acceptance, rejection, revocation, and expiry are durable and audited.
+  Registration remains closed and no email-delivery service was added.
+- Combined workspace/public retrieval executes independent branches. Public records remain
+  published-only; tenant records may retain review/deprecated lifecycle visibility for authorized
+  members. Private/team query text and content never reach public/unpaid Gemini, semantic retrieval
+  is blocked for tenant branches, and no vector value is stored for a blocked projection.
+- Outcome assessments are scoped independently so personal/workspace observations cannot update a
+  public KnownPath's aggregate pointer or ranking. Canonical fingerprint discovery, pair matching,
+  merge, and rebuild require identical visibility ownership and cannot cross tenant boundaries.
+- Public sharing is an explicit consented workflow that re-runs sanitization and creates a distinct
+  low-trust public contribution plus immutable share request. It never flips the private/team source
+  record to public. Team processing remains deterministic until a private-approved provider is
+  configured.
+- Installer profiles store only a non-secret label and optional expected workspace ID. Agent config
+  still contains only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` environment references; doctor can
+  compare the selected profile with the authenticated MCP status without changing that model.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-26-knownpath-phase-19-private-team-knowledge-design.md`](docs/superpowers/specs/2026-08-26-knownpath-phase-19-private-team-knowledge-design.md),
+and user/security behavior is documented in [`docs/WORKSPACES.md`](docs/WORKSPACES.md).
+
+### Collections, schemas, indexes, APIs, and surfaces created
+
+- Added `workspaces`, `workspace_memberships`, `workspace_invitations`, and
+  `knowledge_share_requests`, plus strict versioned domain/API contracts and repository services.
+  Added workspace slug/owner/status, active membership, invitation invitee/expiry/status, share
+  source/workspace/status, API-key workspace/status, tenant visibility, and scoped outcome indexes.
+- Added `@knownpath/workspaces`, centralized scoped authorization, workspace-bound API-key issuance
+  and verification, tenant-aware search/provenance/outcome/contribution/canonicalization services,
+  and source/search repository predicates.
+- Added authenticated workspace, membership, invitation, workspace-key, scoped knowledge,
+  contribution, outcome, and public-share API flows. MCP search/get/alternatives accept the same
+  scopes and status reports the active workspace binding; the stdio bridge remains an HTTP-only
+  client with no database or provider access.
+- Added `/app/workspaces` for workspace creation, pending invitation acceptance/rejection, member
+  and invitation management, contribution defaults, and one-time workspace-key reveal. Explore and
+  detail pages carry explicit scope, and private/team detail pages offer the consented public-share
+  flow.
+- Updated the canonical Agent Skill to version 1.3.0 with tenant-safe search/contribution guidance,
+  and extended installer `install`/`update`/`doctor` with `--profile` and optional `--workspace-id`
+  metadata.
+- Updated architecture, API, MCP, retrieval, contribution, outcome, dashboard, installer, data
+  model, decisions, README, and the dedicated workspace operations documentation. No tests were
+  added.
+
+### Commands and behavior successfully verified
+
+- With Node 24.18.0, final `pnpm typecheck` completed **41/41** tasks, `pnpm lint` completed
+  **23/23** tasks, `pnpm build` completed **23/23** tasks, and `pnpm format:check` passed. The
+  production Next.js build included `/app/workspaces`. No tests were added or run.
+- `pnpm db:init` ran twice against the configured Atlas database. The first pass created/reconciled
+  all four workspace/share collections and indexes; the second pass was idempotent. Direct index
+  inspection confirmed the unique workspace slug, partial unique active membership, partial unique
+  pending invitation, invitation expiry/status, share-request source/workspace, API-key workspace,
+  and tenant retrieval indexes.
+- A bounded real Atlas-backed verification created two temporary users and two workspaces through
+  the production auth/API services. User A invited existing User B by email, a duplicate active
+  invitation returned 409, and explicit acceptance created a member role. Workspace keys were issued
+  through the real one-time-reveal path.
+- Two isolated team review-state KnownPaths were created only as temporary tenant verification data.
+  The authorized API search found its own record; cross-workspace search and direct-ID access hid
+  the other record with 404 semantics; public result count was unchanged. Team search reported
+  semantic state `blocked`, proving the public-only embedding path was not called.
+- The official MCP Streamable HTTP client found only the key's own workspace record. The production
+  Next.js dashboard build listed only the signed-in user's workspace and rendered the cross-tenant
+  detail as a safe not-found response without record title/error content.
+- A consented synthetic public-share request returned `submitted`, created a separate public
+  contribution, and left the source KnownPath's scope `team`. Four observed workspace audit events
+  covered the exercised lifecycle. Cleanup removed 39 exact temporary records and follow-up counts
+  for temporary users/workspaces/KnownPaths were all zero.
+- The installer CLI built successfully. A project-scoped Codex
+  `install --dry-run --profile alpha-team --workspace-id <uuid> --json` reported only the MCP entry,
+  canonical skill, and non-secret state changes; it wrote nothing and persisted no key value.
+
+### Environment and manual setup still required
+
+- Production use requires an existing KnownPath account, an active workspace membership, and a
+  workspace-bound API key supplied through `KNOWNPATH_API_KEY`; registration remains
+  CLI-administered and closed. Invitations appear in the existing user's dashboard and are not
+  emailed.
+- Private/team semantic retrieval remains intentionally unavailable because no provider/account has
+  been explicitly approved for private data. Exact normalized-error and lexical retrieval remain
+  available. Adding an approved private provider later uses the existing capability boundary.
+- The hosted dashboard still requires deployment with `KNOWNPATH_API_URL` set to the trusted HTTPS
+  API. Existing Render API, Atlas, Upstash, and scheduled-worker requirements are unchanged.
+
+### Known limitations intentionally left for later phases
+
+- No external email invitations, public registration, billing, SSO/SCIM, workspace deletion,
+  ownership transfer, organization-wide policy engine, or private-provider configuration exists.
+- Workspace roles are deliberately minimal. Platform administrators do not gain broad tenant content
+  access; the Phase 18 freshly authenticated, reasoned, audited sanitized-contribution reveal
+  remains the narrow exception.
+- Tenant vector retrieval is blocked until a private-approved provider and index rollout exist. No
+  private/team signal changes public ranking, and no private/team record is silently promoted.
+- No tests were added by explicit phase rule.
+
+### Exact next phase
+
+**Phase 20 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt. Do not infer or begin Phase 20 from Phase 19.**

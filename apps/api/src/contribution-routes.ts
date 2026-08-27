@@ -11,8 +11,11 @@ import {
   contributionSubmissionRequestSchema,
   contributionSubmissionResponseSchema,
   userContributionModeSchema,
+  knownPathIdParamsSchema,
+  publicKnowledgeShareSubmissionSchema,
+  publicKnowledgeShareResponseSchema,
 } from "@knownpath/domain";
-import type { ContributionService } from "@knownpath/contributions";
+import type { ContributionService, PublicKnowledgeShareService } from "@knownpath/contributions";
 import type { KnownPathDatabase } from "@knownpath/database";
 import type { JobProducer } from "@knownpath/jobs";
 import type { FastifyInstance } from "fastify";
@@ -41,6 +44,7 @@ export function registerContributionRoutes(
   audit: AuditService,
   policy: RateLimitPolicy,
   producer?: JobProducer,
+  publicShares?: PublicKnowledgeShareService,
 ): void {
   api.post(
     "/api/v1/contributions",
@@ -50,7 +54,7 @@ export function registerContributionRoutes(
         tags: ["contributions"],
         summary: "Submit a privacy-minimized generalized experience",
         description:
-          "Requires an API key with knowledge:contribute. Public submissions require explicit publication consent; private submissions remain owner-scoped. Team submissions are rejected.",
+          "Requires knowledge:contribute. Public submissions require publication consent; private submissions require a personal key; team submissions require an active workspace-bound key.",
         security: [{ bearerApiKey: [] }],
         body: contributionSubmissionRequestSchema.meta({
           examples: [
@@ -110,6 +114,9 @@ export function registerContributionRoutes(
           {
             user: principal.user,
             apiKeyId: principal.key._id,
+            ...(principal.key.binding.kind === "workspace"
+              ? { workspaceId: principal.key.binding.workspaceId }
+              : {}),
           },
           new AbortController().signal,
           producer === undefined ? "inline" : "deferred",
@@ -236,6 +243,40 @@ export function registerContributionRoutes(
       return { contributionMode: user.contributionMode };
     },
   );
+
+  if (publicShares !== undefined)
+    api.post(
+      "/api/v1/known-paths/:id/share-public",
+      {
+        bodyLimit: 48 * 1_024,
+        schema: {
+          tags: ["contributions"],
+          summary: "Create a sanitized public contribution from private or workspace knowledge",
+          description:
+            "Creates a new public contribution and leaves the source record unchanged. It never flips private/team visibility.",
+          security: [{ cookieSession: [] }],
+          params: knownPathIdParamsSchema,
+          body: publicKnowledgeShareSubmissionSchema,
+          response: {
+            200: publicKnowledgeShareResponseSchema,
+            202: publicKnowledgeShareResponseSchema,
+            ...errors,
+          },
+        },
+      },
+      async (request, reply) => {
+        const session = requireSession(await authenticator.authenticate(request.headers));
+        const { id } = knownPathIdParamsSchema.parse(request.params);
+        const response = await publicShares.submit(
+          id,
+          request.body,
+          session.user,
+          { requestId: request.id, ipAddress: request.ip },
+          producer === undefined ? "inline" : "deferred",
+        );
+        return reply.status(response.status === "quarantined" ? 202 : 200).send(response);
+      },
+    );
 }
 
 function safeCode(error: unknown): string {

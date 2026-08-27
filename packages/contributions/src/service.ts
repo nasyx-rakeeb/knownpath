@@ -35,6 +35,7 @@ import {
   type User,
   type UserId,
   type Visibility,
+  type WorkspaceId,
 } from "@knownpath/domain";
 import { CandidateAssessmentService, defaultScoringPolicy } from "@knownpath/verification";
 
@@ -55,7 +56,9 @@ export interface ContributionServiceOptions {
 
 export interface ContributionActor {
   readonly user: User;
-  readonly apiKeyId: ApiKeyId;
+  readonly apiKeyId?: ApiKeyId;
+  readonly channel?: "agent_api" | "dashboard_share";
+  readonly workspaceId?: WorkspaceId;
 }
 
 export interface ContributionSubmissionResult {
@@ -82,7 +85,7 @@ export class ContributionService {
     processingMode: "inline" | "deferred" = this.options.defaultProcessingMode ?? "inline",
   ): Promise<ContributionSubmissionResult> {
     const request = contributionSubmissionRequestSchema.parse(unparsedRequest);
-    this.assertSubmissionAllowed(request, actor.user);
+    this.assertSubmissionAllowed(request, actor);
     const originalRequestDigest = digestOriginalRequest(request, this.options.digestSecret);
     const existing =
       await this.database.repositories.agentContributions.findV2ByOwnerAndClientSubmissionId(
@@ -106,8 +109,9 @@ export class ContributionService {
     const sanitized = await sanitizeContributionPayload(request.payload);
     const now = new Date();
     const visibility = contributionVisibility(
-      request.visibility === "public" ? "public" : "private",
+      request.visibility,
       actor.user._id,
+      request.workspaceId,
     );
     const contribution = agentContributionV2Schema.parse({
       _id: createAgentContributionId(),
@@ -115,7 +119,8 @@ export class ContributionService {
       clientSubmissionId: request.clientSubmissionId,
       contributor: {
         userId: actor.user._id,
-        apiKeyId: actor.apiKeyId,
+        ...(actor.apiKeyId === undefined ? {} : { apiKeyId: actor.apiKeyId }),
+        channel: actor.channel ?? "agent_api",
         agentClient: request.agentClient,
       },
       ...(request.knownPathId === undefined ? {} : { knownPathId: request.knownPathId }),
@@ -134,10 +139,13 @@ export class ContributionService {
         intent:
           request.visibility === "public"
             ? "public_submission_and_future_publication"
-            : "private_backend_storage",
+            : request.visibility === "team"
+              ? "workspace_backend_storage"
+              : "private_backend_storage",
         confirmedAt: now,
         confirmedByUserId: actor.user._id,
         visibility: request.visibility,
+        ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
       },
       sanitization: sanitized.report,
       status: sanitized.report.status === "quarantined" ? "quarantined" : "pending",
@@ -273,13 +281,25 @@ export class ContributionService {
 
   public async inspect(
     contributionId: AgentContributionV2["_id"],
-    ownerUserId: UserId,
+    requesterUserId: UserId,
   ): Promise<ContributionInspectionResponse> {
     const contribution = await this.findV2(contributionId);
-    if (contribution.contributor.userId !== ownerUserId)
+    const allowed =
+      contribution.visibility.scope === "team"
+        ? (await this.database.repositories.workspaceMemberships.findActive(
+            contribution.visibility.workspaceId,
+            requesterUserId,
+          )) !== null &&
+          (
+            await this.database.repositories.workspaces.findById(
+              contribution.visibility.workspaceId,
+            )
+          )?.status === "active"
+        : contribution.contributor.userId === requesterUserId;
+    if (!allowed)
       throw new ContributionError(
         "contribution_owner_forbidden",
-        "Only the contribution owner may inspect this record",
+        "The contribution is not available to this principal",
       );
     return contributionInspectionResponseSchema.parse({
       contributionId: contribution._id,
@@ -298,16 +318,27 @@ export class ContributionService {
     });
   }
 
-  private assertSubmissionAllowed(request: ContributionSubmissionRequest, user: User): void {
-    if (user.contributionMode === "disabled")
+  private assertSubmissionAllowed(
+    request: ContributionSubmissionRequest,
+    actor: ContributionActor,
+  ): void {
+    if (actor.user.contributionMode === "disabled")
       throw new ContributionError(
         "contribution_disabled",
         "Contributions are disabled for this account",
       );
-    if (request.visibility === "team")
+    if (
+      request.visibility === "team" &&
+      (request.workspaceId === undefined || actor.workspaceId !== request.workspaceId)
+    )
       throw new ContributionError(
-        "team_contributions_not_supported",
-        "Team contributions are unavailable until team ownership and authorization are implemented",
+        "contribution_owner_forbidden",
+        "Team contributions require an API key bound to the requested active workspace",
+      );
+    if (request.visibility !== "team" && actor.workspaceId !== undefined)
+      throw new ContributionError(
+        "contribution_owner_forbidden",
+        "A workspace-bound API key may submit only team contributions",
       );
     if (request.consent.confirmed !== true)
       throw new ContributionError(
@@ -320,7 +351,11 @@ export class ContributionService {
     const identityKey = createVersionedKey([
       "agent-contribution-registry",
       contribution.visibility.scope,
-      contribution.visibility.ownerUserId ?? "public",
+      contribution.visibility.scope === "private"
+        ? contribution.visibility.ownerUserId
+        : contribution.visibility.scope === "team"
+          ? contribution.visibility.workspaceId
+          : "public",
     ]);
     const existing =
       await this.database.repositories.sourceRegistries.findByIdentityKey(identityKey);
@@ -333,7 +368,9 @@ export class ContributionService {
       name:
         contribution.visibility.scope === "public"
           ? "KnownPath public agent contributions"
-          : "KnownPath private agent contributions",
+          : contribution.visibility.scope === "team"
+            ? "KnownPath workspace agent contributions"
+            : "KnownPath private agent contributions",
       originalUrl: new URL("api/v1/contributions", this.apiOrigin).toString(),
       canonicalUrl: new URL("api/v1/contributions", this.apiOrigin).toString(),
       identityKey,
@@ -544,8 +581,15 @@ export class ContributionService {
   }
 }
 
-function contributionVisibility(scope: "public" | "private", userId: UserId): Visibility {
-  return scope === "public" ? { scope: "public" } : { scope: "private", ownerUserId: userId };
+function contributionVisibility(
+  scope: "public" | "private" | "team",
+  userId: UserId,
+  workspaceId: WorkspaceId | undefined,
+): Visibility {
+  if (scope === "public") return { scope: "public" };
+  if (scope === "private") return { scope: "private", ownerUserId: userId };
+  if (workspaceId === undefined) throw new Error("Team contribution workspaceId was not validated");
+  return { scope: "team", workspaceId };
 }
 
 function digestOriginalRequest(request: ContributionSubmissionRequest, secret: string): string {

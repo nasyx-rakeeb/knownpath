@@ -13,7 +13,9 @@ import {
   timestampSchema,
   versionedKeySchema,
   visibilityScopeSchema,
+  workspaceIdSchema,
   outcomeAssessmentIdSchema,
+  userIdSchema,
 } from "./common.js";
 import { knownPathStatusSchema } from "./knowledge.js";
 
@@ -53,7 +55,7 @@ export const knownPathSearchDocumentSchema = z
     environmentTokens: z.array(shortStringSchema).max(128),
     visibilityScope: visibilityScopeSchema,
     ownerUserId: z.uuidv4().optional(),
-    teamId: z.uuidv4().optional(),
+    workspaceId: workspaceIdSchema.optional(),
     knownPathStatus: knownPathStatusSchema,
     moderationStatus: z.enum(["unreviewed", "approved", "flagged", "rejected"]),
     conflictCount: z.int().nonnegative(),
@@ -129,12 +131,13 @@ export const knownPathSearchDocumentSchema = z
     }
     if (
       document.embedding.providerCapability === "public_only" &&
-      document.visibilityScope !== "public"
+      document.visibilityScope !== "public" &&
+      document.embedding.status !== "blocked"
     ) {
       context.addIssue({
         code: "custom",
         path: ["visibilityScope"],
-        message: "public-only embeddings require public visibility",
+        message: "public-only providers require blocked embeddings for non-public visibility",
       });
     }
   });
@@ -143,6 +146,12 @@ export const retrievalVersionConstraintSchema = z.strictObject({
   subject: shortStringSchema,
   value: shortStringSchema,
 });
+
+export const retrievalAccessSchema = z.discriminatedUnion("scope", [
+  z.strictObject({ scope: z.literal("public") }),
+  z.strictObject({ scope: z.literal("private"), ownerUserId: userIdSchema }),
+  z.strictObject({ scope: z.literal("team"), workspaceId: workspaceIdSchema }),
+]);
 
 export const retrievalQuerySchema = z.strictObject({
   text: z.string().trim().min(1).max(20_000),
@@ -153,7 +162,7 @@ export const retrievalQuerySchema = z.strictObject({
   platforms: z.array(shortStringSchema).max(16).default([]),
   environment: z.array(shortStringSchema).max(64).default([]),
   context: z.string().trim().max(20_000).default(""),
-  queryVisibility: visibilityScopeSchema.default("public"),
+  access: retrievalAccessSchema.default({ scope: "public" }),
   allowedStatuses: z.array(knownPathStatusSchema).min(1).max(6).default(["published"]),
   semanticMode: z.enum(["disabled", "optional", "required"]).default("optional"),
   limit: z.int().min(1).max(100).default(10),
@@ -218,3 +227,4 @@ export type RetrievalQuery = z.infer<typeof retrievalQuerySchema>;
 export type RetrievalResult = z.infer<typeof retrievalResultSchema>;
 export type RetrievalScoreBreakdown = z.infer<typeof retrievalScoreBreakdownSchema>;
 export type VersionFit = z.infer<typeof versionFitSchema>;
+export type RetrievalAccess = z.infer<typeof retrievalAccessSchema>;

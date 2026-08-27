@@ -50,6 +50,10 @@ export const safetyEventIdSchema = brandedIdSchema<"SafetyEventId">();
 export const pipelineRunIdSchema = brandedIdSchema<"PipelineRunId">();
 export const pipelineStepIdSchema = brandedIdSchema<"PipelineStepId">();
 export const workerHeartbeatIdSchema = brandedIdSchema<"WorkerHeartbeatId">();
+export const workspaceIdSchema = brandedIdSchema<"WorkspaceId">();
+export const workspaceMembershipIdSchema = brandedIdSchema<"WorkspaceMembershipId">();
+export const workspaceInvitationIdSchema = brandedIdSchema<"WorkspaceInvitationId">();
+export const knowledgeShareRequestIdSchema = brandedIdSchema<"KnowledgeShareRequestId">();
 
 export type UserId = z.infer<typeof userIdSchema>;
 export type ApiKeyId = z.infer<typeof apiKeyIdSchema>;
@@ -78,6 +82,10 @@ export type SafetyEventId = z.infer<typeof safetyEventIdSchema>;
 export type PipelineRunId = z.infer<typeof pipelineRunIdSchema>;
 export type PipelineStepId = z.infer<typeof pipelineStepIdSchema>;
 export type WorkerHeartbeatId = z.infer<typeof workerHeartbeatIdSchema>;
+export type WorkspaceId = z.infer<typeof workspaceIdSchema>;
+export type WorkspaceMembershipId = z.infer<typeof workspaceMembershipIdSchema>;
+export type WorkspaceInvitationId = z.infer<typeof workspaceInvitationIdSchema>;
+export type KnowledgeShareRequestId = z.infer<typeof knowledgeShareRequestIdSchema>;
 
 export function createUserId(): UserId {
   return userIdSchema.parse(randomUUID());
@@ -187,6 +195,22 @@ export function createWorkerHeartbeatId(): WorkerHeartbeatId {
   return workerHeartbeatIdSchema.parse(randomUUID());
 }
 
+export function createWorkspaceId(): WorkspaceId {
+  return workspaceIdSchema.parse(randomUUID());
+}
+
+export function createWorkspaceMembershipId(): WorkspaceMembershipId {
+  return workspaceMembershipIdSchema.parse(randomUUID());
+}
+
+export function createWorkspaceInvitationId(): WorkspaceInvitationId {
+  return workspaceInvitationIdSchema.parse(randomUUID());
+}
+
+export function createKnowledgeShareRequestId(): KnowledgeShareRequestId {
+  return knowledgeShareRequestIdSchema.parse(randomUUID());
+}
+
 export const auditMetadataSchema = z.strictObject({
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
@@ -196,29 +220,11 @@ export const auditMetadataSchema = z.strictObject({
 
 export const visibilityScopeSchema = z.enum(["public", "private", "team"]);
 
-export const visibilitySchema = z
-  .strictObject({
-    scope: visibilityScopeSchema,
-    ownerUserId: userIdSchema.optional(),
-    teamId: z.uuidv4().optional(),
-  })
-  .superRefine((visibility, context) => {
-    if (visibility.scope === "private" && visibility.ownerUserId === undefined) {
-      context.addIssue({
-        code: "custom",
-        message: "private visibility requires ownerUserId",
-        path: ["ownerUserId"],
-      });
-    }
-
-    if (visibility.scope === "team" && visibility.teamId === undefined) {
-      context.addIssue({
-        code: "custom",
-        message: "team visibility requires teamId",
-        path: ["teamId"],
-      });
-    }
-  });
+export const visibilitySchema = z.discriminatedUnion("scope", [
+  z.strictObject({ scope: z.literal("public") }),
+  z.strictObject({ scope: z.literal("private"), ownerUserId: userIdSchema }),
+  z.strictObject({ scope: z.literal("team"), workspaceId: workspaceIdSchema }),
+]);
 
 export const moderationStateSchema = z.strictObject({
   status: z.enum(["unreviewed", "approved", "flagged", "rejected"]),

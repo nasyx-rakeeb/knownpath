@@ -1029,3 +1029,33 @@ privilege cleanly.
 **References:**
 [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html),
 [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+
+## 2026-08-27 — Use explicit shared-collection tenant scope and live workspace membership
+
+**Decision:** Represent public, personal-private, and workspace knowledge with one strict visibility
+union across existing domain objects. Add workspace/membership/invitation/share-request collections,
+an owner/admin/member role model, immutable workspace key binding, and centralized authorization
+that combines a requested scope with live database membership. Every repository search or ID read
+receives a server-derived tenant predicate. Combined workspace/public search executes separate
+branches and never lets private/team observations affect public aggregates.
+
+Private/team query text, source content, and embeddings remain blocked from unpaid/public Gemini.
+Semantic retrieval is disabled for tenant branches until an explicitly approved private provider is
+configured. Public promotion creates a new sanitized, consented, low-trust contribution rather than
+flipping a proprietary record's visibility.
+
+**Why:** Shared structures prevent divergent public/private implementations, while mandatory scope
+predicates and live membership prevent object-ID and stale-key bypasses. Separate outcome scopes and
+share records eliminate aggregate/existence leaks and make promotion auditable and reversible.
+
+**Rejected:** Collection-per-team creates operational/index sprawl at current scale. UI-only filters
+and API-key claims become stale and are vulnerable to direct-ID access. A single mixed
+workspace-plus-public database query is harder to explain and audit. Silently sending tenant data to
+free embeddings or changing visibility in place violates the approved privacy boundary.
+
+**References:**
+[MongoDB multi-tenancy](https://www.mongodb.com/docs/atlas/build-multi-tenant-arch/),
+[MongoDB Vector Search tenant filtering](https://www.mongodb.com/docs/atlas/atlas-vector-search/multi-tenant-architecture/),
+[OWASP Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html),
+[OWASP BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/),
+[MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)

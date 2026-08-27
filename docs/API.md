@@ -25,8 +25,9 @@ returned, with `no-store` caching. See [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.
 
 Phase 10 exposes safe canonical knowledge through Fastify under `/api/v1`. The transport composes
 the reusable authorization and knowledge-access services; route handlers do not query MongoDB or
-implement ranking. The API does not expose anonymous knowledge access, private/team retrieval, raw
-source documents, embeddings, model internals, individual agent outcomes, or reporter identity.
+implement ranking. The API does not expose anonymous knowledge access, unauthorized private/team
+retrieval, raw source documents, embeddings, model internals, individual agent outcomes, or reporter
+identity.
 
 Phase 11 additionally mounts the authenticated MCP Streamable HTTP endpoint at `/mcp` and a safe
 bridge-status endpoint at `/api/v1/mcp/status`. They reuse the same access service and policies
@@ -45,6 +46,12 @@ The default access mode is always:
 
 - visibility `public`; and
 - lifecycle `published`.
+
+Authenticated callers may explicitly request `personal`, `workspace`, or `workspace_and_public`
+scope. The server derives the owner from the principal and requires live membership for the exact
+workspace. Workspace-bound keys cannot switch workspace or access personal records. Tenant detail
+and alternatives require the same scope; an ID alone never bypasses it. See
+[`WORKSPACES.md`](WORKSPACES.md).
 
 `includeReview: true` is accepted only from an API key whose active owner is an administrator and
 whose scopes include `knowledge:read`. It is never inferred from the owner role. Sessions, normal
@@ -163,14 +170,21 @@ keyed query digest and bounded filter/result metadata, not raw query text.
 ### Privacy-safe contribution
 
 `POST /api/v1/contributions` requires an API key with `knowledge:contribute`, a UUID
-`clientSubmissionId`, public or private visibility, explicit consent policy version 1, agent-client
-metadata, and the structured generalized lesson. It accepts at most 48 KiB. See the inspectable
-OpenAPI example/schema and [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md); avoid placing even fake-looking
-credentials in shell history when manually exercising it.
+`clientSubmissionId`, public, private, or team visibility, explicit consent policy version 1,
+agent-client metadata, and the structured generalized lesson. It accepts at most 48 KiB. See the
+inspectable OpenAPI example/schema and [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md); avoid placing even
+fake-looking credentials in shell history when manually exercising it.
 
 `GET /api/v1/contributions/:id` returns only the sanitized record to its owning user/key. Browser
 sessions can read or update `ask|disabled` at `/api/v1/account/contribution-settings`; submissions
-themselves require a scoped API key. Team submissions fail explicitly.
+themselves require a scoped API key. Team submissions require `workspaceId` and an active API key
+immutably bound to that workspace.
+
+Workspace/session routes under `/api/v1/workspaces` create/list/detail workspaces, manage existing-
+user invitations and memberships, and issue/revoke workspace-bound keys. Invitation acceptance and
+rejection use `/api/v1/workspace-invitations/:id/*`. Public sharing uses
+`POST /api/v1/known-paths/:id/share-public`; it creates a separately sanitized public contribution
+and never flips the source record's visibility.
 
 ### Verified outcome
 

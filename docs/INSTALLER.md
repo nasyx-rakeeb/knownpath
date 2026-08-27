@@ -78,6 +78,9 @@ Common options:
 - `--yes` confirms a non-interactive mutation.
 - `--json` emits one machine-readable JSON document. JSON/non-interactive use requires an explicit
   agent selection; mutations also require `--yes`.
+- `--profile <label>` records a non-secret personal/workspace key profile in installer ownership
+  state. `--workspace-id <uuid>` optionally pins the expected workspace binding and requires a
+  profile label. Agent configuration still contains only the two environment-variable references.
 
 Without `--agent`, an interactive terminal shows detected clients and asks which to configure.
 Detection is advisory: explicitly selected, unavailable clients can still be configured from their
@@ -146,7 +149,9 @@ values.
 skill presence/version, and backend reachability/authentication. A missing agent executable is a
 warning when its config is otherwise valid. Backend checks are skipped—not guessed—until both
 required variables are valid. Network/auth failures are reported without response bodies, headers,
-or credentials.
+or credentials. For an installation recorded with `--workspace-id`, doctor also verifies the safe
+MCP status binding against that ID and fails rather than silently using a personal/different-team
+key.
 
 ## Contribution privacy
 

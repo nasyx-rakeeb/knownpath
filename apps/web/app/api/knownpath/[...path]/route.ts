@@ -27,6 +27,7 @@ const exactRoutes = new Set([
   "admin/canonicalization/execute",
   "admin/users/action",
   "admin/private-content/reveal",
+  "workspaces",
 ]);
 const patterns = [
   /^account\/sessions\/[0-9a-f-]+\/revoke$/u,
@@ -35,6 +36,14 @@ const patterns = [
   /^known-paths\/[0-9a-f-]+\/alternatives$/u,
   /^knowledge\/searches\/[0-9a-f-]+\/selections$/u,
   /^contributions\/[0-9a-f-]+$/u,
+  /^known-paths\/[0-9a-f-]+\/share-public$/u,
+  /^workspaces\/[0-9a-f-]+$/u,
+  /^workspaces\/[0-9a-f-]+\/invitations$/u,
+  /^workspaces\/[0-9a-f-]+\/members\/[0-9a-f-]+$/u,
+  /^workspaces\/[0-9a-f-]+\/members\/[0-9a-f-]+\/remove$/u,
+  /^workspaces\/[0-9a-f-]+\/api-keys$/u,
+  /^workspaces\/[0-9a-f-]+\/api-keys\/[0-9a-f-]+\/revoke$/u,
+  /^workspace-invitations\/[0-9a-f-]+\/(accept|reject|revoke)$/u,
   /^admin\/resources\/(sources|source-items|jobs|extractions|candidates|known-paths|contributions|outcomes|users|audit)$/u,
   /^admin\/resources\/(sources|source-items|jobs|extractions|candidates|known-paths|contributions|outcomes|users|audit)\/[0-9a-f-]+$/u,
 ];

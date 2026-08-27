@@ -24,7 +24,11 @@ import {
   type OutcomeAssessment,
   type OutcomeSubmissionRequest,
   type OutcomeSubmissionResponse,
+  type OutcomeAggregationScope,
+  type OutcomeTargetScope,
   type UserId,
+  type WorkspaceId,
+  type RetrievalAccess,
 } from "@knownpath/domain";
 import { sanitizePrivacyText } from "@knownpath/privacy";
 
@@ -37,6 +41,8 @@ export interface OutcomePrincipal {
   readonly userId: UserId;
   readonly apiKeyId: ApiKeyId;
   readonly accessMode: "published" | "review";
+  readonly scope: OutcomeTargetScope;
+  readonly workspaceId?: WorkspaceId;
 }
 
 export class OutcomeService {
@@ -49,9 +55,20 @@ export class OutcomeService {
   ): Promise<OutcomeSubmissionResponse> {
     const request = outcomeSubmissionRequestSchema.parse(unparsed);
     this.assertAttemptTime(request, now);
-    const knownPath = await this.database.repositories.knownPaths.findById(request.knownPathId);
+    if (JSON.stringify(request.scope) !== JSON.stringify(principal.scope))
+      throw new OutcomeError(
+        "outcome_target_not_accessible",
+        "Authorized outcome scope does not match the request",
+      );
+    const targetAccess = outcomeTargetAccess(request.scope, principal.userId);
+    const knownPath = await this.database.repositories.knownPaths.findAccessibleById(
+      request.knownPathId,
+      [targetAccess],
+    );
     const allowedStatuses =
-      principal.accessMode === "review" ? ["review", "published", "deprecated"] : ["published"];
+      principal.accessMode === "review" || request.scope.kind !== "public"
+        ? ["review", "published", "deprecated"]
+        : ["published"];
     if (
       knownPath === null ||
       knownPath.latestRevisionId === undefined ||
@@ -61,6 +78,7 @@ export class OutcomeService {
         "outcome_target_not_accessible",
         "The target KnownPath is not accessible for outcome reporting",
       );
+    const aggregationScope = outcomeAggregationScope(principal);
     const digest = sha256(stableJson(request));
     const replay = await this.database.repositories.agentOutcomes.findV2ByClientOutcome(
       principal.userId,
@@ -72,7 +90,7 @@ export class OutcomeService {
           "outcome_idempotency_conflict",
           "This clientOutcomeId was already used for different outcome content",
         );
-      const assessment = await this.recompute(request.knownPathId, now);
+      const assessment = await this.recompute(request.knownPathId, aggregationScope, now);
       return this.receipt(
         replay,
         assessment,
@@ -111,6 +129,7 @@ export class OutcomeService {
     const versionBucket = this.versionBucket(request);
     const prior = await this.database.repositories.agentOutcomes.listV2ByKnownPath(
       request.knownPathId,
+      aggregationScope,
     );
     const windowStart = new Date(now.getTime() - outcomePolicyV1.influenceWindowDays * DAY_MS);
     const duplicateWindow =
@@ -162,7 +181,11 @@ export class OutcomeService {
       ]),
       influence,
       anomalySignals: duplicateWindow ? ["repeated_target_window"] : [],
-      visibility: { scope: "private", ownerUserId: principal.userId },
+      visibility:
+        aggregationScope.scope === "team"
+          ? { scope: "team", workspaceId: aggregationScope.workspaceId }
+          : { scope: "private", ownerUserId: principal.userId },
+      aggregationScope,
       audit: { createdAt: now, updatedAt: now, createdByUserId: principal.userId },
     });
     const inserted = await this.database.repositories.agentOutcomes.createV2IfAbsent(outcome);
@@ -173,21 +196,26 @@ export class OutcomeService {
         request.clientOutcomeId,
       ));
     if (stored === null) throw new Error("Outcome insert raced but no record was found");
-    let queued = knownPath.safetyReview.status === "review_queued";
+    let queued =
+      aggregationScope.scope === "public" && knownPath.safetyReview.status === "review_queued";
     if (stored.outcome === "misleading_or_unsafe")
-      queued = await this.queueSafety(stored, knownPath.safetyReview.status, now);
-    const assessment = await this.recompute(request.knownPathId, now);
+      queued = await this.queueSafety(stored, knownPath.safetyReview.status, aggregationScope, now);
+    const assessment = await this.recompute(request.knownPathId, aggregationScope, now);
     return this.receipt(stored, assessment, inserted === null, queued);
   }
 
   public async recompute(
     knownPathId: KnownPathId,
+    aggregationScope: OutcomeAggregationScope = { scope: "public" },
     calculatedAt = new Date(),
   ): Promise<OutcomeAssessment> {
     const knownPath = await this.database.repositories.knownPaths.findById(knownPathId);
     if (knownPath === null || knownPath.latestRevisionId === undefined)
       throw new OutcomeError("outcome_target_not_accessible", "KnownPath not found");
-    const all = await this.database.repositories.agentOutcomes.listV2ByKnownPath(knownPathId);
+    const all = await this.database.repositories.agentOutcomes.listV2ByKnownPath(
+      knownPathId,
+      aggregationScope,
+    );
     const effective = all.filter((entry) => entry.influence.status === "eligible");
     const attempted = effective.filter((entry) =>
       ["solved", "partially_helped", "attempted_failed"].includes(entry.outcome),
@@ -256,6 +284,7 @@ export class OutcomeService {
       "outcome-assessment-v1",
       knownPathId,
       knownPath.latestRevisionId,
+      stableJson(aggregationScope),
       outcomePolicyDigest,
       calculatedAt.toISOString().slice(0, 10),
       ...all.map((entry) => entry._id),
@@ -263,11 +292,12 @@ export class OutcomeService {
     const existing =
       await this.database.repositories.outcomeAssessments.findByIdempotencyKey(inputKey);
     if (existing !== null) {
-      await this.database.repositories.knownPaths.updateOutcomeAssessment(
-        knownPathId,
-        existing._id,
-        existing.calculatedAt,
-      );
+      if (aggregationScope.scope === "public")
+        await this.database.repositories.knownPaths.updateOutcomeAssessment(
+          knownPathId,
+          existing._id,
+          existing.calculatedAt,
+        );
       return existing;
     }
     const assessment = outcomeAssessmentSchema.parse({
@@ -275,6 +305,7 @@ export class OutcomeService {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       knownPathId,
       knownPathRevisionId: knownPath.latestRevisionId,
+      aggregationScope,
       idempotencyKey: inputKey,
       algorithm: { identifier: "knownpath-outcome-confidence", version: 1 },
       policy: { identifier: "knownpath-outcome-policy", version: 1, digest: outcomePolicyDigest },
@@ -321,11 +352,12 @@ export class OutcomeService {
       inserted ??
       (await this.database.repositories.outcomeAssessments.findByIdempotencyKey(inputKey));
     if (stored === null) throw new Error("Outcome assessment insert raced but was not found");
-    await this.database.repositories.knownPaths.updateOutcomeAssessment(
-      knownPathId,
-      stored._id,
-      stored.calculatedAt,
-    );
+    if (aggregationScope.scope === "public")
+      await this.database.repositories.knownPaths.updateOutcomeAssessment(
+        knownPathId,
+        stored._id,
+        stored.calculatedAt,
+      );
     return stored;
   }
 
@@ -371,10 +403,19 @@ export class OutcomeService {
   private async queueSafety(
     outcome: AgentOutcomeV2,
     fromStatus: "clear" | "review_queued" | "under_review" | "resolved" | "restricted",
+    aggregationScope: OutcomeAggregationScope,
     now: Date,
   ): Promise<boolean> {
-    if (["review_queued", "under_review", "restricted"].includes(fromStatus)) return true;
-    const key = createVersionedKey(["safety-review-outcome-v1", outcome._id]);
+    if (
+      aggregationScope.scope === "public" &&
+      ["review_queued", "under_review", "restricted"].includes(fromStatus)
+    )
+      return true;
+    const key = createVersionedKey([
+      "safety-review-outcome-v1",
+      outcome._id,
+      stableJson(aggregationScope),
+    ]);
     let event = await this.database.repositories.safetyEvents.findByIdempotencyKey(key);
     if (event === null)
       event = await this.database.repositories.safetyEvents.createIfAbsent(
@@ -382,6 +423,7 @@ export class OutcomeService {
           _id: createSafetyEventId(),
           schemaVersion: 1,
           knownPathId: outcome.knownPathId,
+          aggregationScope,
           sourceOutcomeId: outcome._id,
           idempotencyKey: key,
           eventType: "review_queued",
@@ -396,11 +438,12 @@ export class OutcomeService {
     if (event === null)
       event = await this.database.repositories.safetyEvents.findByIdempotencyKey(key);
     if (event === null) throw new Error("Safety event insert raced but was not found");
-    await this.database.repositories.knownPaths.queueSafetyReview(
-      outcome.knownPathId,
-      event._id,
-      now,
-    );
+    if (aggregationScope.scope === "public")
+      await this.database.repositories.knownPaths.queueSafetyReview(
+        outcome.knownPathId,
+        event._id,
+        now,
+      );
     return true;
   }
 
@@ -425,6 +468,20 @@ export class OutcomeService {
       },
     });
   }
+}
+
+function outcomeTargetAccess(scope: OutcomeTargetScope, userId: UserId): RetrievalAccess {
+  if (scope.kind === "public") return { scope: "public" };
+  if (scope.kind === "personal") return { scope: "private", ownerUserId: userId };
+  return { scope: "team", workspaceId: scope.workspaceId };
+}
+
+function outcomeAggregationScope(principal: OutcomePrincipal): OutcomeAggregationScope {
+  if (principal.workspaceId !== undefined)
+    return { scope: "team", workspaceId: principal.workspaceId };
+  if (principal.scope.kind === "personal")
+    return { scope: "private", ownerUserId: principal.userId };
+  return { scope: "public" };
 }
 
 function normalizeEnvironment(request: OutcomeSubmissionRequest) {

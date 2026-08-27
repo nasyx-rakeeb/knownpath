@@ -25,6 +25,10 @@ import type {
   SourceRegistry,
   User,
   WorkerHeartbeat,
+  Workspace,
+  WorkspaceInvitation,
+  WorkspaceMembership,
+  KnowledgeShareRequest,
 } from "@knownpath/domain";
 import type { Collection, Db } from "mongodb";
 
@@ -69,6 +73,10 @@ export const collectionNames = {
   sourceRegistries: "source_registries",
   users: "users",
   workerHeartbeats: "worker_heartbeats",
+  workspaces: "workspaces",
+  workspaceMemberships: "workspace_memberships",
+  workspaceInvitations: "workspace_invitations",
+  knowledgeShareRequests: "knowledge_share_requests",
 } as const;
 
 export interface KnownPathCollections {
@@ -99,6 +107,10 @@ export interface KnownPathCollections {
   readonly sourceRegistries: Collection<SourceRegistry>;
   readonly users: Collection<User>;
   readonly workerHeartbeats: Collection<WorkerHeartbeat>;
+  readonly workspaces: Collection<Workspace>;
+  readonly workspaceMemberships: Collection<WorkspaceMembership>;
+  readonly workspaceInvitations: Collection<WorkspaceInvitation>;
+  readonly knowledgeShareRequests: Collection<KnowledgeShareRequest>;
 }
 
 export function getCollections(database: Db): KnownPathCollections {
@@ -148,5 +160,15 @@ export function getCollections(database: Db): KnownPathCollections {
     sourceRegistries: database.collection<SourceRegistry>(collectionNames.sourceRegistries),
     users: database.collection<User>(collectionNames.users),
     workerHeartbeats: database.collection<WorkerHeartbeat>(collectionNames.workerHeartbeats),
+    workspaces: database.collection<Workspace>(collectionNames.workspaces),
+    workspaceMemberships: database.collection<WorkspaceMembership>(
+      collectionNames.workspaceMemberships,
+    ),
+    workspaceInvitations: database.collection<WorkspaceInvitation>(
+      collectionNames.workspaceInvitations,
+    ),
+    knowledgeShareRequests: database.collection<KnowledgeShareRequest>(
+      collectionNames.knowledgeShareRequests,
+    ),
   };
 }

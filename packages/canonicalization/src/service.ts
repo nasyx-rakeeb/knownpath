@@ -121,6 +121,8 @@ export class CanonicalRecordService {
         : await this.database.repositories.knownPaths.findById(input.targetKnownPathId);
     if (input.targetKnownPathId !== undefined && target === null)
       throw new Error("Target KnownPath does not exist");
+    if (target !== null && !sameVisibility(target.visibility, visibility))
+      throw new Error("Canonical target visibility must match every candidate");
 
     await this.appendEvent(
       operationId,
@@ -743,7 +745,8 @@ function sameVisibility(
 ): boolean {
   return (
     left.scope === right.scope &&
-    left.ownerUserId === right.ownerUserId &&
-    left.teamId === right.teamId
+    (left.scope !== "private" ||
+      (right.scope === "private" && left.ownerUserId === right.ownerUserId)) &&
+    (left.scope !== "team" || (right.scope === "team" && left.workspaceId === right.workspaceId))
   );
 }

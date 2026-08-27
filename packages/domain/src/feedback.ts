@@ -22,6 +22,7 @@ import {
   outcomeAssessmentIdSchema,
   safetyEventIdSchema,
   knownPathRevisionIdSchema,
+  workspaceIdSchema,
 } from "./common.js";
 
 export const CONTRIBUTION_CONTRACT_VERSION = 1 as const;
@@ -107,6 +108,7 @@ export const contributionSubmissionRequestSchema = z
     kind: contributionKindSchema.default("new_lesson"),
     knownPathId: knownPathIdSchema.optional(),
     visibility: contributionVisibilityInputSchema,
+    workspaceId: workspaceIdSchema.optional(),
     consent: z.strictObject({
       policyVersion: z.literal(CONTRIBUTION_CONSENT_POLICY_VERSION),
       confirmed: z.literal(true),
@@ -134,6 +136,18 @@ export const contributionSubmissionRequestSchema = z
         code: "custom",
         message: "non-new contributions require knownPathId",
         path: ["knownPathId"],
+      });
+    if (submission.visibility === "team" && submission.workspaceId === undefined)
+      context.addIssue({
+        code: "custom",
+        message: "team contributions require workspaceId",
+        path: ["workspaceId"],
+      });
+    if (submission.visibility !== "team" && submission.workspaceId !== undefined)
+      context.addIssue({
+        code: "custom",
+        message: "workspaceId is valid only for team contributions",
+        path: ["workspaceId"],
       });
   });
 
@@ -169,10 +183,15 @@ export const contributionSanitizationReportSchema = z.strictObject({
 export const contributionConsentSchema = z.strictObject({
   policyIdentifier: z.literal("knownpath-contribution-consent"),
   policyVersion: z.literal(CONTRIBUTION_CONSENT_POLICY_VERSION),
-  intent: z.enum(["private_backend_storage", "public_submission_and_future_publication"]),
+  intent: z.enum([
+    "private_backend_storage",
+    "workspace_backend_storage",
+    "public_submission_and_future_publication",
+  ]),
   confirmedAt: timestampSchema,
   confirmedByUserId: userIdSchema,
-  visibility: z.enum(["public", "private"]),
+  visibility: z.enum(["public", "private", "team"]),
+  workspaceId: workspaceIdSchema.optional(),
 });
 export const contributionProcessingSchema = z.strictObject({
   stage: z.enum([
@@ -215,7 +234,8 @@ export const agentContributionV2Schema = z.strictObject({
   clientSubmissionId: z.uuidv4(),
   contributor: z.strictObject({
     userId: userIdSchema,
-    apiKeyId: apiKeyIdSchema,
+    apiKeyId: apiKeyIdSchema.optional(),
+    channel: z.enum(["agent_api", "dashboard_share"]).default("agent_api"),
     agentClient: z.strictObject({ name: shortStringSchema, version: shortStringSchema.optional() }),
   }),
   knownPathId: knownPathIdSchema.optional(),
@@ -242,7 +262,7 @@ export const contributionSubmissionResponseSchema = z.strictObject({
   contractVersion: z.literal(CONTRIBUTION_CONTRACT_VERSION),
   contributionId: agentContributionIdSchema,
   reused: z.boolean(),
-  visibility: z.enum(["public", "private"]),
+  visibility: z.enum(["public", "private", "team"]),
   status: contributionStatusSchema,
   trustState: z.literal("self_reported_unverified"),
   processingStage: contributionProcessingSchema.shape.stage,
@@ -259,7 +279,7 @@ export const contributionInspectionResponseSchema = z.strictObject({
   clientSubmissionId: z.uuidv4(),
   kind: contributionKindSchema,
   knownPathId: knownPathIdSchema.optional(),
-  visibility: z.enum(["public", "private"]),
+  visibility: z.enum(["public", "private", "team"]),
   consent: contributionConsentSchema,
   payload: contributionPayloadSchema,
   sanitization: contributionSanitizationReportSchema,
@@ -294,6 +314,17 @@ export const OUTCOME_SCHEMA_VERSION = 2 as const;
 export const OUTCOME_ALGORITHM_VERSION = 1 as const;
 export const OUTCOME_POLICY_VERSION = 1 as const;
 
+export const outcomeTargetScopeSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("public") }),
+  z.strictObject({ kind: z.literal("personal") }),
+  z.strictObject({ kind: z.literal("workspace"), workspaceId: workspaceIdSchema }),
+]);
+export const outcomeAggregationScopeSchema = z.discriminatedUnion("scope", [
+  z.strictObject({ scope: z.literal("public") }),
+  z.strictObject({ scope: z.literal("private"), ownerUserId: userIdSchema }),
+  z.strictObject({ scope: z.literal("team"), workspaceId: workspaceIdSchema }),
+]);
+
 export const agentOutcomeValueSchema = z.enum([
   "solved",
   "partially_helped",
@@ -322,6 +353,7 @@ export const outcomeSubmissionRequestSchema = z
     clientOutcomeId: z.uuidv4(),
     clientExecutionId: z.uuidv4(),
     knownPathId: knownPathIdSchema,
+    scope: outcomeTargetScopeSchema.default({ kind: "public" }),
     searchId: z.uuidv4().optional(),
     solutionVariantId: shortStringSchema.optional(),
     outcome: agentOutcomeValueSchema,
@@ -375,7 +407,8 @@ export const agentOutcomeV2Schema = z.strictObject({
     reasonCode: shortStringSchema,
   }),
   anomalySignals: z.array(shortStringSchema).max(16),
-  visibility: z.strictObject({ scope: z.literal("private"), ownerUserId: userIdSchema }),
+  visibility: visibilitySchema,
+  aggregationScope: outcomeAggregationScopeSchema.default({ scope: "public" }),
   audit: auditMetadataSchema,
 });
 
@@ -392,6 +425,7 @@ export const outcomeAssessmentSchema = z.strictObject({
   schemaVersion: schemaVersionSchema,
   knownPathId: knownPathIdSchema,
   knownPathRevisionId: knownPathRevisionIdSchema,
+  aggregationScope: outcomeAggregationScopeSchema.default({ scope: "public" }),
   idempotencyKey: versionedKeySchema,
   algorithm: z.strictObject({
     identifier: z.literal("knownpath-outcome-confidence"),
@@ -460,6 +494,7 @@ export const safetyEventSchema = z.strictObject({
   _id: safetyEventIdSchema,
   schemaVersion: schemaVersionSchema,
   knownPathId: knownPathIdSchema,
+  aggregationScope: outcomeAggregationScopeSchema.default({ scope: "public" }),
   sourceOutcomeId: agentOutcomeIdSchema.optional(),
   idempotencyKey: versionedKeySchema,
   eventType: z.enum([
@@ -504,3 +539,5 @@ export type OutcomeSubmissionRequest = z.infer<typeof outcomeSubmissionRequestSc
 export type OutcomeSubmissionResponse = z.infer<typeof outcomeSubmissionResponseSchema>;
 export type OutcomeAssessment = z.infer<typeof outcomeAssessmentSchema>;
 export type SafetyEvent = z.infer<typeof safetyEventSchema>;
+export type OutcomeAggregationScope = z.infer<typeof outcomeAggregationScopeSchema>;
+export type OutcomeTargetScope = z.infer<typeof outcomeTargetScopeSchema>;

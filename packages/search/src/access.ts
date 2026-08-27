@@ -17,6 +17,7 @@ import {
   type KnowledgeSearchPrincipal,
   type KnowledgeSearchRequest,
   type KnowledgeSearchResponse,
+  type KnowledgeSearchScope,
   type KnownPath,
   type KnownPathAlternativesResponse,
   type KnownPathDetailResponse,
@@ -25,15 +26,21 @@ import {
   type OutcomeAssessment,
   type SourceItem,
   type SourceRegistry,
+  type RetrievalAccess,
+  type UserId,
+  type OutcomeAggregationScope,
+  type RetrievalScoreBreakdown,
 } from "@knownpath/domain";
 
-import type { RetrievalService } from "./service.js";
+import type { RetrievalResponse, RetrievalService } from "./service.js";
+import { retrievalPolicyV2 } from "./policy.js";
 
 const DIGEST_VERSION = 2;
 const CURSOR_VERSION = 1;
 
 export interface KnowledgeRequestContext {
   readonly accessMode: KnowledgeAccessMode;
+  readonly scope: KnowledgeSearchScope;
   readonly principal: KnowledgeSearchPrincipal;
   readonly requestId: string;
   readonly ipAddress?: string;
@@ -75,63 +82,87 @@ export class KnowledgeAccessService {
   ): Promise<KnowledgeSearchResponse> {
     const request = knowledgeSearchRequestSchema.parse(input);
     assertModeMatchesRequest(request, context.accessMode);
-    const retrieval = await this.retrieval.search({
-      text: request.text,
-      errors: request.errors,
-      ...(request.ecosystem === undefined ? {} : { ecosystem: request.ecosystem }),
-      packages: request.packages,
-      versions: request.versions,
-      platforms: request.platforms,
-      environment: request.environment,
-      context: request.context,
-      queryVisibility: "public",
-      allowedStatuses: context.accessMode === "review" ? ["published", "review"] : ["published"],
-      semanticMode: request.semanticMode,
-      limit: request.limit,
-      minimumScore: request.minimumScore,
-    });
-    const records = await this.database.repositories.knownPaths.findManyByIds(
-      retrieval.results.map((result) => result.knownPathId),
-    );
-    const recordsById = new Map(records.map((record) => [record._id, record]));
-    const outcomeAssessments = await this.database.repositories.outcomeAssessments.findManyByIds(
-      records.flatMap((record) =>
-        record.latestOutcomeAssessmentId === undefined ? [] : [record.latestOutcomeAssessmentId],
+    assertScopeMatchesRequest(request, context.scope);
+    const accesses = retrievalAccesses(context.scope, context.principal.userId);
+    const retrievals = await Promise.all(
+      accesses.map((access) =>
+        this.retrieval.search({
+          text: request.text,
+          errors: request.errors,
+          ...(request.ecosystem === undefined ? {} : { ecosystem: request.ecosystem }),
+          packages: request.packages,
+          versions: request.versions,
+          platforms: request.platforms,
+          environment: request.environment,
+          context: request.context,
+          access,
+          allowedStatuses:
+            context.accessMode === "review"
+              ? ["published", "review"]
+              : access.scope === "public"
+                ? ["published"]
+                : ["published", "review", "deprecated"],
+          semanticMode: access.scope === "public" ? request.semanticMode : "disabled",
+          limit: request.limit,
+          minimumScore: request.minimumScore,
+        }),
       ),
     );
-    const outcomeAssessmentsById = new Map(outcomeAssessments.map((value) => [value._id, value]));
+    const retrieval = mergeRetrievals(retrievals, request.limit, context.scope.kind !== "public");
+    const records = await this.database.repositories.knownPaths.findManyAccessibleByIds(
+      retrieval.results.map((result) => result.knownPathId),
+      accesses,
+    );
+    const recordsById = new Map(records.map((record) => [record._id, record]));
+    const outcomeAssessmentsByKnownPath = new Map(
+      await Promise.all(
+        records.map(
+          async (record) =>
+            [
+              record._id,
+              await this.database.repositories.outcomeAssessments.findLatestForScope(
+                record._id,
+                outcomeScopeForContext(context),
+              ),
+            ] as const,
+        ),
+      ),
+    );
     const safeResults = [];
     for (const result of retrieval.results) {
       const record = recordsById.get(result.knownPathId);
-      if (record === undefined || !isAccessible(record, context.accessMode)) continue;
-      const provenance = await this.safeProvenance(record.evidence, 12);
+      if (record === undefined || !isAccessible(record, context)) continue;
+      const provenance = await this.safeProvenance(record.evidence, 12, accesses);
+      const scopedAssessment = outcomeAssessmentsByKnownPath.get(record._id) ?? null;
+      const scopedRelevance = rerankWithScopedOutcome(result.score, scopedAssessment);
       safeResults.push({
         id: record._id,
         title: result.title,
         problemSummary: result.problemSummary,
         solutionSummary: result.solutionSummary,
         status: record.status,
+        visibility: safeVisibility(record),
         applicability: toApplicability(record.metadata),
         caveats: unique(record.solutionVariants.flatMap((variant) => variant.caveats)).slice(0, 64),
         trust: toTrust(record.trust.score, record.trust.grade),
         freshness: toFreshness(record),
-        outcomes: toSafeOutcomes(
-          record.latestOutcomeAssessmentId === undefined
-            ? null
-            : (outcomeAssessmentsById.get(record.latestOutcomeAssessmentId) ?? null),
-        ),
+        outcomes: toSafeOutcomes(scopedAssessment),
         relevance: {
-          score: result.score.finalScore,
-          versionCompatibility: result.score.versionCompatibility,
+          score: scopedRelevance.finalScore,
+          versionCompatibility: scopedRelevance.versionCompatibility,
           matchedBy: result.matchedBy,
-          components: result.score.components,
-          penalties: result.score.penalties.map(({ code, points }) => ({ code, points })),
-          reasonCodes: result.score.reasonCodes,
-          explanations: result.score.explanations,
+          components: scopedRelevance.components,
+          penalties: scopedRelevance.penalties.map(({ code, points }) => ({ code, points })),
+          reasonCodes: scopedRelevance.reasonCodes,
+          explanations: scopedRelevance.explanations,
         },
         provenance,
       });
     }
+    safeResults.sort(
+      (left, right) =>
+        right.relevance.score - left.relevance.score || left.id.localeCompare(right.id),
+    );
     const now = new Date();
     const searchId = createKnowledgeSearchEventId();
     const event: KnowledgeSearchEvent = {
@@ -139,6 +170,7 @@ export class KnowledgeAccessService {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       principal: context.principal,
       accessMode: context.accessMode,
+      scope: context.scope,
       requestId: context.requestId,
       queryDigest: this.digestQuery(request),
       digestVersion: DIGEST_VERSION,
@@ -168,6 +200,7 @@ export class KnowledgeAccessService {
       contractVersion: KNOWLEDGE_API_CONTRACT_VERSION,
       searchId,
       accessMode: context.accessMode,
+      scope: context.scope,
       capabilities: retrieval.capabilities,
       results: safeResults,
     });
@@ -177,23 +210,24 @@ export class KnowledgeAccessService {
     id: KnownPathId,
     context: KnowledgeRequestContext,
   ): Promise<KnownPathDetailResponse> {
-    const record = await this.database.repositories.knownPaths.findById(id);
-    if (record === null || !isAccessible(record, context.accessMode)) throw notFound();
+    const accesses = retrievalAccesses(context.scope, context.principal.userId);
+    const record = await this.database.repositories.knownPaths.findAccessibleById(id, accesses);
+    if (record === null || !isAccessible(record, context)) throw notFound();
     if (record.status === "review") {
       await this.recordReviewAudit("knowledge.review_read", id, context);
     }
     const outcomeAssessment =
-      record.latestOutcomeAssessmentId === undefined
-        ? null
-        : await this.database.repositories.outcomeAssessments.findById(
-            record.latestOutcomeAssessmentId,
-          );
+      await this.database.repositories.outcomeAssessments.findLatestForScope(
+        record._id,
+        outcomeScopeForContext(context),
+      );
     return knownPathDetailResponseSchema.parse({
       contractVersion: KNOWLEDGE_API_CONTRACT_VERSION,
       id: record._id,
       title: record.title,
       problemSummary: record.problemSummary,
       status: record.status,
+      visibility: safeVisibility(record),
       symptoms: record.symptoms.map((symptom) => ({
         summary: symptom.summary,
         ...(symptom.category === undefined ? {} : { category: symptom.category }),
@@ -204,7 +238,7 @@ export class KnowledgeAccessService {
       trust: toTrust(record.trust.score, record.trust.grade),
       freshness: toFreshness(record),
       outcomes: toSafeOutcomes(outcomeAssessment),
-      provenance: await this.safeProvenance(record.evidence, 512),
+      provenance: await this.safeProvenance(record.evidence, 512, accesses),
     });
   }
 
@@ -214,8 +248,9 @@ export class KnowledgeAccessService {
     limit: number,
     context: KnowledgeRequestContext,
   ): Promise<KnownPathAlternativesResponse> {
-    const record = await this.database.repositories.knownPaths.findById(id);
-    if (record === null || !isAccessible(record, context.accessMode)) throw notFound();
+    const accesses = retrievalAccesses(context.scope, context.principal.userId);
+    const record = await this.database.repositories.knownPaths.findAccessibleById(id, accesses);
+    if (record === null || !isAccessible(record, context)) throw notFound();
     if (record.status === "review") {
       await this.recordReviewAudit("knowledge.review_read", id, context, {
         resource: "alternatives",
@@ -406,16 +441,20 @@ export class KnowledgeAccessService {
   private async safeProvenance(
     references: readonly EvidenceReference[],
     limit: number,
+    access: readonly RetrievalAccess[],
   ): Promise<SafeProvenance[]> {
     const uniqueReferences = new Map(
       references.map((reference) => [reference.sourceItemId, reference]),
     );
-    const sourceItems = await this.database.repositories.sourceItems.findByIds([
-      ...uniqueReferences.keys(),
-    ]);
+    const sourceItems = await this.database.repositories.sourceItems.findAccessibleByIds(
+      [...uniqueReferences.keys()],
+      access,
+    );
     const registryIds = [...new Set(sourceItems.map((item) => item.sourceRegistryId))];
     const registries = await Promise.all(
-      registryIds.map((id) => this.database.repositories.sourceRegistries.findById(id)),
+      registryIds.map((id) =>
+        this.database.repositories.sourceRegistries.findAccessibleById(id, access),
+      ),
     );
     const registriesById = new Map(
       registries
@@ -423,16 +462,10 @@ export class KnowledgeAccessService {
         .map((registry) => [registry._id, registry]),
     );
     return sourceItems
-      .filter((item) => item.visibility.scope === "public")
       .flatMap((item) => {
         const reference = uniqueReferences.get(item._id);
         const registry = registriesById.get(item.sourceRegistryId);
-        if (
-          reference === undefined ||
-          registry === undefined ||
-          registry.visibility.scope !== "public"
-        )
-          return [];
+        if (reference === undefined || registry === undefined) return [];
         return [toSafeProvenance(item, registry, reference)];
       })
       .slice(0, limit);
@@ -476,11 +509,165 @@ function assertModeMatchesRequest(
   }
 }
 
-function isAccessible(record: KnownPath, mode: KnowledgeAccessMode): boolean {
-  if (record.visibility.scope !== "public") return false;
-  return mode === "review"
+function assertScopeMatchesRequest(
+  request: KnowledgeSearchRequest,
+  scope: KnowledgeSearchScope,
+): void {
+  if (JSON.stringify(request.scope) !== JSON.stringify(scope))
+    throw new Error("Authorized knowledge scope does not match the validated request");
+}
+
+function retrievalAccesses(scope: KnowledgeSearchScope, userId: UserId): RetrievalAccess[] {
+  if (scope.kind === "public") return [{ scope: "public" }];
+  if (scope.kind === "personal") return [{ scope: "private", ownerUserId: userId }];
+  const workspace = { scope: "team" as const, workspaceId: scope.workspaceId };
+  return scope.kind === "workspace" ? [workspace] : [{ scope: "public" }, workspace];
+}
+
+function isAccessible(record: KnownPath, context: KnowledgeRequestContext): boolean {
+  const visibilityAllowed =
+    context.scope.kind === "public"
+      ? record.visibility.scope === "public"
+      : context.scope.kind === "personal"
+        ? record.visibility.scope === "private" &&
+          record.visibility.ownerUserId === context.principal.userId
+        : context.scope.kind === "workspace"
+          ? record.visibility.scope === "team" &&
+            record.visibility.workspaceId === context.scope.workspaceId
+          : record.visibility.scope === "public" ||
+            (record.visibility.scope === "team" &&
+              record.visibility.workspaceId === context.scope.workspaceId);
+  if (!visibilityAllowed) return false;
+  if (record.visibility.scope !== "public")
+    return ["review", "published", "deprecated"].includes(record.status);
+  return context.accessMode === "review"
     ? record.status === "published" || record.status === "review"
     : record.status === "published";
+}
+
+function safeVisibility(record: KnownPath) {
+  if (record.visibility.scope === "public") return { scope: "public" as const };
+  if (record.visibility.scope === "private") return { scope: "private" as const };
+  return { scope: "team" as const, workspaceId: record.visibility.workspaceId };
+}
+
+function outcomeScopeForContext(context: KnowledgeRequestContext): OutcomeAggregationScope {
+  if (context.scope.kind === "personal")
+    return { scope: "private", ownerUserId: context.principal.userId };
+  if (context.scope.kind === "workspace" || context.scope.kind === "workspace_and_public")
+    return { scope: "team", workspaceId: context.scope.workspaceId };
+  return { scope: "public" };
+}
+
+function mergeRetrievals(
+  values: readonly RetrievalResponse[],
+  limit: number,
+  privateQuery: boolean,
+): RetrievalResponse {
+  const byKnownPath = new Map<string, RetrievalResponse["results"][number]>();
+  for (const response of values) {
+    for (const result of response.results) {
+      const existing = byKnownPath.get(result.knownPathId);
+      if (existing === undefined || result.score.finalScore > existing.score.finalScore)
+        byKnownPath.set(result.knownPathId, result);
+    }
+  }
+  const first = values[0];
+  if (first === undefined) throw new Error("At least one retrieval scope is required");
+  return {
+    query: first.query,
+    capabilities: {
+      exact: combineCapability(values, "exact"),
+      lexical: combineCapability(values, "lexical"),
+      semantic: privateQuery
+        ? {
+            state: "blocked",
+            reason:
+              "Semantic retrieval is disabled because private/workspace query text cannot use the public Gemini provider.",
+          }
+        : combineCapability(values, "semantic"),
+    },
+    results: [...byKnownPath.values()]
+      .sort(
+        (left, right) =>
+          right.score.finalScore - left.score.finalScore ||
+          left.knownPathId.localeCompare(right.knownPathId),
+      )
+      .slice(0, limit),
+  };
+}
+
+function rerankWithScopedOutcome(
+  score: RetrievalScoreBreakdown,
+  assessment: OutcomeAssessment | null,
+): RetrievalScoreBreakdown {
+  const outcomePenaltyCodes = new Set([
+    "corroborated_safety_outcomes",
+    "recent_outcome_degradation",
+    "version_specific_outcome_failures",
+  ]);
+  const retainedPenalties = score.penalties.filter((entry) => !outcomePenaltyCodes.has(entry.code));
+  const removedPenaltyPoints = score.penalties
+    .filter((entry) => outcomePenaltyCodes.has(entry.code))
+    .reduce((sum, entry) => sum + entry.points, 0);
+  const outcomes =
+    assessment?.confidence.status === "observed"
+      ? Math.round((assessment.confidence.score / 100) * 15)
+      : 0;
+  const scopedPenalties: RetrievalScoreBreakdown["penalties"] = [
+    ...(assessment?.penalties.includes("corroborated_safety") === true
+      ? [
+          {
+            code: "corroborated_safety_outcomes",
+            points: retrievalPolicyV2.penalties.corroboratedSafety,
+            explanation:
+              "Independent safety reports reached the deterministic corroboration threshold in this access scope.",
+          },
+        ]
+      : []),
+    ...(assessment?.penalties.includes("outcome_degradation") === true
+      ? [
+          {
+            code: "recent_outcome_degradation",
+            points: retrievalPolicyV2.penalties.outcomeDegradation,
+            explanation: "Conservative recent outcome reliability declined in this access scope.",
+          },
+        ]
+      : []),
+  ];
+  const adjusted =
+    score.finalScore -
+    score.components.outcomes -
+    removedPenaltyPoints +
+    outcomes +
+    scopedPenalties.reduce((sum, entry) => sum + entry.points, 0);
+  return {
+    ...score,
+    components: { ...score.components, outcomes },
+    penalties: [...retainedPenalties, ...scopedPenalties],
+    finalScore: Math.max(0, Math.min(score.cap ?? 100, Math.min(100, adjusted))),
+    reasonCodes: [
+      ...score.reasonCodes.filter((code) => !code.startsWith("outcomes_")),
+      assessment?.confidence.status === "observed"
+        ? `outcomes_${assessment.confidence.grade}`
+        : "outcomes_unobserved",
+    ],
+    explanations: [
+      ...score.explanations.filter((value) => !value.includes("outcome")),
+      assessment?.confidence.status === "observed"
+        ? `Scoped outcome confidence contributed ${outcomes}/15 from effective sample ${assessment.recency.effectiveSampleSize.toFixed(2)}.`
+        : "Agent outcomes are unobserved in this access scope.",
+    ],
+  };
+}
+
+function combineCapability(
+  values: readonly RetrievalResponse[],
+  channel: keyof RetrievalResponse["capabilities"],
+) {
+  const capabilities = values.map((value) => value.capabilities[channel]);
+  const used = capabilities.find((value) => value.state === "used");
+  return used ?? capabilities[0] ?? { state: "unavailable" as const, reason: "Unavailable" };
 }
 
 function notFound(): KnowledgeAccessError {
@@ -507,6 +694,7 @@ function canonicalQuery(request: KnowledgeSearchRequest) {
     limit: request.limit,
     minimumScore: request.minimumScore,
     includeReview: request.includeReview,
+    scope: request.scope,
   };
 }
 

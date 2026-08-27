@@ -9,6 +9,8 @@ import {
   contributionSubmissionResponseSchema,
   outcomeSubmissionRequestSchema,
   outcomeSubmissionResponseSchema,
+  knowledgeSearchScopeSchema,
+  workspaceIdSchema,
 } from "@knownpath/domain";
 import { z } from "zod";
 
@@ -51,6 +53,11 @@ export const knownPathMcpSearchInputSchema = z.strictObject({
   includeReview: optionalReviewSchema.describe(
     "Explicitly include review records. Requires an admin-owned API key.",
   ),
+  scope: knowledgeSearchScopeSchema
+    .default({ kind: "public" })
+    .describe(
+      "Search public, personal, one workspace, or that workspace plus public knowledge. Authorization is enforced by the API key binding.",
+    ),
 });
 
 export const knownPathMcpGetInputSchema = z.strictObject({
@@ -59,6 +66,7 @@ export const knownPathMcpGetInputSchema = z.strictObject({
     .optional()
     .describe("Search ID to record selection as usage, not as a successful outcome."),
   includeReview: optionalReviewSchema,
+  scope: knowledgeSearchScopeSchema.default({ kind: "public" }),
 });
 
 export const knownPathMcpAlternativesInputSchema = z.strictObject({
@@ -66,6 +74,7 @@ export const knownPathMcpAlternativesInputSchema = z.strictObject({
   cursor: boundedString(2_048).optional(),
   limit: z.int().min(1).max(5).default(3),
   includeReview: optionalReviewSchema,
+  scope: knowledgeSearchScopeSchema.default({ kind: "public" }),
 });
 
 export const knownPathMcpStatusInputSchema = z.strictObject({});
@@ -94,6 +103,12 @@ const compactTrustSchema = z.strictObject({
   grade: z.enum(["very_low", "low", "moderate", "high", "very_high"]),
   explanation: boundedString(1_000),
 });
+
+const compactVisibilitySchema = z.discriminatedUnion("scope", [
+  z.strictObject({ scope: z.literal("public") }),
+  z.strictObject({ scope: z.literal("private") }),
+  z.strictObject({ scope: z.literal("team"), workspaceId: workspaceIdSchema }),
+]);
 
 const compactFreshnessSchema = z.strictObject({
   status: z.enum(["current", "aging", "stale", "unknown"]),
@@ -179,6 +194,7 @@ export const knownPathMcpSearchSuccessSchema = z.strictObject({
         problem: boundedString(700),
         solution: boundedString(900),
         status: z.enum(["review", "published", "deprecated"]),
+        visibility: compactVisibilitySchema,
         applicability: compactApplicabilitySchema,
         caveats: z.array(boundedString(500)).max(5),
         trust: compactTrustSchema,
@@ -207,6 +223,7 @@ export const knownPathMcpGetSuccessSchema = z.strictObject({
   title: boundedString(500),
   problem: boundedString(3_000),
   status: z.enum(["review", "published", "deprecated"]),
+  visibility: compactVisibilitySchema,
   symptoms: z.array(boundedString(1_000)).max(12),
   errors: z.array(boundedString(1_000)).max(12),
   applicability: compactApplicabilitySchema,
@@ -244,6 +261,16 @@ export const mcpStatusResponseSchema = z.strictObject({
     scopes: z.array(apiKeyScopeSchema).max(32),
     ownerRole: z.enum(["user", "admin"]),
     ownerStatus: z.enum(["active", "suspended", "deleted"]),
+    binding: z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("personal") }),
+      z.strictObject({
+        kind: z.literal("workspace"),
+        workspaceId: workspaceIdSchema,
+        workspaceName: boundedString(256),
+        role: z.enum(["owner", "admin", "member"]),
+        defaultContributionScope: z.enum(["private", "team"]),
+      }),
+    ]),
   }),
   capabilities: z.strictObject({
     publishedRead: z.literal(true),

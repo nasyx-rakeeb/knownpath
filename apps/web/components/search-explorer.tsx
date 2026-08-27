@@ -5,8 +5,9 @@ import { useState, type FormEvent } from "react";
 import { clientJson } from "../lib/client-api";
 import { words } from "../lib/format";
 import { StatusBadge } from "./page-heading";
+import type { WorkspaceList } from "../lib/contracts";
 
-export function SearchExplorer() {
+export function SearchExplorer({ workspaces }: { workspaces: WorkspaceList["workspaces"] }) {
   const [result, setResult] = useState<KnowledgeSearchResponse>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -15,6 +16,8 @@ export function SearchExplorer() {
     setPending(true);
     setError(undefined);
     const data = new FormData(event.currentTarget);
+    const scopeValue = String(data.get("scope") ?? "public");
+    const scope = parseScope(scopeValue);
     try {
       const response = await clientJson<unknown>("knowledge/search", {
         method: "POST",
@@ -31,6 +34,7 @@ export function SearchExplorer() {
           limit: 10,
           minimumScore: 35,
           includeReview: false,
+          scope,
         }),
       });
       setResult(knowledgeSearchResponseSchema.parse(response));
@@ -43,6 +47,18 @@ export function SearchExplorer() {
   return (
     <div className="explore-layout">
       <form className="search-form" onSubmit={submit}>
+        <label className="full-field">
+          Knowledge scope
+          <select defaultValue="public" name="scope">
+            <option value="public">Public network</option>
+            <option value="personal">My private knowledge</option>
+            {workspaces.map((workspace) => (
+              <option key={workspace.id} value={`workspace_and_public:${workspace.id}`}>
+                {workspace.name} + public network
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="full-field">
           Problem or task
           <textarea
@@ -124,7 +140,7 @@ export function SearchExplorer() {
                     <span>{item.relevance.score}/100 match</span>
                   </div>
                   <h3>
-                    <Link href={`/app/known-paths/${item.id}`}>{item.title}</Link>
+                    <Link href={detailHref(item.id, result.scope)}>{item.title}</Link>
                   </h3>
                   <p>{item.solutionSummary}</p>
                   <div className="result-meta">
@@ -141,6 +157,20 @@ export function SearchExplorer() {
       </section>
     </div>
   );
+}
+function parseScope(value: string) {
+  if (value === "personal") return { kind: "personal" as const };
+  if (value.startsWith("workspace_and_public:"))
+    return {
+      kind: "workspace_and_public" as const,
+      workspaceId: value.slice("workspace_and_public:".length),
+    };
+  return { kind: "public" as const };
+}
+function detailHref(id: string, scope: KnowledgeSearchResponse["scope"]): string {
+  const query = new URLSearchParams({ scope: scope.kind });
+  if ("workspaceId" in scope) query.set("workspaceId", scope.workspaceId);
+  return `/app/known-paths/${id}?${query.toString()}`;
 }
 function split(value: FormDataEntryValue | null): string[] {
   return String(value ?? "")

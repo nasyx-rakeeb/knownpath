@@ -1,4 +1,9 @@
-import { authorizeKnowledgeRead, type Authenticator, type RateLimitPolicy } from "@knownpath/auth";
+import {
+  authorizeScopedKnowledgeRead,
+  type Authenticator,
+  type RateLimitPolicy,
+} from "@knownpath/auth";
+import type { KnownPathDatabase } from "@knownpath/database";
 import {
   alternativesQuerySchema,
   knowledgeSearchIdParamsSchema,
@@ -37,6 +42,7 @@ export function registerKnowledgeRoutes(
   api: FastifyInstance,
   authenticator: Authenticator,
   knowledge: KnowledgeAccessService,
+  database: KnownPathDatabase,
   policies: KnowledgeRateLimitPolicies,
 ): void {
   api.post(
@@ -69,9 +75,11 @@ export function registerKnowledgeRoutes(
     },
     async (request) => {
       const body = knowledgeSearchRequestSchema.parse(request.body);
-      const authorization = authorizeKnowledgeRead(
+      const authorization = await authorizeScopedKnowledgeRead(
         await authenticator.authenticate(request.headers),
+        body.scope,
         body.includeReview,
+        database,
       );
       return knowledge.search(body, requestContext(request, authorization));
     },
@@ -98,9 +106,12 @@ export function registerKnowledgeRoutes(
     async (request) => {
       const params = knownPathIdParamsSchema.parse(request.params);
       const query = knownPathDetailQuerySchema.parse(request.query);
-      const authorization = authorizeKnowledgeRead(
+      const scope = scopeFromQuery(query.scope, query.workspaceId);
+      const authorization = await authorizeScopedKnowledgeRead(
         await authenticator.authenticate(request.headers),
+        scope,
         query.includeReview,
+        database,
       );
       return knowledge.getById(params.id, requestContext(request, authorization));
     },
@@ -127,9 +138,12 @@ export function registerKnowledgeRoutes(
     async (request) => {
       const params = knownPathIdParamsSchema.parse(request.params);
       const query = alternativesQuerySchema.parse(request.query);
-      const authorization = authorizeKnowledgeRead(
+      const scope = scopeFromQuery(query.scope, query.workspaceId);
+      const authorization = await authorizeScopedKnowledgeRead(
         await authenticator.authenticate(request.headers),
+        scope,
         query.includeReview,
+        database,
       );
       return knowledge.alternatives(
         params.id,
@@ -162,9 +176,11 @@ export function registerKnowledgeRoutes(
     async (request) => {
       const params = knowledgeSearchIdParamsSchema.parse(request.params);
       const body = knowledgeSelectionRequestSchema.parse(request.body);
-      const authorization = authorizeKnowledgeRead(
+      const authorization = await authorizeScopedKnowledgeRead(
         await authenticator.authenticate(request.headers),
+        { kind: "public" },
         false,
+        database,
       );
       return knowledge.recordSelection(
         params.searchId,
@@ -177,12 +193,25 @@ export function registerKnowledgeRoutes(
 
 function requestContext(
   request: FastifyRequest,
-  authorization: ReturnType<typeof authorizeKnowledgeRead>,
+  authorization: Awaited<ReturnType<typeof authorizeScopedKnowledgeRead>>,
 ) {
   return {
     accessMode: authorization.accessMode,
+    scope: authorization.scope,
     principal: authorization.principal,
     requestId: request.id,
     ipAddress: request.ip,
   };
+}
+
+function scopeFromQuery(
+  kind: "public" | "personal" | "workspace" | "workspace_and_public",
+  workspaceId: import("@knownpath/domain").WorkspaceId | undefined,
+): import("@knownpath/domain").KnowledgeSearchScope {
+  if (kind === "public" || kind === "personal") {
+    if (workspaceId !== undefined) throw new Error("workspaceId is valid only for workspace scope");
+    return { kind };
+  }
+  if (workspaceId === undefined) throw new Error("workspace scope requires workspaceId");
+  return { kind, workspaceId };
 }

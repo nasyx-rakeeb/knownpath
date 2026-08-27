@@ -22,6 +22,9 @@
   }
 }
 @media (max-width: 980px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+  }
   .hero {
     grid-template-columns: 1fr;
   }

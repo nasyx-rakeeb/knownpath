@@ -4,8 +4,8 @@
 
 Phase 17 provides the developer-facing KnownPath dashboard in `apps/web`. It is not the Phase 18
 platform administration console. Ordinary users can manage their account and agent credentials,
-search published public knowledge, inspect transparent evidence, review their own sanitized
-contributions and outcomes, and configure privacy defaults.
+search authorized public/personal/workspace knowledge, inspect transparent evidence, review their
+own sanitized contributions and outcomes, and configure privacy defaults.
 
 Public registration remains closed. An administrator creates accounts with `pnpm auth:user:create`;
 the dashboard exposes sign-in, password change, and session revocation but no signup, reset, email
@@ -38,15 +38,16 @@ browser's same-origin request. In local development, the dashboard is served at
   list response.
 - Sessions are displayed and revoked by non-secret ID. Better Auth's secret session token never
   enters a dashboard response.
-- Normal session search is fixed to published public KnownPaths. Review/private/team data is not
-  available through the dashboard search surface.
+- Search defaults to published public KnownPaths. Personal and workspace scopes are explicit and
+  backend-authorized; review data remains unavailable through the ordinary dashboard.
 
 ## Routes
 
 - `/` product explanation and truthful evidence-flow preview
 - `/sign-in` closed-registration email/password sign-in
 - `/app` 30-day activity summary
-- `/app/explore` structured public KnownPath retrieval
+- `/app/explore` structured public, personal, and workspace KnownPath retrieval
+- `/app/workspaces` existing-user invitations, roles, defaults, and workspace-key management
 - `/app/known-paths/[id]` applicability, steps, caveats, trust, freshness, outcomes, and provenance
 - `/app/api-keys` issue, list, rotate, revoke, and one-time secret reveal
 - `/app/install` client-side platform guidance for `npx knownpath install`

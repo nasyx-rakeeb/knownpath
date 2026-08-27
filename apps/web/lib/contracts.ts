@@ -4,7 +4,10 @@ import {
   adminListResponseSchema,
   adminOverviewResponseSchema,
   adminPrivateRevealResponseSchema,
+  apiKeyBindingSchema,
   apiKeyScopeSchema,
+  workspaceDetailResponseSchema,
+  workspaceListResponseSchema,
 } from "@knownpath/domain";
 import { z } from "zod";
 
@@ -23,6 +26,7 @@ export const accountSchema = z.strictObject({
       keyId: z.uuidv4(),
       prefix: z.string(),
       scopes: z.array(z.string()),
+      binding: apiKeyBindingSchema,
     }),
   ]),
 });
@@ -33,6 +37,7 @@ export const apiKeyMetadataSchema = z.strictObject({
   prefix: z.string(),
   scopes: z.array(apiKeyScopeSchema),
   status: z.enum(["active", "revoked", "expired"]),
+  binding: apiKeyBindingSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
   lastUsedAt: z.iso.datetime().optional(),
@@ -52,12 +57,16 @@ export const contributionSettingsSchema = z.strictObject({
 
 export type Account = z.infer<typeof accountSchema>;
 export type ApiKeyMetadata = z.infer<typeof apiKeyMetadataSchema>;
+export type WorkspaceList = z.infer<typeof workspaceListResponseSchema>;
+export type WorkspaceDetail = z.infer<typeof workspaceDetailResponseSchema>;
 export {
   adminCanonicalPreviewResponseSchema,
   adminDetailResponseSchema,
   adminListResponseSchema,
   adminOverviewResponseSchema,
   adminPrivateRevealResponseSchema,
+  workspaceDetailResponseSchema,
+  workspaceListResponseSchema,
 };
 export type AdminOverview = z.infer<typeof adminOverviewResponseSchema>;
 export type AdminList = z.infer<typeof adminListResponseSchema>;

@@ -25,7 +25,15 @@ export class Authenticator {
         throw new AuthenticationError("The Authorization header is malformed");
       }
       const verified = await this.apiKeys.verify(match[1]!);
-      return { kind: "api_key", key: verified.key, user: verified.user };
+      return {
+        kind: "api_key",
+        key: verified.key,
+        user: verified.user,
+        ...(verified.workspace === undefined ? {} : { workspace: verified.workspace }),
+        ...(verified.workspaceMembership === undefined
+          ? {}
+          : { workspaceMembership: verified.workspaceMembership }),
+      };
     }
 
     const session = await this.auth.api.getSession({ headers });

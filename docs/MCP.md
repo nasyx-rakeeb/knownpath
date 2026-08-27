@@ -50,12 +50,14 @@ selection is never counted as a successful outcome.
 
 `includeReview` always defaults to `false`. It succeeds only for an active administrator-owned API
 key with `knowledge:read`, and every permitted review read uses the existing audit boundary. Normal
-keys cannot receive review records. Retrieval cannot request private/team records.
+keys cannot receive review records. Search/get/alternatives accept an explicit public, personal, or
+workspace scope. Workspace access requires a live membership and matching workspace-bound key;
+tenant retrieval disables public-provider semantics and never falls back to another scope.
 
 `knownpath_contribute` requires `knowledge:contribute`, explicit consent, and a UUID
-`clientSubmissionId`. It accepts public or owner-private lessons and rejects team visibility.
-Private data never uses an unpaid/public provider. The response is a receipt for low-trust
-self-reported evidence, not publication or proof.
+`clientSubmissionId`. It accepts public or owner-private lessons; team visibility requires a
+matching workspace-bound key and explicit `workspaceId`. Private data never uses an unpaid/public
+provider. The response is a receipt for low-trust self-reported evidence, not publication or proof.
 
 `knownpath_report_outcome` requires `knowledge:outcome` plus the normal MCP `knowledge:read` scope.
 It accepts one KnownPath/execution result, bounded environment/version metadata, and an optional

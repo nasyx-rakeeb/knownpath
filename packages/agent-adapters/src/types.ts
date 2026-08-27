@@ -42,6 +42,8 @@ export interface AgentInstallationStatus {
   readonly skill: ComponentState;
   readonly skillPath: string;
   readonly version?: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
 }
 
 export interface DoctorCheck {
@@ -69,6 +71,8 @@ export interface InstallerRequest {
   readonly projectDirectory?: string;
   readonly scope?: InstallationScope;
   readonly skillSourceDirectory: string;
+  readonly profileName?: string;
+  readonly expectedWorkspaceId?: string;
 }
 
 export interface CommandResult {
