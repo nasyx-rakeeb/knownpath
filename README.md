@@ -286,6 +286,7 @@ packages/
   verification/    Deterministic evidence verification and immutable seed scoring
   search/          Embeddings, search projections, hybrid retrieval, and explainable ranking
   mcp/             Shared MCP tool contracts, projections, server factory, and HTTP gateway
+  observability/   Manual OpenTelemetry traces/metrics with a privacy-safe attribute vocabulary
   typescript-config/ Shared strict compiler configurations
 skills/
   knownpath/        Portable Agent Skill instructions and on-demand examples
@@ -295,6 +296,8 @@ See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL
 [contribution privacy guide](docs/CONTRIBUTIONS.md), [retrieval guide](docs/RETRIEVAL.md),
 [Knowledge HTTP API guide](docs/API.md), [MCP guide](docs/MCP.md),
 [Agent Skill guide](docs/AGENT_SKILL.md), [installer guide](docs/INSTALLER.md),
+[security architecture](docs/SECURITY_ARCHITECTURE.md),
+[security operations](docs/SECURITY_OPERATIONS.md), [observability guide](docs/OBSERVABILITY.md),
 [deployment guide](docs/DEPLOYMENT.md), [decision log](docs/DECISIONS.md), and
 [phase progress](progress.md) for the current boundaries and delivery status.
 

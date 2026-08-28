@@ -133,6 +133,9 @@ values.
 
 - Existing config files are backed up beside the original as `*.knownpath-backup-<timestamp>` before
   mutation. Writes are atomic and retain restrictive file permissions.
+- Managed source/config/state/destination paths must be absolute regular files/directories. The
+  installer rejects symbolic-link components, symbolic links inside the canonical skill, NUL paths,
+  and non-regular targets. Temporary files use exclusive creation plus no-follow semantics.
 - Unknown config fields and JSONC comments remain intact. The installer never rewrites a complete
   user configuration from a generated template.
 - A pre-existing non-owned `knownpath` MCP entry or changed installer-owned artifact is a conflict.

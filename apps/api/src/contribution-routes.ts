@@ -17,6 +17,7 @@ import {
 } from "@knownpath/domain";
 import type { ContributionService, PublicKnowledgeShareService } from "@knownpath/contributions";
 import type { KnownPathDatabase } from "@knownpath/database";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import type { JobProducer } from "@knownpath/jobs";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -49,7 +50,7 @@ export function registerContributionRoutes(
   api.post(
     "/api/v1/contributions",
     {
-      bodyLimit: 48 * 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.contribution,
       schema: {
         tags: ["contributions"],
         summary: "Submit a privacy-minimized generalized experience",
@@ -214,7 +215,7 @@ export function registerContributionRoutes(
   api.patch(
     "/api/v1/account/contribution-settings",
     {
-      bodyLimit: 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.dashboardMutation,
       schema: {
         tags: ["account"],
         summary: "Update contribution privacy settings",
@@ -248,7 +249,7 @@ export function registerContributionRoutes(
     api.post(
       "/api/v1/known-paths/:id/share-public",
       {
-        bodyLimit: 48 * 1_024,
+        bodyLimit: SECURITY_LIMITS.payloadBytes.contribution,
         schema: {
           tags: ["contributions"],
           summary: "Create a sanitized public contribution from private or workspace knowledge",

@@ -1,5 +1,6 @@
 import type { SourceIngestionConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
+import { recordIngestionItems } from "@knownpath/observability";
 import { type IngestionCounters, type IngestionRun, type SourceRegistry } from "@knownpath/domain";
 
 import { discoverOfficialSource } from "./discovery.js";
@@ -178,6 +179,7 @@ export class OfficialSourceIngestionService {
       });
       throw error;
     } finally {
+      recordCounters(counters);
       this.activeCounters = undefined;
     }
   }
@@ -210,6 +212,7 @@ export class OfficialSourceIngestionService {
         const result = await this.http.getText(candidate.fetchUrl, {
           allowedContentTypes: ["text/markdown", "text/plain"],
           allowedOrigins: source.allowedOrigins,
+          allowedPathPrefixes: source.allowedPathPrefixes,
           ...(state === null ? {} : { validators: validatorsFromState(state) }),
         });
         if (result.notModified) {
@@ -358,6 +361,12 @@ export class OfficialSourceIngestionService {
 
 function createCounters(): MutableCounters {
   return { discovered: 0, created: 0, updated: 0, unchanged: 0, failed: 0, rateLimited: 0 };
+}
+
+function recordCounters(counters: IngestionCounters): void {
+  for (const state of ["discovered", "created", "updated", "unchanged", "failed"] as const) {
+    recordIngestionItems("official_docs", state, counters[state]);
+  }
 }
 
 function isRetryable(error: unknown): boolean {

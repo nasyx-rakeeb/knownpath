@@ -147,8 +147,8 @@ export function createKnownPathAuth(
       "/delete-user",
     ],
     rateLimit: {
-      enabled: true,
-      storage: "memory",
+      // Fastify applies the centralized Valkey-backed policy before Better Auth.
+      enabled: false,
     },
     // Fastify owns structured request logging and applies credential redaction.
     logger: { disabled: true },

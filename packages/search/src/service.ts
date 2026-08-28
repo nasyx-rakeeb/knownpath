@@ -44,6 +44,10 @@ export class RetrievalService {
     private readonly options: RetrievalServiceOptions,
   ) {}
 
+  public backendName(): "atlas" | "local" {
+    return this.options.backend;
+  }
+
   public async search(input: unknown): Promise<RetrievalResponse> {
     const query = retrievalQuerySchema.parse(input);
     const normalized = normalizeRetrievalQuery({

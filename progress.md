@@ -2826,3 +2826,157 @@ and user/security behavior is documented in [`docs/WORKSPACES.md`](docs/WORKSPAC
 
 **Phase 20 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt. Do not infer or begin Phase 20 from Phase 19.**
+
+## Phase 20 — Security hardening and provider-neutral observability
+
+### Phase goal
+
+Harden KnownPath's public API, MCP, tenant, ingestion, AI, contribution/outcome, administration,
+installer, and deployment boundaries for real open-source operation. Add distributed production
+abuse controls, SSRF-safe ingestion, privacy-bounded OpenTelemetry signals, dependency protections,
+and actionable incident/credential-rotation guidance without adding a paid monitoring dependency.
+
+### Research performed and official references consulted
+
+Current official guidance was checked on 2026-08-28 before implementation:
+
+- OWASP [API Security Top 10](https://owasp.org/API-Security/),
+  [MCP Security](https://cheatsheetseries.owasp.org/cheatsheets/MCP_Security_Cheat_Sheet.html),
+  [RAG Security](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html),
+  [LLM Prompt Injection Prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html),
+  [SSRF Prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html),
+  [Secrets Management](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html),
+  [Logging](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html), and npm
+  security guidance for the reviewed threat and supply-chain boundaries.
+- Current MCP 2026-07-28
+  [security best practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)
+  for confused-deputy, token handling, session, local-server, and input-validation controls.
+- Fastify and `@fastify/rate-limit` current documentation for bounded server timeouts, per-route
+  policies, Redis-backed distributed counters, and fail-closed store behavior.
+- Node.js DNS and Undici documentation for resolving all A/AAAA results, supplying a validated
+  connection lookup, bounding requests, and manually revalidating redirects.
+- OpenTelemetry JavaScript
+  [instrumentation](https://opentelemetry.io/docs/languages/js/instrumentation/),
+  [exporters](https://opentelemetry.io/docs/languages/js/exporters/), OTLP, and
+  [sensitive-data handling](https://opentelemetry.io/docs/security/handling-sensitive-data/) for
+  explicit trace/metric instrumentation and an operator-owned collector path.
+- GitHub official [Dependabot](https://docs.github.com/en/code-security/dependabot),
+  [dependency review](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review),
+  and
+  [CodeQL](https://docs.github.com/en/code-security/code-scanning/introduction-to-code-scanning/about-code-scanning-with-codeql)
+  documentation for free repository security automation. `agent-reach check-update` confirmed the
+  research helper was current at v1.5.0.
+
+### Security, architecture, and technology decisions
+
+- Production request limiting is Valkey-backed through `@fastify/rate-limit`; startup requires
+  `API_RATE_LIMIT_STORE=valkey`, a configured reachable `QUEUE_REDIS_URL`, and never falls back to
+  process memory. In-memory limiting requires an explicit development setting. Bearer subjects are
+  HMAC digests, not credentials.
+- Added understandable cost classes for sign-in, key mutation, search/read, contributions, outcomes,
+  MCP mutations, provider-backed semantic work, and admin reads/sensitive actions. The existing
+  BullMQ limiters remain the external GitHub/docs/Gemini workload boundary.
+- Centralized Fastify payload/connection/request/keep-alive/parameter limits, strict origin checks
+  for cookie mutations, exact CORS, production security headers, safe error envelopes, request-ID
+  correlation, and redacted Pino serializers. Logged request URLs exclude query strings.
+- Official-source requests now require an exact HTTPS origin, standard port, and canonical path
+  prefix; reject literal private IPs; resolve and validate every DNS answer; pin the validated
+  address into Undici; and revalidate every redirect. SSRF denials do not retry.
+- Added `@knownpath/observability` with explicit manual HTTP, MCP, search/DB, queue, ingestion,
+  provider, contribution, outcome, security, and dependency instruments. Optional console/OTLP
+  export has a fixed low-cardinality vocabulary. Automatic resource/framework instrumentation is
+  disabled so telemetry cannot capture queries, content, URLs, IDs, host IDs, process arguments,
+  user paths, or credentials.
+- Kept Pino as the structured log pipeline and correlated it with request/trace/span IDs. Arbitrary
+  exception messages and stacks are excluded from production error logging. MCP output neutralizes
+  instruction-like markup and invisible control/bidirectional characters before returning untrusted
+  evidence.
+- Installer writes now require absolute NUL-free paths, reject symlink path components and symlinked
+  skill contents, require expected regular file/directory types, use exclusive no-follow temporary
+  files with restrictive modes, and retain the existing backup/owned-only semantics.
+- Added SHA-pinned CodeQL, dependency-review, and audit workflows plus Dependabot and the root
+  `security:audit` command. MongoDB remains product state; Valkey remains ephemeral security/queue
+  infrastructure; OpenTelemetry export remains optional.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-28-knownpath-phase-20-security-observability-design.md`](docs/superpowers/specs/2026-08-28-knownpath-phase-20-security-observability-design.md).
+The full threat model, observability contract, incident response, and rotation procedures are in
+[`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md),
+[`docs/OBSERVABILITY.md`](docs/OBSERVABILITY.md), and
+[`docs/SECURITY_OPERATIONS.md`](docs/SECURITY_OPERATIONS.md).
+
+### Files/packages and boundaries created
+
+- Added `packages/observability` and integrated its bounded manual signals into the API, MCP,
+  retrieval, jobs, ingestion, Gemini/GitHub clients, contributions, and outcomes.
+- Added centralized security configuration/redaction constants, a reusable Valkey abuse gate,
+  distributed Fastify rate limiting, provider-heavy search gates, critical/degraded readiness, and
+  explicit OpenTelemetry environment configuration.
+- Hardened official-source registry validation/fetching, MCP result projection and tool limits,
+  admin route policies, API logging/errors/headers/origins/timeouts, and installer filesystem
+  mutation helpers.
+- Added `.github/dependabot.yml`, CodeQL, dependency-review, and dependency-audit workflows;
+  `SECURITY.md`; `docs/SECURITY_ARCHITECTURE.md`; `docs/SECURITY_OPERATIONS.md`; and
+  `docs/OBSERVABILITY.md`. Updated environment, deployment, API, MCP, ingestion, installer,
+  operations, architecture, decisions, and README guidance.
+- During real official-client verification, fixed the MCP outcome input boundary to use an ISO
+  timestamp input schema rather than exposing an internal `Date` union that current JSON Schema
+  cannot represent. No tests were added.
+
+### Commands and behavior successfully verified
+
+- Dependency installation completed with pnpm. Final `pnpm typecheck` completed **43/43**,
+  `pnpm lint` completed **24/24**, `pnpm build` completed **24/24**, `pnpm format:check` passed,
+  `git diff --check` passed, and `pnpm security:audit` reported `No known vulnerabilities found`.
+- Production configuration with `API_RATE_LIMIT_STORE=memory` failed clearly before startup.
+  Production Valkey mode without `QUEUE_REDIS_URL` also failed clearly before startup. Explicit
+  local-memory mode booted against the configured Atlas database, returned live `200`, and returned
+  readiness `200` with `status=degraded`, MongoDB/auth `ok`, rate limiter `development_memory`, and
+  queues `disabled`.
+- With a two-request local policy, the third request returned the stable `429 rate_limit_exceeded`
+  envelope. A query containing a fake secret was logged only as `/health/live`; the fake value was
+  absent. SIGINT produced the graceful shutdown event.
+- A direct literal-loopback official-source request passed the configured origin/path allowlist but
+  was denied as `KNOWNPATH_SSRF_DENIED`, confirming the network-address boundary is independent of
+  registry allowlisting.
+- A temporary, expiring, admin-owned `knowledge:read` key was created through the real service,
+  exercised with the official MCP Streamable HTTP client, and revoked in cleanup. A real
+  `knownpath_search` returned one compact content block under the modern protocol and produced five
+  HTTP spans plus one `knownpath.mcp.search` and one nested `knownpath.db.knowledge_search` span.
+- The captured log/console telemetry contained neither the temporary key, fake query secret, search
+  text, MongoDB URI, Authorization field, host ID, process arguments/path, nor operating-system
+  user. Installer `atomicWrite` denied a configuration path containing a symlink. Temporary API
+  services stopped and the verification key was revoked.
+
+### Environment and manual setup still required
+
+- Deploy this Phase 20 commit before treating the new production controls as active. The current
+  Render readiness URL returned no bytes before a 60-second probe timeout on 2026-08-28, so hosted
+  Valkey rate limiting/readiness was not claimed as verified in this phase.
+- Render must retain `API_RATE_LIMIT_STORE=valkey`, the existing TLS `QUEUE_REDIS_URL`, production
+  HTTPS auth/CORS settings, and distinct auth/key secrets. Confirm `/health/ready` reports the
+  critical rate limiter `ok` after deployment. The worker/scheduled action continues using the same
+  Valkey endpoint for ephemeral BullMQ state.
+- OTLP export is optional and was verified with the console exporter only. Operators who enable
+  `OTEL_EXPORTER=otlp` must supply their own collector endpoint, transport security, retention, and
+  access policy, then verify trace/metric receipt without loosening the telemetry privacy contract.
+- Enable GitHub security features supported by the repository plan so dependency review, CodeQL,
+  Dependabot, and private vulnerability reporting can run. Rotate credentials using the documented
+  runbook; no credential values are committed.
+
+### Known limitations intentionally left for later phases
+
+- There is no WAF, automatic account-risk fingerprinting, SIEM, paid monitoring dependency, keychain
+  installer integration, or automatic incident remediation. Abuse controls intentionally use
+  explicit account/key/IP and durable domain signals rather than invasive opaque tracking.
+- OpenTelemetry JavaScript logs remain developmental, so Pino is intentionally retained. Collector
+  availability is not a product-readiness dependency and telemetry can be dropped during an exporter
+  outage; product/audit state remains in MongoDB.
+- Private/team data remains blocked from public Gemini/embedding providers. No private provider,
+  tenant vector retrieval, or cross-scope aggregation was introduced. No tests were added by
+  explicit phase rule.
+
+### Exact next phase
+
+**Phase 21 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt. Do not infer or begin Phase 21 from Phase 20.**

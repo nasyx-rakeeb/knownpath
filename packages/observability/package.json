@@ -1,8 +1,8 @@
 {
-  "name": "@knownpath/ai",
+  "name": "@knownpath/observability",
   "version": "0.0.0",
   "private": true,
-  "description": "Provider-neutral AI extraction boundary for KnownPath.",
+  "description": "Provider-neutral OpenTelemetry boundary and safe KnownPath telemetry instruments.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -21,11 +21,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@google/genai": "catalog:",
-    "@knownpath/database": "workspace:*",
-    "@knownpath/domain": "workspace:*",
-    "@knownpath/observability": "workspace:*",
-    "zod": "catalog:"
+    "@opentelemetry/api": "catalog:",
+    "@opentelemetry/exporter-metrics-otlp-http": "catalog:",
+    "@opentelemetry/exporter-trace-otlp-http": "catalog:",
+    "@opentelemetry/resources": "catalog:",
+    "@opentelemetry/sdk-metrics": "catalog:",
+    "@opentelemetry/sdk-node": "catalog:",
+    "@opentelemetry/sdk-trace-node": "catalog:",
+    "@opentelemetry/semantic-conventions": "catalog:"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

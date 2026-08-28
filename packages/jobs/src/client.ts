@@ -2,16 +2,62 @@ import { createIORedisClient, Queue, type IRedisClient } from "bullmq";
 import { Redis } from "ioredis";
 
 import type { QueueConfig } from "@knownpath/config";
+import type { AbuseRateGate } from "@knownpath/auth";
 import type { PipelineQueueName } from "@knownpath/domain";
+import { recordQueueDepth } from "@knownpath/observability";
 
 export function createValkeyConnection(redisUrl: string, worker = false): IRedisClient {
+  return createIORedisClient(createValkeyClient(redisUrl, worker));
+}
+
+export function createValkeyClient(redisUrl: string, worker = false): Redis {
   const client = new Redis(redisUrl, {
     enableReadyCheck: true,
     lazyConnect: true,
     maxRetriesPerRequest: worker ? null : 1,
   });
   client.on("error", () => undefined);
-  return createIORedisClient(client);
+  return client;
+}
+
+export class ValkeyAbuseRateGate implements AbuseRateGate {
+  public constructor(
+    private readonly client: Redis,
+    private readonly prefix: string,
+    private readonly timeoutMs: number,
+  ) {}
+
+  public async consume(input: {
+    readonly key: string;
+    readonly max: number;
+    readonly namespace: "admin" | "ai" | "contribution" | "mcp" | "outcome";
+    readonly windowMs: number;
+  }): Promise<{ readonly allowed: boolean; readonly retryAfterMs: number }> {
+    const key = `${this.prefix}:abuse:${input.namespace}:${input.key}`;
+    const result = await withTimeout(
+      this.client.eval(
+        "local value = redis.call('INCR', KEYS[1]); if value == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); end; return {value, redis.call('PTTL', KEYS[1])}",
+        1,
+        key,
+        String(input.windowMs),
+      ),
+      this.timeoutMs,
+    );
+    const values = Array.isArray(result) ? result : [];
+    const count = Number(values[0] ?? input.max + 1);
+    const retryAfterMs = Math.max(1, Number(values[1] ?? input.windowMs));
+    return { allowed: count <= input.max, retryAfterMs };
+  }
+
+  public async probe(): Promise<"ok" | "unavailable"> {
+    try {
+      return (await withTimeout(this.client.ping(), this.timeoutMs)) === "PONG"
+        ? "ok"
+        : "unavailable";
+    } catch {
+      return "unavailable";
+    }
+  }
 }
 
 export class QueueRegistry {
@@ -58,6 +104,9 @@ export class QueueRegistry {
         "waiting",
         "waiting-children",
       );
+      for (const state of ["active", "delayed", "failed", "waiting"] as const) {
+        recordQueueDepth(name, state, output[name][state] ?? 0);
+      }
     }
     return output;
   }

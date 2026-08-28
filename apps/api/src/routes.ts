@@ -3,12 +3,14 @@ import {
   requireAdmin,
   requireSession,
   type ApiKeyService,
+  type AbuseRateGate,
   type Authenticator,
   type RateLimitPolicy,
 } from "@knownpath/auth";
 import type { KnownPathDatabase } from "@knownpath/database";
 import type { QueueRegistry } from "@knownpath/jobs";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { recordDependencyCheck } from "@knownpath/observability";
 import { z } from "zod";
 
 import {
@@ -62,6 +64,8 @@ export function registerSystemRoutes(
   api: FastifyInstance,
   database: KnownPathDatabase,
   queues?: QueueRegistry,
+  rateLimiter?: AbuseRateGate,
+  rateLimitStore: "memory" | "valkey" = "memory",
 ): void {
   api.get(
     "/health/live",
@@ -75,17 +79,40 @@ export function registerSystemRoutes(
     async (_request, reply) => {
       try {
         await database.ping();
+        recordDependencyCheck("mongodb", "ok");
+        const limiterStatus =
+          rateLimitStore === "memory" ? "development_memory" : await rateLimiter?.probe();
+        if (rateLimitStore === "valkey" && limiterStatus !== "ok") {
+          recordDependencyCheck("rate_limiter", "unavailable");
+          return reply.status(503).send({
+            service: "knownpath-api",
+            status: "not_ready",
+            components: {
+              mongodb: "ok",
+              auth: "ok",
+              rateLimiter: "unavailable",
+              queues: queues === undefined ? "disabled" : "unknown",
+            },
+          });
+        }
+        recordDependencyCheck("rate_limiter", "ok");
         const queueStatus = queues === undefined ? "disabled" : await queues.probe();
+        recordDependencyCheck(
+          "queue",
+          queueStatus === "ok" ? "ok" : queueStatus === "disabled" ? "degraded" : "unavailable",
+        );
         return {
           service: "knownpath-api",
-          status: "ready",
+          status: queueStatus === "ok" ? "ready" : "degraded",
           components: {
             mongodb: "ok",
             auth: "ok",
+            rateLimiter: limiterStatus,
             queues: queueStatus,
           },
         };
       } catch {
+        recordDependencyCheck("mongodb", "unavailable");
         return reply.status(503).send({
           service: "knownpath-api",
           status: "not_ready",

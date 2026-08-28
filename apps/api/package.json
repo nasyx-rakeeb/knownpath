@@ -26,10 +26,12 @@
     "@knownpath/domain": "workspace:*",
     "@knownpath/mcp": "workspace:*",
     "@knownpath/jobs": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "@knownpath/outcomes": "workspace:*",
     "@knownpath/search": "workspace:*",
     "@knownpath/workspaces": "workspace:*",
     "@modelcontextprotocol/node": "catalog:",
+    "ioredis": "catalog:",
     "fastify": "catalog:",
     "fastify-type-provider-zod": "catalog:",
     "zod": "catalog:"

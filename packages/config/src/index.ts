@@ -37,13 +37,60 @@ const commaSeparatedUrlsSchema = z
 
 const secretSchema = z.string().min(32, "must contain at least 32 characters");
 
+export const SECURITY_LIMITS = Object.freeze({
+  payloadBytes: {
+    adminMutation: 16 * 1_024,
+    contribution: 48 * 1_024,
+    dashboardMutation: 4 * 1_024,
+    knowledgeSearch: 32 * 1_024,
+    knowledgeUsage: 4 * 1_024,
+    mcp: 64 * 1_024,
+    outcome: 24 * 1_024,
+    workspaceMutation: 4 * 1_024,
+  },
+  mcp: {
+    maxContextCharacters: 16_000,
+    maxResponseBytes: 262_144,
+    requestTimeoutMs: 30_000,
+  },
+} as const);
+
+export const CREDENTIAL_REDACTION_PATHS = Object.freeze([
+  "req.headers.authorization",
+  "req.headers.cookie",
+  "req.headers.x-api-key",
+  "res.headers.set-cookie",
+  "authorization",
+  "cookie",
+  "password",
+  "*.password",
+  "*.*.password",
+  "token",
+  "*.token",
+  "*.*.token",
+  "secret",
+  "*.secret",
+  "*.*.secret",
+  "plaintext",
+  "*.plaintext",
+  "apiKey",
+  "*.apiKey",
+  "headers.authorization",
+] as const);
+
 const apiEnvironmentSchema = z.object({
   API_HOST: z.string().trim().min(1).default("127.0.0.1"),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
   API_CORS_ORIGINS: commaSeparatedUrlsSchema,
   API_DOCS_ENABLED: booleanEnvironmentSchema.default(true),
+  API_BODY_LIMIT_BYTES: z.coerce.number().int().min(1_024).max(1_048_576).default(65_536),
+  API_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(10_000),
+  API_KEEP_ALIVE_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(72_000),
+  API_MAX_PARAM_LENGTH: z.coerce.number().int().min(64).max(8_192).default(512),
   API_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100_000).default(300),
+  API_RATE_LIMIT_STORE: z.enum(["memory", "valkey"]),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1_000).max(3_600_000).default(60_000),
+  API_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(120_000).default(30_000),
   API_TRUST_PROXY: z.string().trim().default("false"),
   LOG_LEVEL: logLevelSchema,
   NODE_ENV: runtimeModeSchema,
@@ -83,6 +130,18 @@ const mongoEnvironmentSchema = z.object({
 
 const runtimeEnvironmentSchema = z.object({
   LOG_LEVEL: logLevelSchema,
+});
+
+const observabilityEnvironmentSchema = z.object({
+  OTEL_ENABLED: booleanEnvironmentSchema.default(false),
+  OTEL_EXPORTER: z.enum(["none", "console", "otlp"]).default("none"),
+  OTEL_EXPORTER_OTLP_ENDPOINT: z.preprocess(
+    (value) => (value === "" || value === undefined ? undefined : value),
+    z.url({ protocol: /^https?$/u }).optional(),
+  ),
+  OTEL_METRIC_EXPORT_INTERVAL_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
+  OTEL_SERVICE_NAME: z.string().trim().min(1).max(128).default("knownpath-api"),
+  OTEL_SERVICE_VERSION: z.string().trim().min(1).max(64).default("0.0.0"),
 });
 
 const optionalSecretEnvironmentSchema = z.preprocess(
@@ -211,13 +270,19 @@ const queueEnvironmentSchema = z.object({
 export type LogLevel = z.infer<typeof logLevelSchema>;
 
 export interface ApiConfig {
+  readonly bodyLimitBytes: number;
+  readonly connectionTimeoutMs: number;
   readonly corsOrigins: readonly string[];
   readonly docsEnabled: boolean;
   readonly host: string;
   readonly logLevel: LogLevel;
   readonly port: number;
+  readonly keepAliveTimeoutMs: number;
+  readonly maxParamLength: number;
   readonly rateLimitMax: number;
+  readonly rateLimitStore: "memory" | "valkey";
   readonly rateLimitWindowMs: number;
+  readonly requestTimeoutMs: number;
   readonly runtimeMode: RuntimeMode;
   readonly trustProxy: false | string[];
 }
@@ -309,6 +374,15 @@ export interface RuntimeConfig {
   readonly logLevel: LogLevel;
 }
 
+export interface ObservabilityConfig {
+  readonly enabled: boolean;
+  readonly exporter: "console" | "none" | "otlp";
+  readonly exportIntervalMs: number;
+  readonly otlpEndpoint?: string;
+  readonly serviceName: string;
+  readonly serviceVersion: string;
+}
+
 export interface QueueConfig {
   readonly redisUrl?: string;
   readonly prefix: string;
@@ -341,14 +415,47 @@ export type RuntimeMode = z.infer<typeof runtimeModeSchema>;
 export function loadApiConfig(environment: NodeJS.ProcessEnv = process.env): ApiConfig {
   const parsed = parseEnvironment(apiEnvironmentSchema, environment);
 
+  if (parsed.NODE_ENV === "production" && parsed.API_RATE_LIMIT_STORE !== "valkey") {
+    throw new Error(
+      "Invalid KnownPath configuration: API_RATE_LIMIT_STORE must be valkey in production",
+    );
+  }
+  if (
+    parsed.API_RATE_LIMIT_STORE === "valkey" &&
+    (environment["QUEUE_REDIS_URL"] === undefined || environment["QUEUE_REDIS_URL"] === "")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: QUEUE_REDIS_URL is required for Valkey rate limiting",
+    );
+  }
+  if (parsed.NODE_ENV === "production" && parsed.API_DOCS_ENABLED) {
+    throw new Error(
+      "Invalid KnownPath configuration: API_DOCS_ENABLED must be false in production",
+    );
+  }
+  if (
+    parsed.NODE_ENV === "production" &&
+    parsed.API_CORS_ORIGINS.some((origin) => new URL(origin).protocol !== "https:")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: API_CORS_ORIGINS must use HTTPS in production",
+    );
+  }
+
   return {
+    bodyLimitBytes: parsed.API_BODY_LIMIT_BYTES,
+    connectionTimeoutMs: parsed.API_CONNECTION_TIMEOUT_MS,
     corsOrigins: parsed.API_CORS_ORIGINS,
     docsEnabled: parsed.API_DOCS_ENABLED,
     host: parsed.API_HOST,
+    keepAliveTimeoutMs: parsed.API_KEEP_ALIVE_TIMEOUT_MS,
     logLevel: parsed.LOG_LEVEL,
     port: parsed.PORT ?? parsed.API_PORT,
+    maxParamLength: parsed.API_MAX_PARAM_LENGTH,
     rateLimitMax: parsed.API_RATE_LIMIT_MAX,
+    rateLimitStore: parsed.API_RATE_LIMIT_STORE,
     rateLimitWindowMs: parsed.API_RATE_LIMIT_WINDOW_MS,
+    requestTimeoutMs: parsed.API_REQUEST_TIMEOUT_MS,
     runtimeMode: parsed.NODE_ENV,
     trustProxy: parseTrustProxy(parsed.API_TRUST_PROXY),
   };
@@ -358,9 +465,34 @@ export function loadAuthConfig(environment: NodeJS.ProcessEnv = process.env): Au
   const parsed = parseEnvironment(authEnvironmentSchema, environment);
   const baseUrl = new URL(parsed.BETTER_AUTH_URL);
 
+  if (
+    baseUrl.username !== "" ||
+    baseUrl.password !== "" ||
+    baseUrl.search !== "" ||
+    baseUrl.hash !== "" ||
+    (baseUrl.pathname !== "" && baseUrl.pathname !== "/")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: BETTER_AUTH_URL must be an origin without credentials, path, query, or fragment",
+    );
+  }
+
   if (parsed.NODE_ENV === "production" && baseUrl.protocol !== "https:") {
     throw new Error(
       "Invalid KnownPath configuration: BETTER_AUTH_URL must use HTTPS in production",
+    );
+  }
+  if (parsed.BETTER_AUTH_SECRET === parsed.API_KEY_PEPPER) {
+    throw new Error(
+      "Invalid KnownPath configuration: BETTER_AUTH_SECRET and API_KEY_PEPPER must differ",
+    );
+  }
+  if (
+    parsed.NODE_ENV === "production" &&
+    parsed.AUTH_TRUSTED_ORIGINS.some((origin) => new URL(origin).protocol !== "https:")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: AUTH_TRUSTED_ORIGINS must use HTTPS in production",
     );
   }
 
@@ -492,6 +624,32 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv = process.env):
 
   return {
     logLevel: parsed.LOG_LEVEL,
+  };
+}
+
+export function loadObservabilityConfig(
+  environment: NodeJS.ProcessEnv = process.env,
+): ObservabilityConfig {
+  const parsed = parseEnvironment(observabilityEnvironmentSchema, environment);
+  if (parsed.OTEL_ENABLED && parsed.OTEL_EXPORTER === "none") {
+    throw new Error(
+      "Invalid KnownPath configuration: OTEL_EXPORTER must be console or otlp when OTEL_ENABLED=true",
+    );
+  }
+  if (parsed.OTEL_EXPORTER === "otlp" && parsed.OTEL_EXPORTER_OTLP_ENDPOINT === undefined) {
+    throw new Error(
+      "Invalid KnownPath configuration: OTEL_EXPORTER_OTLP_ENDPOINT is required for OTLP export",
+    );
+  }
+  return {
+    enabled: parsed.OTEL_ENABLED,
+    exporter: parsed.OTEL_EXPORTER,
+    exportIntervalMs: parsed.OTEL_METRIC_EXPORT_INTERVAL_MS,
+    ...(parsed.OTEL_EXPORTER_OTLP_ENDPOINT === undefined
+      ? {}
+      : { otlpEndpoint: parsed.OTEL_EXPORTER_OTLP_ENDPOINT.replace(/\/$/u, "") }),
+    serviceName: parsed.OTEL_SERVICE_NAME,
+    serviceVersion: parsed.OTEL_SERVICE_VERSION,
   };
 }
 

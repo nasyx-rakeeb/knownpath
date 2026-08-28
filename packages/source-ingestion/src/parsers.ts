@@ -338,7 +338,12 @@ function assertAllowedUrl(
   if (
     url.protocol !== "https:" ||
     !allowedOrigins.includes(url.origin) ||
-    !allowedPathPrefixes.some((prefix) => url.pathname.startsWith(prefix))
+    !allowedPathPrefixes.some(
+      (prefix) =>
+        prefix === "/" ||
+        url.pathname === prefix ||
+        url.pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`),
+    )
   ) {
     throw new Error(
       `Discovered source URL is outside the configured allowlist: ${url.origin}${url.pathname}`,

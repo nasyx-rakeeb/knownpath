@@ -24,6 +24,7 @@
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "@knownpath/source-ingestion": "workspace:*",
     "octokit": "catalog:",
     "zod": "catalog:"

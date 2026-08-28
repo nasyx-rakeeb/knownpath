@@ -1,9 +1,11 @@
 import {
   authorizeScopedKnowledgeRead,
+  type AbuseRateGate,
   type Authenticator,
   type RateLimitPolicy,
 } from "@knownpath/auth";
 import type { KnownPathDatabase } from "@knownpath/database";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import {
   alternativesQuerySchema,
   knowledgeSearchIdParamsSchema,
@@ -17,6 +19,7 @@ import {
   knownPathIdParamsSchema,
 } from "@knownpath/domain";
 import type { KnowledgeAccessService } from "@knownpath/search";
+import { recordSecurityDenial } from "@knownpath/observability";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { errorEnvelopeSchema } from "./schemas.js";
@@ -36,6 +39,7 @@ export interface KnowledgeRateLimitPolicies {
   readonly read: RateLimitPolicy;
   readonly search: RateLimitPolicy;
   readonly usage: RateLimitPolicy;
+  readonly providerHeavy: RateLimitPolicy;
 }
 
 export function registerKnowledgeRoutes(
@@ -44,11 +48,12 @@ export function registerKnowledgeRoutes(
   knowledge: KnowledgeAccessService,
   database: KnownPathDatabase,
   policies: KnowledgeRateLimitPolicies,
+  abuseRateGate?: AbuseRateGate,
 ): void {
   api.post(
     "/api/v1/knowledge/search",
     {
-      bodyLimit: 32 * 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.knowledgeSearch,
       schema: {
         tags: ["knowledge"],
         summary: "Search public KnownPaths",
@@ -75,12 +80,31 @@ export function registerKnowledgeRoutes(
     },
     async (request) => {
       const body = knowledgeSearchRequestSchema.parse(request.body);
+      const principal = await authenticator.authenticate(request.headers);
       const authorization = await authorizeScopedKnowledgeRead(
-        await authenticator.authenticate(request.headers),
+        principal,
         body.scope,
         body.includeReview,
         database,
       );
+      if (body.semanticMode !== "disabled" && abuseRateGate !== undefined) {
+        const subject =
+          principal.kind === "api_key"
+            ? `key:${principal.key._id}`
+            : principal.kind === "session"
+              ? `user:${principal.user._id}`
+              : `ip:${request.ip}`;
+        const decision = await abuseRateGate.consume({
+          key: subject,
+          max: policies.providerHeavy.max,
+          namespace: "ai",
+          windowMs: policies.providerHeavy.timeWindowMs,
+        });
+        if (!decision.allowed) {
+          recordSecurityDenial("abuse_limit", "api");
+          throw rateLimitError(decision.retryAfterMs);
+        }
+      }
       return knowledge.search(body, requestContext(request, authorization));
     },
   );
@@ -157,7 +181,7 @@ export function registerKnowledgeRoutes(
   api.post(
     "/api/v1/knowledge/searches/:searchId/selections",
     {
-      bodyLimit: 4 * 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.knowledgeUsage,
       schema: {
         tags: ["knowledge usage"],
         summary: "Record selection of a search result",
@@ -189,6 +213,16 @@ export function registerKnowledgeRoutes(
       );
     },
   );
+}
+
+function rateLimitError(retryAfterMs: number): Error & { code: string; statusCode: number } {
+  const error = Object.assign(
+    new Error(
+      `Provider-heavy request limit exceeded; retry after ${Math.ceil(retryAfterMs / 1_000)} seconds`,
+    ),
+    { code: "rate_limit_exceeded", statusCode: 429 },
+  );
+  return error;
 }
 
 function requestContext(

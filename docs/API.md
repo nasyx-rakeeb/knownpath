@@ -222,6 +222,12 @@ assessment history, and safety policy.
 
 ## Errors and limits
 
+Production limits are distributed through Valkey. `API_RATE_LIMIT_STORE=memory` is an explicit
+local-development mode and is rejected when `NODE_ENV=production`. Authentication, API-key mutation,
+search/read, contribution, outcome, MCP mutation, and administration use distinct policy classes. A
+production limiter outage returns safe service-unavailable behavior and fails readiness rather than
+falling back to process memory.
+
 Errors retain the stable envelope:
 
 ```json

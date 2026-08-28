@@ -131,6 +131,13 @@ async function proxyAuthRequest(
   if (response.status >= 400) {
     if (response.status >= 500) {
       request.log.error({ authStatus: response.status }, "Authentication provider request failed");
+      return reply.status(503).send({
+        error: {
+          code: "authentication_unavailable",
+          message: "Authentication is temporarily unavailable",
+        },
+        requestId: request.id,
+      });
     }
     const source =
       typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};

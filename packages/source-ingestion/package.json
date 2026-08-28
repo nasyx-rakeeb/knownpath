@@ -24,10 +24,13 @@
     "@knownpath/config": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "fast-xml-parser": "catalog:",
     "html-to-text": "catalog:",
+    "ipaddr.js": "catalog:",
     "marked": "catalog:",
     "robots-parser": "catalog:",
+    "undici": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

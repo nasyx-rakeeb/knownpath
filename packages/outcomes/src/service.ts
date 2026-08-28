@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { KnownPathDatabase } from "@knownpath/database";
+import { recordOutcome } from "@knownpath/observability";
 import {
   CURRENT_SCHEMA_VERSION,
   OUTCOME_CONTRACT_VERSION,
@@ -201,6 +202,7 @@ export class OutcomeService {
     if (stored.outcome === "misleading_or_unsafe")
       queued = await this.queueSafety(stored, knownPath.safetyReview.status, aggregationScope, now);
     const assessment = await this.recompute(request.knownPathId, aggregationScope, now);
+    if (inserted !== null) recordOutcome(stored.outcome);
     return this.receipt(stored, assessment, inserted === null, queued);
   }
 

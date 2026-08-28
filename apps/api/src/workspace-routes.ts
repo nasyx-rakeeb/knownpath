@@ -20,6 +20,7 @@ import {
   workspaceUpdateRequestSchema,
 } from "@knownpath/domain";
 import type { WorkspaceService } from "@knownpath/workspaces";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -76,7 +77,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspaces",
     {
-      bodyLimit: 4_096,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Create a workspace",
@@ -114,7 +115,7 @@ export function registerWorkspaceRoutes(
   api.patch(
     "/api/v1/workspaces/:workspaceId",
     {
-      bodyLimit: 4_096,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Update authorized workspace settings",
@@ -141,7 +142,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspaces/:workspaceId/invitations",
     {
-      bodyLimit: 2_048,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Invite an existing KnownPath user",
@@ -171,7 +172,7 @@ export function registerWorkspaceRoutes(
     api.post(
       `/api/v1/workspace-invitations/:invitationId/${action}`,
       {
-        bodyLimit: 512,
+        bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
         schema: {
           tags: ["workspaces"],
           summary: `${action === "accept" ? "Accept" : "Reject"} an owned workspace invitation`,
@@ -197,7 +198,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspace-invitations/:invitationId/revoke",
     {
-      bodyLimit: 512,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Revoke a pending workspace invitation",
@@ -222,7 +223,7 @@ export function registerWorkspaceRoutes(
   api.patch(
     "/api/v1/workspaces/:workspaceId/members/:userId",
     {
-      bodyLimit: 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Change a workspace member role",
@@ -250,7 +251,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspaces/:workspaceId/members/:userId/remove",
     {
-      bodyLimit: 512,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Remove a workspace member and revoke their workspace keys",
@@ -293,7 +294,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspaces/:workspaceId/api-keys",
     {
-      bodyLimit: 4_096,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Issue a user-owned key bound to one workspace",
@@ -330,7 +331,7 @@ export function registerWorkspaceRoutes(
   api.post(
     "/api/v1/workspaces/:workspaceId/api-keys/:id/revoke",
     {
-      bodyLimit: 512,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.workspaceMutation,
       schema: {
         tags: ["workspaces"],
         summary: "Revoke a workspace-bound API key",

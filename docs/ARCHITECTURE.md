@@ -518,6 +518,24 @@ Only corroborated independent reports, verified moderation, or measurable degrad
 ranking/restriction under explicit policy. Safe API/MCP views disclose detailed aggregate outcomes
 only after three independent accounts. See [`docs/OUTCOMES.md`](OUTCOMES.md).
 
+## Phase 20 security and observability boundary
+
+`@knownpath/observability` contains the only OpenTelemetry SDK/exporter integration and a small
+fixed-vocabulary instrumentation API. Fastify request spans contain MCP tool and MongoDB retrieval
+spans; metrics cover HTTP/MCP, retrieval results, ingestion, queues, providers, contributions,
+outcomes, and dependency state. Pino remains the structured log implementation and adds request and
+trace correlation without logging content-bearing error messages.
+
+Valkey now serves both BullMQ coordination and distributed Fastify/MCP abuse controls. These uses
+remain ephemeral and namespaced. MongoDB remains authoritative. Production startup and readiness
+fail closed if distributed request protection is absent; queue dispatch is optional/degraded because
+durable product intent already exists in MongoDB.
+
+The source-ingestion network boundary resolves every allowed host, rejects any non-global A/AAAA
+answer, pins the validated lookup into the HTTP connection, and repeats URL policy checks on every
+manual redirect. See [`SECURITY_ARCHITECTURE.md`](SECURITY_ARCHITECTURE.md) and
+[`OBSERVABILITY.md`](OBSERVABILITY.md).
+
 ## Technology fit
 
 - Node.js 24 is the current Active LTS production line and supports the modern ESM baseline.

@@ -1,5 +1,6 @@
 import type { GitHubConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
+import { recordIngestionItems } from "@knownpath/observability";
 import {
   createIngestionRunId,
   createSourceRegistryId,
@@ -222,6 +223,7 @@ export class GitHubIngestionService {
       });
       throw normalized;
     } finally {
+      recordCounters(counters);
       this.activeCounters = undefined;
     }
   }
@@ -425,6 +427,12 @@ interface MutableCounters extends IngestionCounters {
 
 function createCounters(): MutableCounters {
   return { discovered: 0, created: 0, updated: 0, unchanged: 0, failed: 0, rateLimited: 0 };
+}
+
+function recordCounters(counters: IngestionCounters): void {
+  for (const state of ["discovered", "created", "updated", "unchanged", "failed"] as const) {
+    recordIngestionItems("github", state, counters[state]);
+  }
 }
 
 function selectTypes(

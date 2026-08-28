@@ -1,4 +1,5 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
+import { recordProviderEvent } from "@knownpath/observability";
 
 import {
   EmbeddingProviderError,
@@ -75,6 +76,7 @@ function classifyGeminiEmbeddingError(error: unknown): EmbeddingProviderError {
   const status = error instanceof ApiError ? error.status : undefined;
   const message = error instanceof Error ? error.message : "Gemini embedding request failed";
   if (status === 401 || status === 403) {
+    recordProviderEvent("gemini", "authentication");
     return new EmbeddingProviderError(
       "embedding_provider_authentication_failed",
       message,
@@ -83,9 +85,11 @@ function classifyGeminiEmbeddingError(error: unknown): EmbeddingProviderError {
     );
   }
   if (status === 429) {
+    recordProviderEvent("gemini", "quota");
     return new EmbeddingProviderError("embedding_provider_quota_exhausted", message, true, status);
   }
   if (status === 408 || (status !== undefined && status >= 500)) {
+    recordProviderEvent("gemini", "transient_failure");
     return new EmbeddingProviderError(
       "embedding_provider_transient_failure",
       message,
@@ -94,6 +98,7 @@ function classifyGeminiEmbeddingError(error: unknown): EmbeddingProviderError {
     );
   }
   if (status === undefined && error instanceof Error) {
+    recordProviderEvent("gemini", "transient_failure");
     return new EmbeddingProviderError("embedding_provider_transient_failure", message, true);
   }
   return new EmbeddingProviderError("embedding_provider_permanent_failure", message, false, status);

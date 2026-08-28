@@ -8,6 +8,7 @@ import {
 import { outcomeSubmissionRequestSchema, outcomeSubmissionResponseSchema } from "@knownpath/domain";
 import type { OutcomeService } from "@knownpath/outcomes";
 import type { JobProducer } from "@knownpath/jobs";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import type { FastifyInstance } from "fastify";
 
 import { errorEnvelopeSchema } from "./schemas.js";
@@ -35,7 +36,7 @@ export function registerOutcomeRoutes(
   api.post(
     "/api/v1/outcomes",
     {
-      bodyLimit: 24 * 1_024,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.outcome,
       schema: {
         tags: ["outcomes"],
         summary: "Report whether an attempted KnownPath solution helped",
@@ -105,7 +106,7 @@ export function registerOutcomeRoutes(
             });
           } catch {
             request.log.warn(
-              { errorCode: "queue_dispatch_deferred", outcomeId: response.outcomeId },
+              { errorCode: "queue_dispatch_deferred" },
               "outcome stored; aggregate dispatch will be reconciled",
             );
           }

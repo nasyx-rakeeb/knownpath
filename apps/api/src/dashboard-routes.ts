@@ -15,6 +15,7 @@ import {
   searchActivityResponseSchema,
 } from "@knownpath/domain";
 import type { FastifyInstance } from "fastify";
+import { SECURITY_LIMITS } from "@knownpath/config";
 
 import { errorEnvelopeSchema } from "./schemas.js";
 
@@ -107,7 +108,7 @@ export function registerDashboardRoutes(
   api.patch(
     "/api/v1/account/profile",
     {
-      bodyLimit: 2_048,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.dashboardMutation,
       schema: {
         tags: ["account"],
         summary: "Update the current user's display name",
@@ -152,7 +153,7 @@ export function registerDashboardRoutes(
   api.post(
     "/api/v1/account/sessions/:id/revoke",
     {
-      bodyLimit: 512,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.dashboardMutation,
       schema: {
         tags: ["account"],
         summary: "Revoke one owned active session by non-secret ID",

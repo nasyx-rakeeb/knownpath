@@ -5,6 +5,7 @@ import {
   validateAdminConfirmation,
   type AuditService,
   type Authenticator,
+  type RateLimitPolicy,
   type Principal,
 } from "@knownpath/auth";
 import {
@@ -28,6 +29,7 @@ import {
   type AdminSensitiveAction,
   type AuditEventType,
 } from "@knownpath/domain";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
@@ -54,6 +56,7 @@ export function registerAdminRoutes(
   authenticator: Authenticator,
   admin: AdminService,
   audit: AuditService,
+  policies: { readonly read: RateLimitPolicy; readonly sensitive: RateLimitPolicy },
 ): void {
   api.get(
     "/api/v1/admin/overview",
@@ -64,6 +67,7 @@ export function registerAdminRoutes(
         security: [{ cookieSession: [] }],
         response: { 200: adminOverviewResponseSchema, ...protectedErrors },
       },
+      config: rateLimitConfig(policies.read),
     },
     async (request) => {
       const principal = requireAdminCapability(
@@ -86,6 +90,7 @@ export function registerAdminRoutes(
         querystring: adminListQuerySchema,
         response: { 200: adminListResponseSchema, ...protectedErrors },
       },
+      config: rateLimitConfig(policies.read),
     },
     async (request) => {
       const params = resourceParamsSchema.parse(request.params);
@@ -107,6 +112,7 @@ export function registerAdminRoutes(
         params: detailParamsSchema,
         response: { 200: adminDetailResponseSchema, ...protectedErrors },
       },
+      config: rateLimitConfig(policies.read),
     },
     async (request) => {
       const params = detailParamsSchema.parse(request.params);
@@ -128,6 +134,8 @@ export function registerAdminRoutes(
         body: adminPrivateRevealRequestSchema,
         response: { 200: adminPrivateRevealResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminPrivateRevealRequestSchema.parse(request.body);
@@ -158,6 +166,8 @@ export function registerAdminRoutes(
         body: adminModerationRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminModerationRequestSchema.parse(request.body);
@@ -194,6 +204,8 @@ export function registerAdminRoutes(
         body: adminQueueControlRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminQueueControlRequestSchema.parse(request.body);
@@ -225,6 +237,8 @@ export function registerAdminRoutes(
         body: adminJobRetryRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminJobRetryRequestSchema.parse(request.body);
@@ -255,6 +269,8 @@ export function registerAdminRoutes(
         body: adminSourceActionRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminSourceActionRequestSchema.parse(request.body);
@@ -287,6 +303,8 @@ export function registerAdminRoutes(
         body: adminCanonicalPreviewRequestSchema,
         response: { 200: adminCanonicalPreviewResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.read),
     },
     async (request) => {
       requireAdminCapability(
@@ -307,6 +325,8 @@ export function registerAdminRoutes(
         body: adminCanonicalExecuteRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminCanonicalExecuteRequestSchema.parse(request.body);
@@ -339,6 +359,8 @@ export function registerAdminRoutes(
         body: adminUserActionRequestSchema,
         response: { 200: operationResponseSchema, ...protectedErrors },
       },
+      bodyLimit: SECURITY_LIMITS.payloadBytes.adminMutation,
+      config: rateLimitConfig(policies.sensitive),
     },
     async (request) => {
       const input = adminUserActionRequestSchema.parse(request.body);
@@ -359,6 +381,13 @@ export function registerAdminRoutes(
       );
     },
   );
+}
+
+function rateLimitConfig(policy: RateLimitPolicy) {
+  return {
+    knownPathRateLimitPolicy: policy.name,
+    rateLimit: { max: policy.max, timeWindow: policy.timeWindowMs },
+  };
 }
 
 async function sensitive<T>(

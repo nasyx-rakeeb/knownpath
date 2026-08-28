@@ -121,6 +121,8 @@ async function fetchCatalog(
   const result = await http.getText(url, {
     allowedContentTypes,
     allowedOrigins: source.allowedOrigins,
+    allowedPathPrefixes:
+      source.adapter === "documentation_site" ? source.allowedPathPrefixes : ["/"],
     ...(state === null ? {} : { validators: validatorsFromState(state) }),
   });
   const fetchedAt = new Date();

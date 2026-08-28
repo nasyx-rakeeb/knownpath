@@ -1,4 +1,5 @@
 import type { GitHubConfig } from "@knownpath/config";
+import { recordProviderEvent } from "@knownpath/observability";
 import { Octokit, type Octokit as OctokitClient } from "octokit";
 
 import type { GitHubIngestionLogger } from "./types.js";
@@ -34,6 +35,7 @@ export function createGitHubClient(options: CreateGitHubClientOptions): OctokitC
         retryCount: number,
       ) => {
         options.onRateLimited(retryAfter, false);
+        recordProviderEvent("github", "rate_limit");
         logger.warn("GitHub primary rate limit reached", {
           method: requestOptions.method,
           route: requestOptions.url,
@@ -49,6 +51,7 @@ export function createGitHubClient(options: CreateGitHubClientOptions): OctokitC
         retryCount: number,
       ) => {
         options.onRateLimited(retryAfter, true);
+        recordProviderEvent("github", "rate_limit");
         logger.warn("GitHub secondary rate limit reached", {
           method: requestOptions.method,
           route: requestOptions.url,

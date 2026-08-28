@@ -22,8 +22,10 @@
   },
   "dependencies": {
     "@knownpath/config": "workspace:*",
+    "@knownpath/auth": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "bullmq": "catalog:",
     "ioredis": "catalog:",
     "zod": "catalog:"

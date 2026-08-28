@@ -5,6 +5,8 @@ import {
   authorizeOutcomeSubmit,
   requireScope,
   type Principal,
+  type AbuseRateGate,
+  type RateLimitPolicy,
 } from "@knownpath/auth";
 import type { SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
@@ -25,6 +27,7 @@ import type { ContributionSubmissionRequest } from "@knownpath/domain";
 import { authorizeContributionSubmit } from "@knownpath/auth";
 import type { AuditService } from "@knownpath/auth";
 import { OutcomeError, type OutcomeService } from "@knownpath/outcomes";
+import { recordMcpTool, recordSecurityDenial, withSpan } from "@knownpath/observability";
 
 export interface ServiceKnowledgeMcpGatewayOptions {
   readonly database: KnownPathDatabase;
@@ -36,14 +39,18 @@ export interface ServiceKnowledgeMcpGatewayOptions {
   readonly contributions: ContributionService;
   readonly audit: AuditService;
   readonly outcomes: OutcomeService;
+  readonly abuseRateGate?: AbuseRateGate;
+  readonly mutationRateLimitPolicy: RateLimitPolicy;
+  readonly providerRateLimitPolicy: RateLimitPolicy;
 }
 
 export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   public constructor(private readonly options: ServiceKnowledgeMcpGatewayOptions) {}
 
   public search(input: KnowledgeSearchRequest, signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("search", async () => {
       throwIfAborted(signal);
+      if (input.semanticMode !== "disabled") await this.enforceProviderLimit();
       const authorization = await authorizeScopedKnowledgeRead(
         this.options.principal,
         input.scope,
@@ -57,7 +64,7 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   }
 
   public get(input: KnownPathMcpGetInput, signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("get", async () => {
       throwIfAborted(signal);
       const authorization = await authorizeScopedKnowledgeRead(
         this.options.principal,
@@ -77,7 +84,7 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   }
 
   public alternatives(input: KnownPathMcpAlternativesInput, signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("alternatives", async () => {
       throwIfAborted(signal);
       const authorization = await authorizeScopedKnowledgeRead(
         this.options.principal,
@@ -97,7 +104,7 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   }
 
   public status(signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("status", async () => {
       throwIfAborted(signal);
       requireScope(this.options.principal, "knowledge:read");
       const principal = this.options.principal;
@@ -141,8 +148,9 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   }
 
   public contribute(input: ContributionSubmissionRequest, signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("contribute", async () => {
       throwIfAborted(signal);
+      await this.enforceMutationLimit();
       const principal = authorizeContributionSubmit(this.options.principal);
       let result: ContributionSubmissionResult;
       try {
@@ -191,8 +199,9 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
   }
 
   public reportOutcome(input: OutcomeSubmissionRequest, signal: AbortSignal) {
-    return this.safe(async () => {
+    return this.safe("outcome", async () => {
       throwIfAborted(signal);
+      await this.enforceMutationLimit();
       const principal = authorizeOutcomeSubmit(this.options.principal);
       const scope = input.scope;
       const access = await authorizeScopedKnowledgeRead(
@@ -275,10 +284,17 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
     };
   }
 
-  private async safe<Output>(action: () => Promise<Output>): Promise<Output> {
+  private async safe<Output>(
+    tool: "alternatives" | "contribute" | "get" | "outcome" | "search" | "status",
+    action: () => Promise<Output>,
+  ): Promise<Output> {
+    const startedAt = performance.now();
     try {
-      return await action();
+      const result = await withSpan(`knownpath.mcp.${tool}`, { "mcp.tool.name": tool }, action);
+      recordMcpTool({ durationMs: performance.now() - startedAt, outcome: "success", tool });
+      return result;
     } catch (error) {
+      recordMcpTool({ durationMs: performance.now() - startedAt, outcome: "error", tool });
       if (error instanceof McpGatewayError) throw error;
       if (error instanceof AuthenticationError) {
         throw new McpGatewayError("authentication_required", error.message);
@@ -319,6 +335,40 @@ export class ServiceKnowledgeMcpGateway implements KnowledgeMcpGateway {
         );
       }
       throw new McpGatewayError("internal_error", "KnownPath could not complete the request");
+    }
+  }
+
+  private async enforceMutationLimit(): Promise<void> {
+    if (this.options.abuseRateGate === undefined) return;
+    const result = await this.options.abuseRateGate.consume({
+      key: this.options.principal.key._id,
+      max: this.options.mutationRateLimitPolicy.max,
+      namespace: "mcp",
+      windowMs: this.options.mutationRateLimitPolicy.timeWindowMs,
+    });
+    if (!result.allowed) {
+      recordSecurityDenial("abuse_limit", "mcp");
+      throw new McpGatewayError(
+        "rate_limit_exceeded",
+        `MCP mutation rate limit exceeded; retry after ${Math.ceil(result.retryAfterMs / 1_000)} seconds`,
+      );
+    }
+  }
+
+  private async enforceProviderLimit(): Promise<void> {
+    if (this.options.abuseRateGate === undefined) return;
+    const result = await this.options.abuseRateGate.consume({
+      key: this.options.principal.key._id,
+      max: this.options.providerRateLimitPolicy.max,
+      namespace: "ai",
+      windowMs: this.options.providerRateLimitPolicy.timeWindowMs,
+    });
+    if (!result.allowed) {
+      recordSecurityDenial("abuse_limit", "mcp");
+      throw new McpGatewayError(
+        "rate_limit_exceeded",
+        `Provider-heavy request limit exceeded; retry after ${Math.ceil(result.retryAfterMs / 1_000)} seconds`,
+      );
     }
   }
 }

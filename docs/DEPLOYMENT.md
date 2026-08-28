@@ -137,9 +137,12 @@ depending on KnownPath for low-latency agent workflows.
 - Browser CORS is disabled until the dashboard has a real origin.
 - Proxy trust is explicitly disabled. Do not change it to an unrestricted boolean; record specific
   trusted proxy addresses or ranges if client-IP-aware production limiting is introduced.
-- The current limiter is per-process. Distributed limiting remains deferred.
+- Production request limits and MCP mutation gates use the configured Valkey service. Startup and
+  readiness fail closed if this security dependency is unavailable; there is no memory fallback.
 - Render service logs redact authorization headers, cookies, tokens, secrets, and plaintext API-key
   responses through the existing Fastify logging configuration.
+- OpenTelemetry export is optional and disabled in the Blueprint. Configure an operator-controlled
+  OTLP collector deliberately; never place sensitive data in resource attributes or metric labels.
 
 ## Official references
 

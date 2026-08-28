@@ -24,6 +24,7 @@
     "@knownpath/canonicalization": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "@knownpath/verification": "workspace:*",
     "@secretlint/core": "catalog:",
     "@secretlint/secretlint-rule-preset-recommend": "catalog:"

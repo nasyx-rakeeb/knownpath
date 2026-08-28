@@ -5,7 +5,9 @@ import {
   type Principal,
   type RateLimitPolicy,
   type AuditService,
+  type AbuseRateGate,
 } from "@knownpath/auth";
+import { SECURITY_LIMITS } from "@knownpath/config";
 import type { ApiConfig, AuthConfig, SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
 import {
@@ -22,8 +24,6 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { errorEnvelopeSchema } from "./schemas.js";
 import { ServiceKnowledgeMcpGateway } from "./mcp-gateway.js";
 
-const MCP_BODY_LIMIT = 64 * 1_024;
-
 export function registerMcpRoutes(
   api: FastifyInstance,
   options: {
@@ -36,6 +36,9 @@ export function registerMcpRoutes(
     readonly outcomes: OutcomeService;
     readonly audit: AuditService;
     readonly rateLimitPolicy: RateLimitPolicy;
+    readonly mutationRateLimitPolicy: RateLimitPolicy;
+    readonly providerRateLimitPolicy: RateLimitPolicy;
+    readonly abuseRateGate?: AbuseRateGate;
     readonly searchConfig: SearchConfig;
   },
 ): void {
@@ -82,6 +85,9 @@ export function registerMcpRoutes(
         requestId: request.id,
         ipAddress: request.ip,
         searchConfig: options.searchConfig,
+        ...(options.abuseRateGate === undefined ? {} : { abuseRateGate: options.abuseRateGate }),
+        mutationRateLimitPolicy: options.mutationRateLimitPolicy,
+        providerRateLimitPolicy: options.providerRateLimitPolicy,
       }).status(requestAbortSignal(request));
     },
   );
@@ -89,7 +95,7 @@ export function registerMcpRoutes(
   api.all(
     "/mcp",
     {
-      bodyLimit: MCP_BODY_LIMIT,
+      bodyLimit: SECURITY_LIMITS.payloadBytes.mcp,
       schema: { hide: true },
       config: {
         knownPathRateLimitPolicy: options.rateLimitPolicy.name,
@@ -113,6 +119,9 @@ export function registerMcpRoutes(
         requestId: request.id,
         ipAddress: request.ip,
         searchConfig: options.searchConfig,
+        ...(options.abuseRateGate === undefined ? {} : { abuseRateGate: options.abuseRateGate }),
+        mutationRateLimitPolicy: options.mutationRateLimitPolicy,
+        providerRateLimitPolicy: options.providerRateLimitPolicy,
       });
       const rawRequest = Object.assign(request.raw, {
         method: request.method,

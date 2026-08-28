@@ -11,6 +11,7 @@ import { OutcomeError } from "@knownpath/outcomes";
 import { z } from "zod";
 import { AdminOperationError } from "./admin-service.js";
 import { WorkspaceError } from "@knownpath/workspaces";
+import { recordSecurityDenial } from "@knownpath/observability";
 
 export function registerErrorHandler(api: FastifyInstance): void {
   api.setNotFoundHandler(async (request, reply) =>
@@ -21,6 +22,17 @@ export function registerErrorHandler(api: FastifyInstance): void {
   );
 
   api.setErrorHandler(async (error, request, reply) => {
+    if (
+      error instanceof Error &&
+      ["session_mutation_origin_required", "session_mutation_origin_denied"].includes(error.message)
+    ) {
+      recordSecurityDenial("origin", "api");
+      return reply
+        .status(403)
+        .send(
+          envelope("request_origin_forbidden", "The request origin is not allowed", request.id),
+        );
+    }
     if (error instanceof AuthenticationError) {
       if (request.url.startsWith("/mcp") || request.url.startsWith("/api/v1/mcp")) {
         reply.header("www-authenticate", 'Bearer realm="KnownPath", scope="knowledge:read"');
@@ -101,6 +113,7 @@ export function registerErrorHandler(api: FastifyInstance): void {
         .send(envelope("rate_limit_exceeded", "Too many requests; retry later", request.id));
     }
     if (isFastifyCode(error, "FST_ERR_CTP_BODY_TOO_LARGE")) {
+      recordSecurityDenial("payload", request.url.startsWith("/mcp") ? "mcp" : "api");
       return reply
         .status(413)
         .send(envelope("payload_too_large", "The request payload is too large", request.id));
@@ -123,16 +136,42 @@ export function registerErrorHandler(api: FastifyInstance): void {
           ),
         );
     }
+    if (isValkeyUnavailable(error)) {
+      return reply
+        .status(503)
+        .send(
+          envelope(
+            "rate_limiter_unavailable",
+            "Request protection is temporarily unavailable",
+            request.id,
+          ),
+        );
+    }
 
     const safeError = error instanceof Error ? error : new Error("Unknown API error");
     request.log.error(
-      { errorName: safeError.name, errorMessage: safeError.message, stack: safeError.stack },
+      { errorName: safeError.name, errorCode: safeErrorCode(safeError) },
       "unhandled API error",
     );
     return reply
       .status(500)
       .send(envelope("internal_error", "An unexpected error occurred", request.id));
   });
+}
+
+function safeErrorCode(error: Error): string {
+  if ("code" in error && /^[A-Z0-9_]{1,64}$/u.test(String(error.code))) return String(error.code);
+  return "UNCLASSIFIED";
+}
+
+function isValkeyUnavailable(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return ["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "NR_CLOSED", "CONNECTION_BROKEN"].some(
+    (code) =>
+      ("code" in error && error.code === code) ||
+      error.message.includes(code) ||
+      error.message.includes("Connection is closed"),
+  );
 }
 
 function isFastifyCode(error: unknown, code: string): boolean {

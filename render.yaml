@@ -24,10 +24,20 @@ services:
         value: "false"
       - key: API_RATE_LIMIT_MAX
         value: "300"
+      - key: API_RATE_LIMIT_STORE
+        value: valkey
       - key: API_RATE_LIMIT_WINDOW_MS
         value: "60000"
       - key: LOG_LEVEL
         value: info
+      - key: OTEL_ENABLED
+        value: "false"
+      - key: OTEL_EXPORTER
+        value: none
+      - key: OTEL_SERVICE_NAME
+        value: knownpath-api
+      - key: OTEL_SERVICE_VERSION
+        value: "0.0.0"
       - key: BETTER_AUTH_URL
         fromService:
           type: web

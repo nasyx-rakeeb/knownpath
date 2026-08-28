@@ -6,6 +6,7 @@ import {
   SimilarityProfileService,
 } from "@knownpath/canonicalization";
 import type { KnownPathDatabase } from "@knownpath/database";
+import { recordContribution } from "@knownpath/observability";
 import {
   CONTRIBUTION_CONTRACT_VERSION,
   agentContributionV2Schema,
@@ -190,6 +191,7 @@ export class ContributionService {
         ? inserted
         : await this.process(inserted._id, signal);
     await this.enqueueIfDeferred(processed, processingMode);
+    recordContribution(processed.status, processed.visibility.scope);
     return { contribution: processed, response: toSubmissionResponse(processed, false) };
   }
 

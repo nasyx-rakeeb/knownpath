@@ -23,6 +23,7 @@
   "dependencies": {
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "@knownpath/privacy": "workspace:*"
   },
   "devDependencies": {

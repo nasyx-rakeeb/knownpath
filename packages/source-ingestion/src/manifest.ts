@@ -130,6 +130,8 @@ export async function loadSourceManifest(path: string): Promise<SourceManifest> 
     seenKeys.add(source.key);
     validateCommonSource(source);
     if (source.adapter === "documentation_site") {
+      for (const origin of source.allowedOrigins) validateAllowedOrigin(origin);
+      for (const prefix of source.allowedPathPrefixes) validatePathPrefix(prefix);
       validateAllowedUrl(source.indexUrl, source.allowedOrigins, source.allowedPathPrefixes);
       if (source.sitemapUrl !== undefined) {
         validateAllowedUrl(source.sitemapUrl, source.allowedOrigins, source.allowedPathPrefixes);
@@ -137,6 +139,7 @@ export async function loadSourceManifest(path: string): Promise<SourceManifest> 
       validateAllowedUrl(source.robotsUrl, source.allowedOrigins, ["/"]);
       validateRules(source.curatedRules, source.classificationRules, source.versionRules);
     } else if (source.adapter === "release_feed") {
+      for (const origin of source.allowedOrigins) validateAllowedOrigin(origin);
       validateAllowedUrl(source.feedUrl, source.allowedOrigins, ["/"]);
       validateAllowedUrl(source.robotsUrl, source.allowedOrigins, ["/"]);
       validateRules(source.curatedRules, [], source.versionRules);
@@ -149,6 +152,18 @@ export async function loadSourceManifest(path: string): Promise<SourceManifest> 
   }
 
   return manifest;
+}
+
+function validateAllowedOrigin(value: string): void {
+  const url = new URL(value);
+  if (
+    url.origin !== value ||
+    url.username !== "" ||
+    url.password !== "" ||
+    (url.port !== "" && url.port !== "443")
+  ) {
+    throw new Error(`Source allowedOrigins entries must be canonical HTTPS origins: ${value}`);
+  }
 }
 
 async function resolveManifestPath(path: string): Promise<string> {
@@ -196,10 +211,33 @@ function validateAllowedUrl(
   allowedPathPrefixes: readonly string[],
 ): void {
   const url = new URL(value);
+  if (url.username !== "" || url.password !== "" || (url.port !== "" && url.port !== "443")) {
+    throw new Error(`URL credentials or non-standard ports are not allowed: ${value}`);
+  }
   if (!allowedOrigins.includes(url.origin)) throw new Error(`URL origin is not allowed: ${value}`);
-  if (!allowedPathPrefixes.some((prefix) => url.pathname.startsWith(prefix))) {
+  if (!allowedPathPrefixes.some((prefix) => pathMatchesPrefix(url.pathname, prefix))) {
     throw new Error(`URL path is not allowed: ${value}`);
   }
+}
+
+function validatePathPrefix(prefix: string): void {
+  if (
+    prefix.includes("\\") ||
+    prefix.includes("%") ||
+    prefix.includes("?") ||
+    prefix.includes("#") ||
+    prefix.split("/").includes("..")
+  ) {
+    throw new Error(`Source allowlist path prefix is not canonical: ${prefix}`);
+  }
+}
+
+function pathMatchesPrefix(pathname: string, prefix: string): boolean {
+  return (
+    prefix === "/" ||
+    pathname === prefix ||
+    pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`)
+  );
 }
 
 function validateRules(

@@ -1,5 +1,6 @@
 import { ApiError, GoogleGenAI } from "@google/genai";
 import type { ExtractionUsage } from "@knownpath/domain";
+import { recordProviderEvent } from "@knownpath/observability";
 
 import {
   ExtractionProviderError,
@@ -100,15 +101,19 @@ function classifyGeminiError(error: unknown): ExtractionProviderError {
   const status = error instanceof ApiError ? error.status : undefined;
   const message = error instanceof Error ? error.message : "Gemini request failed";
   if (status === 401 || status === 403) {
+    recordProviderEvent("gemini", "authentication");
     return new ExtractionProviderError("ai_provider_authentication_failed", message, false, status);
   }
   if (status === 429) {
+    recordProviderEvent("gemini", "quota");
     return new ExtractionProviderError("ai_provider_quota_exhausted", message, true, status);
   }
   if (status === 408 || (status !== undefined && status >= 500)) {
+    recordProviderEvent("gemini", "transient_failure");
     return new ExtractionProviderError("ai_provider_transient_failure", message, true, status);
   }
   if (status === undefined && error instanceof Error) {
+    recordProviderEvent("gemini", "transient_failure");
     return new ExtractionProviderError("ai_provider_transient_failure", message, true);
   }
   return new ExtractionProviderError("ai_provider_permanent_failure", message, false, status);

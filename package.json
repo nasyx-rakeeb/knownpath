@@ -35,6 +35,7 @@
     "jobs": "pnpm --filter @knownpath/worker jobs",
     "score": "pnpm --filter @knownpath/worker score",
     "search": "pnpm --filter @knownpath/worker run retrieve",
+    "security:audit": "pnpm audit --audit-level high",
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {

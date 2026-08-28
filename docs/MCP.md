@@ -208,6 +208,12 @@ npx @modelcontextprotocol/inspector \
 
 ## Security and failure behavior
 
+Phase 20 applies a distributed Valkey transport policy and a stricter per-key mutation gate to
+`knownpath_contribute` and `knownpath_report_outcome`. Tool output is labeled untrusted evidence,
+instruction-like markup/control characters are neutralized, and manual OpenTelemetry instrumentation
+records only the fixed tool name, duration, and success/error—not inputs, record IDs, user/workspace
+IDs, or returned content.
+
 - MCP accepts bearer API keys only. Browser sessions do not authenticate the MCP endpoint.
 - OAuth discovery/authorization is not implemented in Phase 11. Clients must be configured with a
   KnownPath key; this is documented rather than pretending OAuth compliance.

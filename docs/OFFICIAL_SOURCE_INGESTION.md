@@ -136,14 +136,20 @@ size, retry count, and manifest path are explicit in `.env.example`.
 
 The HTTP boundary:
 
-- permits HTTPS and configured origins only;
-- validates every redirect target and limits redirect depth;
+- permits exact configured HTTPS origins, standard HTTPS ports, and canonical path prefixes only;
+- resolves all A/AAAA answers and rejects loopback, private, link-local, multicast, reserved,
+  unspecified, mapped-private, and other non-global destinations;
+- pins the validated DNS lookup into the outbound connection to prevent validation/use rebinding;
+- validates every redirect origin, path, DNS destination, and port and limits redirect depth;
 - checks the configured robots policy before discovery;
 - bounds decoded response bytes and request duration;
 - accepts only expected text, Markdown, XML, RSS, or Atom media types;
 - uses serial requests and bounded exponential backoff with jitter;
 - honors numeric or HTTP-date `Retry-After` values up to the bounded wait;
 - logs source identities, safe URLs, counts, stages, and error classes, never bodies or credentials.
+
+A configured hostname resolving to even one non-public address fails closed. Infrastructure-level
+egress filtering remains recommended defense in depth.
 
 Treat repeated `429` responses as an instruction to stop or reduce cadence. Phase 5 adds no
 distributed scheduler or automatic retry queue.

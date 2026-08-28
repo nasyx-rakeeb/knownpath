@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import type { KnownPathDatabase } from "@knownpath/database";
+import { recordSearch, withSpan } from "@knownpath/observability";
 import {
   CURRENT_SCHEMA_VERSION,
   KNOWLEDGE_API_CONTRACT_VERSION,
@@ -84,29 +85,38 @@ export class KnowledgeAccessService {
     assertModeMatchesRequest(request, context.accessMode);
     assertScopeMatchesRequest(request, context.scope);
     const accesses = retrievalAccesses(context.scope, context.principal.userId);
-    const retrievals = await Promise.all(
-      accesses.map((access) =>
-        this.retrieval.search({
-          text: request.text,
-          errors: request.errors,
-          ...(request.ecosystem === undefined ? {} : { ecosystem: request.ecosystem }),
-          packages: request.packages,
-          versions: request.versions,
-          platforms: request.platforms,
-          environment: request.environment,
-          context: request.context,
-          access,
-          allowedStatuses:
-            context.accessMode === "review"
-              ? ["published", "review"]
-              : access.scope === "public"
-                ? ["published"]
-                : ["published", "review", "deprecated"],
-          semanticMode: access.scope === "public" ? request.semanticMode : "disabled",
-          limit: request.limit,
-          minimumScore: request.minimumScore,
-        }),
-      ),
+    const retrievals = await withSpan(
+      "knownpath.db.knowledge_search",
+      {
+        "db.system.name": "mongodb",
+        "knownpath.search.backend": this.retrieval.backendName(),
+        "knownpath.search.scope": scopeLabel(context.scope),
+      },
+      async () =>
+        Promise.all(
+          accesses.map((access) =>
+            this.retrieval.search({
+              text: request.text,
+              errors: request.errors,
+              ...(request.ecosystem === undefined ? {} : { ecosystem: request.ecosystem }),
+              packages: request.packages,
+              versions: request.versions,
+              platforms: request.platforms,
+              environment: request.environment,
+              context: request.context,
+              access,
+              allowedStatuses:
+                context.accessMode === "review"
+                  ? ["published", "review"]
+                  : access.scope === "public"
+                    ? ["published"]
+                    : ["published", "review", "deprecated"],
+              semanticMode: access.scope === "public" ? request.semanticMode : "disabled",
+              limit: request.limit,
+              minimumScore: request.minimumScore,
+            }),
+          ),
+        ),
     );
     const retrieval = mergeRetrievals(retrievals, request.limit, context.scope.kind !== "public");
     const records = await this.database.repositories.knownPaths.findManyAccessibleByIds(
@@ -196,7 +206,7 @@ export class KnowledgeAccessService {
         resultCount: String(safeResults.length),
       });
     }
-    return knowledgeSearchResponseSchema.parse({
+    const response = knowledgeSearchResponseSchema.parse({
       contractVersion: KNOWLEDGE_API_CONTRACT_VERSION,
       searchId,
       accessMode: context.accessMode,
@@ -204,6 +214,12 @@ export class KnowledgeAccessService {
       capabilities: retrieval.capabilities,
       results: safeResults,
     });
+    recordSearch({
+      backend: this.retrieval.backendName(),
+      resultCount: response.results.length,
+      scope: scopeLabel(context.scope),
+    });
+    return response;
   }
 
   public async getById(
@@ -498,6 +514,12 @@ export class KnowledgeAccessService {
       ...(metadata === undefined ? {} : { metadata: { ...metadata } }),
     });
   }
+}
+
+function scopeLabel(scope: KnowledgeSearchScope): "personal" | "public" | "team" | "team_public" {
+  if (scope.kind === "workspace") return "team";
+  if (scope.kind === "workspace_and_public") return "team_public";
+  return scope.kind;
 }
 
 function assertModeMatchesRequest(

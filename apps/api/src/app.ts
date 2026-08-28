@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -7,17 +7,26 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import {
   ApiKeyService,
+  type AbuseRateGate,
   AuditService,
   Authenticator,
   UserDashboardService,
   createKnownPathAuth,
   createRateLimitPolicies,
 } from "@knownpath/auth";
+import { CREDENTIAL_REDACTION_PATHS } from "@knownpath/config";
 import type { ApiConfig, AuthConfig } from "@knownpath/config";
 import type { EmbeddingConfig, SearchConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
 import type { AgentContributionV2 } from "@knownpath/domain";
 import type { JobProducer, QueueRegistry } from "@knownpath/jobs";
+import {
+  activeTraceFields,
+  finishServerSpan,
+  recordSecurityDenial,
+  runWithSpan,
+  startServerSpan,
+} from "@knownpath/observability";
 import {
   GeminiEmbeddingProvider,
   KnowledgeAccessService,
@@ -27,6 +36,7 @@ import { ContributionService, PublicKnowledgeShareService } from "@knownpath/con
 import { OutcomeService } from "@knownpath/outcomes";
 import { WorkspaceService } from "@knownpath/workspaces";
 import Fastify, { type FastifyInstance } from "fastify";
+import type { Redis } from "ioredis";
 import {
   jsonSchemaTransform,
   serializerCompiler,
@@ -58,27 +68,34 @@ export interface BuildApiOptions {
   readonly searchConfig: SearchConfig;
   readonly jobProducer?: JobProducer;
   readonly queueRegistry?: QueueRegistry;
+  readonly rateLimitRedis?: Redis;
+  readonly abuseRateGate?: AbuseRateGate;
 }
 
 export async function buildApi(options: BuildApiOptions): Promise<FastifyInstance> {
   const api = Fastify({
+    bodyLimit: options.apiConfig.bodyLimitBytes,
+    connectionTimeout: options.apiConfig.connectionTimeoutMs,
     genReqId: () => randomUUID(),
+    keepAliveTimeout: options.apiConfig.keepAliveTimeoutMs,
+    routerOptions: { maxParamLength: options.apiConfig.maxParamLength },
+    requestTimeout: options.apiConfig.requestTimeoutMs,
     trustProxy: options.apiConfig.trustProxy,
     logger: {
       level: options.apiConfig.logLevel,
+      serializers: {
+        req(request) {
+          return {
+            method: request.method,
+            url: safeRequestPath(request.url),
+          };
+        },
+        res(reply) {
+          return { statusCode: reply.statusCode };
+        },
+      },
       redact: {
-        paths: [
-          "req.headers.authorization",
-          "req.headers.cookie",
-          "res.headers.set-cookie",
-          "authorization",
-          "cookie",
-          "password",
-          "token",
-          "secret",
-          "plaintext",
-          "apiKey",
-        ],
+        paths: [...CREDENTIAL_REDACTION_PATHS],
         censor: "[REDACTED]",
       },
     },
@@ -133,21 +150,54 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   });
   await api.register(helmet, {
     global: true,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: "same-origin" },
+    referrerPolicy: { policy: "no-referrer" },
     ...(options.apiConfig.runtimeMode === "production" ? {} : { hsts: false }),
   });
   await api.register(rateLimit, {
     global: true,
     max: options.apiConfig.rateLimitMax,
     timeWindow: options.apiConfig.rateLimitWindowMs,
+    ...(options.rateLimitRedis === undefined ? {} : { redis: options.rateLimitRedis }),
+    skipOnError: false,
+    keyGenerator: (request) => rateLimitSubject(request, options.authConfig.apiKeyPepper),
     enableDraftSpec: true,
-    errorResponseBuilder: (request) => ({
-      error: { code: "rate_limit_exceeded", message: "Too many requests; retry later" },
-      requestId: request.id,
-    }),
+    onExceeded: (request) =>
+      recordSecurityDenial("rate_limit", request.url.startsWith("/mcp") ? "mcp" : "api"),
+    errorResponseBuilder: (_request, context) =>
+      Object.assign(new Error("Request rate limit exceeded"), {
+        code: "RATE_LIMIT_EXCEEDED",
+        statusCode: context.statusCode,
+      }),
   });
 
-  api.addHook("onRequest", async (request, reply) => {
-    reply.header("x-request-id", request.id);
+  const requestSpans = new WeakMap<object, ReturnType<typeof startServerSpan>>();
+  const requestStartedAt = new WeakMap<object, number>();
+  api.addHook("onRequest", (request, reply, done) => {
+    const span = startServerSpan("knownpath.http.request", {
+      "http.request.method": request.method,
+    });
+    requestSpans.set(request, span);
+    requestStartedAt.set(request, performance.now());
+    runWithSpan(span, () => {
+      const traceFields = activeTraceFields();
+      request.log = request.log.child({ requestId: request.id, ...traceFields });
+      reply.header("x-request-id", request.id);
+      if (traceFields.traceId !== undefined) reply.header("traceparent", traceParent(traceFields));
+      done();
+    });
+  });
+  api.addHook("preHandler", async (request) => {
+    enforceSessionMutationOrigin(request, options.authConfig);
   });
   api.addHook("onSend", async (request, reply, payload) => {
     if (
@@ -166,6 +216,16 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       reply.header("pragma", "no-cache");
     }
     return payload;
+  });
+  api.addHook("onResponse", async (request, reply) => {
+    const span = requestSpans.get(request);
+    if (span === undefined) return;
+    finishServerSpan(span, {
+      durationMs: performance.now() - (requestStartedAt.get(request) ?? performance.now()),
+      method: request.method,
+      route: request.routeOptions.url ?? "unmatched",
+      statusCode: reply.statusCode,
+    });
   });
 
   const audit = new AuditService(options.database.repositories);
@@ -242,7 +302,13 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   const workspaces = new WorkspaceService(options.database, audit);
   const publicShares = new PublicKnowledgeShareService(options.database, contributions, audit);
 
-  registerSystemRoutes(api, options.database, options.queueRegistry);
+  registerSystemRoutes(
+    api,
+    options.database,
+    options.queueRegistry,
+    options.abuseRateGate,
+    options.apiConfig.rateLimitStore,
+  );
   registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
   registerAccountRoutes(api, authenticator);
   registerDashboardRoutes(api, authenticator, dashboard);
@@ -253,14 +319,25 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     apiKeys,
     rateLimitPolicies.apiKeyMutation,
   );
-  registerAdminRoutes(api, authenticator, admin, audit);
+  registerAdminRoutes(api, authenticator, admin, audit, {
+    read: rateLimitPolicies.adminRead,
+    sensitive: rateLimitPolicies.adminSensitive,
+  });
   registerApiKeyRoutes(api, authenticator, apiKeys, rateLimitPolicies.apiKeyMutation);
   registerOperationalRoutes(api, authenticator, options.database, options.queueRegistry);
-  registerKnowledgeRoutes(api, authenticator, knowledge, options.database, {
-    read: rateLimitPolicies.knowledgeRead,
-    search: rateLimitPolicies.knowledgeSearch,
-    usage: rateLimitPolicies.knowledgeUsage,
-  });
+  registerKnowledgeRoutes(
+    api,
+    authenticator,
+    knowledge,
+    options.database,
+    {
+      read: rateLimitPolicies.knowledgeRead,
+      search: rateLimitPolicies.knowledgeSearch,
+      usage: rateLimitPolicies.knowledgeUsage,
+      providerHeavy: rateLimitPolicies.providerHeavy,
+    },
+    options.abuseRateGate,
+  );
   registerContributionRoutes(
     api,
     authenticator,
@@ -290,6 +367,9 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     outcomes,
     audit,
     rateLimitPolicy: rateLimitPolicies.knowledgeSearch,
+    mutationRateLimitPolicy: rateLimitPolicies.mcpMutation,
+    providerRateLimitPolicy: rateLimitPolicies.providerHeavy,
+    ...(options.abuseRateGate === undefined ? {} : { abuseRateGate: options.abuseRateGate }),
     searchConfig: options.searchConfig,
   });
   api.get("/api/v1/openapi.json", { schema: { hide: true } }, async (_request, reply) =>
@@ -297,4 +377,45 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
   );
 
   return api;
+}
+
+function safeRequestPath(url: string | undefined): string {
+  if (url === undefined) return "/";
+  const queryIndex = url.indexOf("?");
+  return queryIndex === -1 ? url : url.slice(0, queryIndex);
+}
+
+function enforceSessionMutationOrigin(
+  request: {
+    readonly headers: Record<string, unknown>;
+    readonly method: string;
+    readonly url: string;
+  },
+  authConfig: AuthConfig,
+): void {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) return;
+  if (request.headers["cookie"] === undefined || request.headers["authorization"] !== undefined)
+    return;
+  const origin = request.headers["origin"];
+  if (typeof origin !== "string") throw new Error("session_mutation_origin_required");
+  const allowed = new Set([authConfig.baseUrl, ...authConfig.trustedOrigins]);
+  if (!allowed.has(origin.replace(/\/$/u, ""))) throw new Error("session_mutation_origin_denied");
+}
+
+function traceParent(fields: { traceId?: string; spanId?: string }): string {
+  return `00-${fields.traceId ?? "0".repeat(32)}-${fields.spanId ?? "0".repeat(16)}-01`;
+}
+
+function rateLimitSubject(
+  request: { readonly headers: Record<string, unknown>; readonly ip: string },
+  pepper: string,
+): string {
+  const authorization = request.headers["authorization"];
+  if (typeof authorization === "string") {
+    const match = /^Bearer ([^\s]+)$/u.exec(authorization);
+    if (match !== null) {
+      return `key:${createHmac("sha256", pepper).update(match[1]!).digest("base64url").slice(0, 32)}`;
+    }
+  }
+  return `ip:${request.ip}`;
 }

@@ -30,6 +30,7 @@
     "@google/genai": "catalog:",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
+    "@knownpath/observability": "workspace:*",
     "semver": "catalog:",
     "zod": "catalog:"
   }

@@ -1,5 +1,10 @@
 import type { SourceIngestionConfig } from "@knownpath/config";
+import { recordSecurityDenial } from "@knownpath/observability";
+import { lookup } from "node:dns/promises";
+import type { LookupFunction } from "node:net";
+import ipaddr from "ipaddr.js";
 import robotsParser from "robots-parser";
+import { Agent, fetch } from "undici";
 
 import type { FetchValidators, SafeFetchResult, SourceIngestionLogger } from "./types.js";
 
@@ -26,6 +31,7 @@ export class SafeSourceHttpClient {
     const result = await this.getText(robotsUrl, {
       allowedContentTypes: ["text/plain"],
       allowedOrigins,
+      allowedPathPrefixes: ["/"],
     });
     if (result.body === undefined) throw new Error("Robots policy returned no body");
     const policy = parseRobots(robotsUrl, result.body);
@@ -41,6 +47,7 @@ export class SafeSourceHttpClient {
     options: {
       readonly allowedContentTypes: readonly string[];
       readonly allowedOrigins: readonly string[];
+      readonly allowedPathPrefixes: readonly string[];
       readonly validators?: FetchValidators;
     },
   ): Promise<SafeFetchResult> {
@@ -55,13 +62,19 @@ export class SafeSourceHttpClient {
         }
         await this.waitForRetry(attempt, result.retryAfterSeconds);
       } catch (error) {
-        lastError = error;
+        const ssrfDenied = hasCode(error, "KNOWNPATH_SSRF_DENIED");
+        const effectiveError = ssrfDenied ? ssrfDeniedError() : error;
+        if (ssrfDenied) {
+          recordSecurityDenial("ssrf", "ingestion");
+        }
+        lastError = effectiveError;
         if (
           attempt === this.config.maxRetries ||
           (error instanceof SourceHttpError && !TRANSIENT_STATUSES.has(error.status)) ||
+          ssrfDenied ||
           this.signal?.aborted === true
         ) {
-          throw error;
+          throw effectiveError;
         }
         this.logger.warn("Official source request will retry", {
           url: safeUrl(url),
@@ -79,73 +92,85 @@ export class SafeSourceHttpClient {
     options: {
       readonly allowedContentTypes: readonly string[];
       readonly allowedOrigins: readonly string[];
+      readonly allowedPathPrefixes: readonly string[];
       readonly validators?: FetchValidators;
     },
   ): Promise<SafeFetchResult> {
-    let currentUrl = validateUrl(initialUrl, options.allowedOrigins);
-    for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
-      const timeoutSignal = AbortSignal.timeout(this.config.requestTimeoutMs);
-      const signal =
-        this.signal === undefined ? timeoutSignal : AbortSignal.any([this.signal, timeoutSignal]);
-      const response = await fetch(currentUrl, {
-        redirect: "manual",
-        signal,
-        headers: {
-          Accept: options.allowedContentTypes.join(", "),
-          "User-Agent": this.config.userAgent,
-          ...(options.validators?.etag === undefined
-            ? {}
-            : { "If-None-Match": options.validators.etag }),
-          ...(options.validators?.lastModified === undefined
-            ? {}
-            : { "If-Modified-Since": options.validators.lastModified }),
-        },
-      });
+    let currentUrl = validateUrl(initialUrl, options.allowedOrigins, options.allowedPathPrefixes);
+    const dispatcher = new Agent({ connect: { lookup: safePublicLookup } });
+    try {
+      for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
+        const timeoutSignal = AbortSignal.timeout(this.config.requestTimeoutMs);
+        const signal =
+          this.signal === undefined ? timeoutSignal : AbortSignal.any([this.signal, timeoutSignal]);
+        const response = await fetch(currentUrl, {
+          dispatcher,
+          redirect: "manual",
+          signal,
+          headers: {
+            Accept: options.allowedContentTypes.join(", "),
+            "User-Agent": this.config.userAgent,
+            ...(options.validators?.etag === undefined
+              ? {}
+              : { "If-None-Match": options.validators.etag }),
+            ...(options.validators?.lastModified === undefined
+              ? {}
+              : { "If-Modified-Since": options.validators.lastModified }),
+          },
+        });
 
-      if (response.status === 304) {
+        if (response.status === 304) {
+          const etag = response.headers.get("etag") ?? undefined;
+          const lastModified = response.headers.get("last-modified") ?? undefined;
+          return {
+            status: response.status,
+            finalUrl: currentUrl,
+            notModified: true,
+            ...(etag === undefined ? {} : { etag }),
+            ...(lastModified === undefined ? {} : { lastModified }),
+          };
+        }
+
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.get("location");
+          if (location === null) throw new SourceHttpError(response.status, currentUrl);
+          if (redirectCount === MAX_REDIRECTS)
+            throw new Error("Official source redirect limit exceeded");
+          await response.body?.cancel();
+          currentUrl = validateUrl(
+            new URL(location, currentUrl).toString(),
+            options.allowedOrigins,
+            options.allowedPathPrefixes,
+          );
+          continue;
+        }
+
         const etag = response.headers.get("etag") ?? undefined;
         const lastModified = response.headers.get("last-modified") ?? undefined;
-        return {
+        const retryAfterSeconds = parseRetryAfter(response.headers.get("retry-after"));
+        const common = {
           status: response.status,
           finalUrl: currentUrl,
-          notModified: true,
           ...(etag === undefined ? {} : { etag }),
           ...(lastModified === undefined ? {} : { lastModified }),
+          ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
         };
-      }
+        if (response.status >= 400) return { ...common, notModified: false };
 
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get("location");
-        if (location === null) throw new SourceHttpError(response.status, currentUrl);
-        if (redirectCount === MAX_REDIRECTS)
-          throw new Error("Official source redirect limit exceeded");
-        currentUrl = validateUrl(new URL(location, currentUrl).toString(), options.allowedOrigins);
-        continue;
+        const contentType = (response.headers.get("content-type") ?? "")
+          .split(";", 1)[0]!
+          .trim()
+          .toLowerCase();
+        if (!options.allowedContentTypes.some((allowed) => contentType === allowed)) {
+          throw new Error(`Unexpected official source content type: ${contentType || "missing"}`);
+        }
+        const body = await readBoundedText(response, this.config.maxResponseBytes);
+        return { ...common, body, contentType, notModified: false };
       }
-
-      const etag = response.headers.get("etag") ?? undefined;
-      const lastModified = response.headers.get("last-modified") ?? undefined;
-      const retryAfterSeconds = parseRetryAfter(response.headers.get("retry-after"));
-      const common = {
-        status: response.status,
-        finalUrl: currentUrl,
-        ...(etag === undefined ? {} : { etag }),
-        ...(lastModified === undefined ? {} : { lastModified }),
-        ...(retryAfterSeconds === undefined ? {} : { retryAfterSeconds }),
-      };
-      if (response.status >= 400) return { ...common, notModified: false };
-
-      const contentType = (response.headers.get("content-type") ?? "")
-        .split(";", 1)[0]!
-        .trim()
-        .toLowerCase();
-      if (!options.allowedContentTypes.some((allowed) => contentType === allowed)) {
-        throw new Error(`Unexpected official source content type: ${contentType || "missing"}`);
-      }
-      const body = await readBoundedText(response, this.config.maxResponseBytes);
-      return { ...common, body, contentType, notModified: false };
+      throw new Error("Official source redirect limit exceeded");
+    } finally {
+      await dispatcher.close();
     }
-    throw new Error("Official source redirect limit exceeded");
   }
 
   private async waitForRetry(
@@ -204,14 +229,72 @@ async function readBoundedText(response: Response, maxBytes: number): Promise<st
   return text + decoder.decode();
 }
 
-function validateUrl(value: string, allowedOrigins: readonly string[]): string {
+function validateUrl(
+  value: string,
+  allowedOrigins: readonly string[],
+  allowedPathPrefixes: readonly string[],
+): string {
   const url = new URL(value);
-  if (url.protocol !== "https:" || !allowedOrigins.includes(url.origin)) {
+  if (
+    url.protocol !== "https:" ||
+    (url.port !== "" && url.port !== "443") ||
+    url.username !== "" ||
+    url.password !== "" ||
+    !allowedOrigins.includes(url.origin) ||
+    !allowedPathPrefixes.some((prefix) => pathMatchesPrefix(url.pathname, prefix))
+  ) {
     throw new Error(`Official source URL is outside the configured allowlist: ${safeUrl(value)}`);
   }
-  url.username = "";
-  url.password = "";
+  const literalHostname = url.hostname.replace(/^\[|\]$/gu, "");
+  if (ipaddr.isValid(literalHostname) && !isPublicAddress(literalHostname)) {
+    throw ssrfDeniedError();
+  }
   return url.toString();
+}
+
+function pathMatchesPrefix(pathname: string, prefix: string): boolean {
+  return (
+    prefix === "/" ||
+    pathname === prefix ||
+    pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`)
+  );
+}
+
+const safePublicLookup = ((
+  hostname: string,
+  options: { readonly all?: boolean } | number,
+  callback: (...arguments_: unknown[]) => void,
+) => {
+  void lookup(hostname, { all: true, order: "verbatim" }).then(
+    (addresses) => {
+      if (addresses.length === 0 || addresses.some((entry) => !isPublicAddress(entry.address))) {
+        const error = new Error("Official source hostname resolved to a non-public address");
+        Object.assign(error, { code: "KNOWNPATH_SSRF_DENIED" });
+        callback(error);
+        return;
+      }
+      if (typeof options === "object" && options.all === true) {
+        callback(null, addresses);
+        return;
+      }
+      const selected = addresses[0]!;
+      callback(null, selected.address, selected.family);
+    },
+    (error: unknown) => callback(error),
+  );
+}) as LookupFunction;
+
+function isPublicAddress(address: string): boolean {
+  let parsed: ipaddr.IPv4 | ipaddr.IPv6;
+  try {
+    parsed = ipaddr.parse(address);
+  } catch {
+    return false;
+  }
+  if (parsed instanceof ipaddr.IPv6 && parsed.isIPv4MappedAddress()) {
+    parsed = parsed.toIPv4Address();
+  }
+  return parsed.range() === "unicast";
 }
 
 function safeUrl(value: string): string {
@@ -230,4 +313,20 @@ function parseRetryAfter(value: string | null): number | undefined {
   const timestamp = new Date(value).getTime();
   if (!Number.isFinite(timestamp)) return undefined;
   return Math.max(0, Math.ceil((timestamp - Date.now()) / 1_000));
+}
+
+function hasCode(error: unknown, code: string): boolean {
+  let current = error;
+  for (let depth = 0; depth < 6; depth += 1) {
+    if (typeof current !== "object" || current === null) return false;
+    if ("code" in current && current.code === code) return true;
+    current = "cause" in current ? current.cause : undefined;
+  }
+  return false;
+}
+
+function ssrfDeniedError(): Error & { code: "KNOWNPATH_SSRF_DENIED" } {
+  return Object.assign(new Error("Official source request denied by SSRF policy"), {
+    code: "KNOWNPATH_SSRF_DENIED" as const,
+  });
 }

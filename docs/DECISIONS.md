@@ -1059,3 +1059,33 @@ free embeddings or changing visibility in place violates the approved privacy bo
 [OWASP Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html),
 [OWASP BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/),
 [MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+
+## 2026-08-28 — Fail closed with Valkey limits and use explicit OpenTelemetry instrumentation
+
+**Decision:** Use the existing Valkey service as the distributed production store for Fastify
+request limits and MCP mutation abuse gates. Production refuses `memory`, requires a configured and
+reachable Valkey connection at startup, and returns not-ready if the limiter later fails. Local
+memory limiting remains available only through explicit development configuration. Keep MongoDB as
+product truth and BullMQ/Valkey ephemeral.
+
+Add `@knownpath/observability` with manual OpenTelemetry trace/metric instruments and optional
+console or OTLP/HTTP export. Keep Pino logs and correlate request/trace IDs. Permit only bounded
+non-sensitive attributes. Harden official-source fetches with exact HTTPS origin/path policies,
+global-IP DNS validation, a DNS-pinned connection, and redirect revalidation. Add repository-native
+Dependabot, dependency review, CodeQL, and high-severity pnpm audit automation.
+
+**Why:** Distributed limits remain correct when more than one API process is deployed. Failing
+closed prevents a Valkey outage from silently removing an abuse boundary. Manual instrumentation
+avoids query/content/header capture and high-cardinality identifiers while remaining exporter
+neutral. DNS validation plus connection pinning closes the gap between allowlisted names and the
+actual destination. GitHub security features provide a free maintained baseline for a public repo.
+
+**Rejected:** Automatic in-memory fallback is unsafe in production. Broad automatic instrumentation
+can capture URLs, database statements, headers, or unstable attributes. A paid-only observability
+vendor would conflict with self-hosting. Hostname-only SSRF validation remains vulnerable to
+private/special DNS answers and rebinding. Custom dependency scanners duplicate maintained tooling.
+
+**References:** [Fastify rate-limit](https://github.com/fastify/fastify-rate-limit),
+[OWASP SSRF](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html),
+[OpenTelemetry JavaScript](https://opentelemetry.io/docs/languages/js/),
+[GitHub supply-chain security](https://docs.github.com/en/code-security/concepts/supply-chain-security/supply-chain-security)

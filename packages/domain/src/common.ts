@@ -11,12 +11,12 @@ export const nonEmptyStringSchema = z.string().trim().min(1).max(10_000);
 export const shortStringSchema = z.string().trim().min(1).max(256);
 export const sha256Schema = z.hash("sha256");
 
-const timestampStringSchema = z.iso
+export const timestampInputSchema = z.iso
   .datetime({ offset: true })
   .transform((value) => new Date(value));
 
 export const timestampSchema = z
-  .union([z.date(), timestampStringSchema])
+  .union([z.date(), timestampInputSchema])
   .refine((value) => Number.isFinite(value.getTime()), "must be a valid timestamp");
 
 function brandedIdSchema<Brand extends string>() {

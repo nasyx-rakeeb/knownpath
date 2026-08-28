@@ -115,6 +115,30 @@ skipped until `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` is configured as a repos
 variable after a successful manual run. See
 [`DEPLOYMENT.md`](DEPLOYMENT.md#configure-the-free-queue-and-scheduled-worker) for exact setup.
 
+## Security and telemetry operations
+
+The API requires `API_RATE_LIMIT_STORE=valkey` in production and proves the configured Valkey
+connection before listening. `memory` must be written explicitly in a local development `.env`.
+`/health/ready` distinguishes critical MongoDB/rate-limiter failure (`503`) from optional queue
+degradation (`200` with `status: degraded`). No dependency state causes product data to move from
+MongoDB into Valkey.
+
+Use `OTEL_EXPORTER=console` only for bounded local inspection. Production operators should set
+`OTEL_EXPORTER=otlp` and point at an operator-controlled OpenTelemetry Collector. Collector failure
+does not block product operations. See [`OBSERVABILITY.md`](OBSERVABILITY.md).
+
+Before a release run:
+
+```sh
+pnpm security:audit
+pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm build
+```
+
+Incident containment and rotation order are in [`SECURITY_OPERATIONS.md`](SECURITY_OPERATIONS.md).
+
 ## References
 
 - [BullMQ connections](https://docs.bullmq.io/guide/connections)

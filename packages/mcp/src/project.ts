@@ -259,14 +259,38 @@ function compactAlternativeSolution(value: SafeSolutionVariant) {
 }
 
 function truncate(value: string, maximum: number): { value: string; truncated: boolean } {
-  if (value.length <= maximum) return { value, truncated: false };
-  return { value: `${value.slice(0, Math.max(1, maximum - 1)).trimEnd()}…`, truncated: true };
+  const safe = neutralizeInstructionMarkup(value);
+  if (safe.length <= maximum) return { value: safe, truncated: safe !== value };
+  return { value: `${safe.slice(0, Math.max(1, maximum - 1)).trimEnd()}…`, truncated: true };
 }
 
 function truncateCode(value: string, maximum: number): { value: string; truncated: boolean } {
-  if (value.length <= maximum) return { value, truncated: false };
+  const safe = neutralizeInstructionMarkup(value);
+  if (safe.length <= maximum) return { value: safe, truncated: safe !== value };
   return {
-    value: `${value.slice(0, Math.max(1, maximum - 17)).trimEnd()}\n/* truncated */`,
+    value: `${safe.slice(0, Math.max(1, maximum - 17)).trimEnd()}\n/* truncated */`,
     truncated: true,
   };
+}
+
+function neutralizeInstructionMarkup(value: string): string {
+  const markupNeutralized = value.replace(
+    /<\s*\/?\s*(?:assistant|developer|instruction|instructions|system|tool)[^>]*>/giu,
+    "[untrusted-markup]",
+  );
+  return Array.from(markupNeutralized)
+    .filter((character) => !isUnsafeControlCharacter(character.codePointAt(0) ?? 0))
+    .join("");
+}
+
+function isUnsafeControlCharacter(codePoint: number): boolean {
+  return (
+    (codePoint >= 0 && codePoint <= 8) ||
+    codePoint === 11 ||
+    codePoint === 12 ||
+    (codePoint >= 14 && codePoint <= 31) ||
+    codePoint === 127 ||
+    (codePoint >= 0x202a && codePoint <= 0x202e) ||
+    (codePoint >= 0x2066 && codePoint <= 0x2069)
+  );
 }
