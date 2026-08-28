@@ -36,14 +36,14 @@ catalog:
   "@secretlint/core": 13.0.4
   "@secretlint/secretlint-rule-preset-recommend": 13.0.4
   "@next/eslint-plugin-next": 16.3.2
-  "@types/node": 24.13.3
+  "@types/node": 26.3.0
   "@types/html-to-text": 9.0.4
   "@types/react": 19.2.18
-  "@types/react-dom": 19.2.4
+  "@types/react-dom": 19.2.5
   "@types/semver": 7.8.0
   better-auth: 1.7.1
-  bullmq: 6.2.0
-  eslint: 10.9.0
+  bullmq: 6.2.1
+  eslint: 10.9.1
   eslint-config-prettier: 10.1.8
   esbuild: 0.28.2
   fastify: 5.12.1
@@ -54,8 +54,8 @@ catalog:
   ioredis: 6.0.0
   ipaddr.js: 2.5.0
   jsonc-parser: 3.3.1
-  marked: 18.0.10
-  mongodb: 7.5.0
+  marked: 18.0.11
+  mongodb: 7.6.0
   next: 16.3.2
   octokit: 5.0.5
   prettier: 3.9.6
@@ -67,8 +67,8 @@ catalog:
   semver: 7.8.5
   tsx: 4.23.12
   turbo: 2.10.11
-  typescript: 6.0.3
-  typescript-eslint: 8.67.0
+  typescript: 7.0.2
+  typescript-eslint: 8.68.0
   undici: 8.10.0
   zod: 4.4.3
 
