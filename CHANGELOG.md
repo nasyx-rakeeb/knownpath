@@ -10,6 +10,8 @@ intents.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-29
+
 ### Added
 
 - Reproducible CLI package validation, MCP registry metadata, production container targets,
@@ -23,5 +25,6 @@ intents.
 - Environment-reference-only KnownPath API URL and key configuration.
 - Packaged canonical KnownPath Agent Skill and stdio MCP bridge.
 
-[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nasyx-rakeeb/knownpath/releases/tag/v0.3.0
