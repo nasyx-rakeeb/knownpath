@@ -10,6 +10,12 @@ intents.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-29
+
+### Fixed
+
+- Publish the installer with npm-compatible dependency ranges and the Apache-2.0 license file.
+
 ## [0.4.0] - 2026-08-29
 
 ### Added
@@ -25,6 +31,7 @@ intents.
 - Environment-reference-only KnownPath API URL and key configuration.
 - Packaged canonical KnownPath Agent Skill and stdio MCP bridge.
 
-[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/nasyx-rakeeb/knownpath/releases/tag/v0.3.0

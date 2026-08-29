@@ -1,5 +1,12 @@
 # knownpath
 
+## 0.4.1
+
+### Patch Changes
+
+- Publish through pnpm so workspace/catalog dependency specifications are rewritten for npm
+  consumers and the Apache-2.0 license file is included in the archive.
+
 ## 0.4.0
 
 ### Minor Changes

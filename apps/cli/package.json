@@ -1,6 +1,6 @@
 {
   "name": "knownpath",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": false,
   "description": "Install KnownPath MCP access and its Agent Skill across supported coding agents.",
   "license": "Apache-2.0",
