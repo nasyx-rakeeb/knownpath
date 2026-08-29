@@ -1,7 +1,6 @@
 services:
   mongodb:
     image: mongo:8.0
-    container_name: knownpath-mongodb
     restart: unless-stopped
     ports:
       - "127.0.0.1:27017:27017"
@@ -15,7 +14,6 @@ services:
       - knownpath-mongodb-data:/data/db
   valkey:
     image: valkey/valkey:9.1.1-alpine
-    container_name: knownpath-valkey
     restart: unless-stopped
     command:
       - valkey-server
@@ -36,6 +34,57 @@ services:
       start_period: 5s
     volumes:
       - knownpath-valkey-data:/data
+  api:
+    profiles: [platform]
+    build:
+      context: .
+      target: api
+    image: knownpath-api:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      MONGODB_URI: ${COMPOSE_MONGODB_URI:-mongodb://mongodb:27017}
+      PORT: "3001"
+      QUEUE_REDIS_URL: ${COMPOSE_QUEUE_REDIS_URL:-redis://valkey:6379}
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+  worker:
+    profiles: [platform]
+    build:
+      context: .
+      target: worker
+    image: knownpath-worker:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MONGODB_URI: ${COMPOSE_MONGODB_URI:-mongodb://mongodb:27017}
+      QUEUE_REDIS_URL: ${COMPOSE_QUEUE_REDIS_URL:-redis://valkey:6379}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+  web:
+    profiles: [platform]
+    build:
+      context: .
+      target: web
+    image: knownpath-web:local
+    restart: unless-stopped
+    environment:
+      KNOWNPATH_API_URL: http://api:3001
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   knownpath-mongodb-data:

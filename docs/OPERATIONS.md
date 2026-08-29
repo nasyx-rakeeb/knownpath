@@ -40,6 +40,11 @@ pnpm jobs schedules apply
 pnpm jobs schedules status
 ```
 
+Use `pnpm dev:infra:all` when local MongoDB is also needed. The production-shaped application
+profile is `docker compose --profile platform up --build`; production operators should deploy the
+independent non-root `api`, `worker`, and `web` image targets with external MongoDB and Valkey. See
+[Deployment](DEPLOYMENT.md).
+
 For bounded compute, `pnpm jobs drain` starts the same six consumers and exits after every runnable
 queue has remained idle for `QUEUE_DRAIN_IDLE_MS`. Future scheduled jobs and delayed retries do not
 keep the process alive; they are eligible on the next invocation. `QUEUE_DRAIN_MAX_RUNTIME_MS`
@@ -138,6 +143,7 @@ pnpm build
 ```
 
 Incident containment and rotation order are in [`SECURITY_OPERATIONS.md`](SECURITY_OPERATIONS.md).
+Release preflight and rollback are in [`RELEASE.md`](RELEASE.md).
 
 ## References
 

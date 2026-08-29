@@ -1,306 +1,128 @@
 # KnownPath
 
-KnownPath is an open-source shared knowledge network for AI coding agents. Its long-term purpose is
-to stop agents from repeatedly rediscovering the same technical solutions by making verified,
-reusable engineering experiences available through agent-native interfaces.
+KnownPath is an open-source shared knowledge network for AI coding agents. It turns public technical
+sources and privacy-minimized agent experience into reusable, evidence-grounded KnownPaths, then
+serves them through HTTP, MCP, a portable Agent Skill, and a developer dashboard.
 
-> [!IMPORTANT] KnownPath is under active phased development. Through Phase 19, agents can retrieve
-> evidence-grounded records, submit consented generalized lessons, and report privacy-minimized
-> observed outcomes. Developers can use the authenticated user and administration dashboards; public
-> signup and public anonymous access are not implemented. Personal-private and workspace knowledge,
-> existing-user dashboard invitations, and workspace-bound agent keys are implemented. The current
-> released installer is published as [`knownpath`](https://www.npmjs.com/package/knownpath).
+> [!IMPORTANT] KnownPath is under active phased development. Phase 21 prepares the implemented
+> platform for repeatable open-source installation and deployment. Registration remains closed;
+> operators create accounts through a masked CLI. Retrieved knowledge is evidence, not an
+> instruction override.
+
+## How it fits together
+
+```text
+GitHub + official docs                         agent contributions + outcomes
+          |                                                |
+          v                                                v
+ source records -> extraction -> evidence scoring -> canonical KnownPaths
+                           |                    |               |
+                           +---- MongoDB (product truth) -------+
+                                                |
+                                   hybrid retrieval + ranking
+                                                |
+                           HTTP API -> MCP / web / installer CLI
+
+ Valkey: queues, scheduling, locks, rate limits, and ephemeral coordination only
+```
+
+The monorepo keeps domain, persistence, retrieval, authentication, provider, and orchestration logic
+outside HTTP and UI layers. See [Architecture](docs/ARCHITECTURE.md),
+[Data model](docs/DATA_MODEL.md), and [Security architecture](docs/SECURITY_ARCHITECTURE.md).
 
 ## Prerequisites
 
-- Node.js 24 LTS (`.nvmrc` tracks the supported major; `package.json` enforces the tested range)
-- Corepack, included with the supported Node.js distribution
-- Docker Desktop or another Docker Engine with Compose support, for local Valkey and optional local
-  MongoDB
+- Node.js 24 LTS (see `.nvmrc` and root `engines`)
+- Corepack with pnpm 11.22.0
+- Docker Engine/Desktop with Compose for local MongoDB and Valkey
+- Optional: GitHub token for higher ingestion limits and Discussions
+- Optional: Gemini API key for **public-only** extraction and embeddings
 
-## Install
+## Local quickstart
 
 ```sh
+git clone https://github.com/nasyx-rakeeb/knownpath.git
+cd knownpath
 corepack enable
-pnpm install
+pnpm install --frozen-lockfile
 cp .env.example .env
-```
-
-Generate independent `BETTER_AUTH_SECRET` and `API_KEY_PEPPER` values as described in
-`.env.example`. The committed example contains no credential defaults.
-
-## Start the current development environment
-
-Start the required local Valkey queue infrastructure. Configure either local MongoDB or Atlas in
-`.env`; MongoDB remains the product source of truth:
-
-```sh
-pnpm dev:infra
-```
-
-Create or reconcile the current collections, validators, and indexes:
-
-```sh
+pnpm dev:infra:all
 pnpm db:init
-```
-
-Optional persistence inspection and repository round-trip validation:
-
-```sh
-pnpm db:inspect
-pnpm db:verify
-```
-
-Create the first local user or administrator through the masked CLI (registration is closed):
-
-```sh
 pnpm auth:user:create
-```
-
-Optionally set `GITHUB_TOKEN` in `.env` for the normal 5,000-request authenticated REST limit and
-GitHub Discussions access. Then preview or run a bounded collection:
-
-```sh
-pnpm ingest:github --source expo-core --types issues --limit 5 --dry-run
-pnpm ingest:github --source expo-core --types issues --limit 5
-```
-
-See [the GitHub ingestion guide](docs/GITHUB_INGESTION.md) before running a backfill.
-
-Discover the current curated official-document set without writing source records, then synchronize
-a bounded source or one indexed page:
-
-```sh
-pnpm ingest:sources discover --source expo-documentation --limit 20
-pnpm ingest:sources sync --source expo-documentation --limit 5 --dry-run
-pnpm ingest:sources sync --source expo-documentation \
-  --page https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough --limit 1
-```
-
-See [the official source ingestion guide](docs/OFFICIAL_SOURCE_INGESTION.md) before changing
-curation or requesting a bounded full-catalog run.
-
-With a Gemini development key in the ignored `.env`, process or inspect a bounded public-source
-candidate:
-
-```sh
-pnpm extract one --source-item <uuid>
-pnpm extract pending --limit 5
-pnpm extract inspect --attempt <uuid>
-pnpm extract inspect --candidate <uuid>
-```
-
-The unpaid Gemini path hard-rejects private/team source records before any provider call. Read
-[the AI extraction guide](docs/AI_EXTRACTION.md) before configuring the key or expanding a batch.
-
-Score extracted candidates without calling an AI provider, then inspect the full breakdown/history:
-
-```sh
-pnpm score one --candidate <uuid>
-pnpm score pending --limit 10
-pnpm score inspect --assessment <uuid>
-pnpm score history --candidate <uuid>
-```
-
-Scores are explainable ranking signals, not truth probabilities. Read
-[the scoring guide](docs/SCORING.md) before changing the versioned policy.
-
-Build immutable similarity profiles, discover blocked pairs, inspect reviews, and apply only
-deterministically safe canonical merges:
-
-```sh
-pnpm canonicalize profile --limit 10
-pnpm canonicalize discover --limit 10
-pnpm canonicalize review --limit 20
-pnpm canonicalize auto-merge --limit 10       # dry-run
-pnpm canonicalize auto-merge --limit 10 --apply
-pnpm canonicalize history --known-path <uuid>
-```
-
-Gemini embeddings are generated only after both candidates and all referenced sources are verified
-public. They support plausible blocked comparisons but never decide an automatic merge. Read
-[the canonicalization guide](docs/CANONICALIZATION.md) before applying merges or manual operations.
-
-Build current canonical search projections and query them locally. Review-state records are excluded
-unless explicitly requested:
-
-```sh
-pnpm run search project --pending --limit 10
-pnpm run search query --text "EAS build cannot find an imported file" \
-  --error "None of these files exist" --ecosystem expo --include-review
-pnpm run search indexes print
-```
-
-Local MongoDB uses exact/error and weighted-text retrieval and clearly reports semantic retrieval as
-unavailable. Atlas Search/Vector Search is optional configuration. The unpaid Gemini provider
-hard-rejects private/team documents and query text. Read [the retrieval guide](docs/RETRIEVAL.md)
-before enabling Atlas or changing ranking/model configuration.
-
-Start all application and package development processes:
-
-```sh
 pnpm dev
 ```
 
-The user dashboard is served at <http://127.0.0.1:3000> and requires `KNOWNPATH_API_URL` to identify
-the running Fastify API without a fallback. API liveness and readiness are available at
-<http://127.0.0.1:3001/health/live> and <http://127.0.0.1:3001/health/ready>. OpenAPI JSON is at
-<http://127.0.0.1:3001/api/v1/openapi.json>; development Swagger UI is at
-<http://127.0.0.1:3001/docs/>.
+Before `db:init`, generate separate values for `BETTER_AUTH_SECRET` and `API_KEY_PEPPER` with
+`openssl rand -base64 32` and place them only in ignored `.env`. The web app is at
+<http://127.0.0.1:3000>; API liveness/readiness are at <http://127.0.0.1:3001/health/live> and
+<http://127.0.0.1:3001/health/ready>. OpenAPI JSON is at `/api/v1/openapi.json` and development
+Swagger UI is at `/docs/`.
 
-Authenticated knowledge search, canonical detail, alternatives, review-access rules, and safe curl
-examples are documented in [the Knowledge HTTP API guide](docs/API.md). Normal clients receive only
-public published records; review access is explicit, admin-key-only, and audited.
-
-Dashboard routes, privacy boundaries, account provisioning, and UI behavior are documented in
-[the user dashboard guide](docs/DASHBOARD.md).
-
-Personal/private and workspace scope, invitations, roles, tenant-safe retrieval, workspace keys,
-outcome isolation, and explicit public sharing are documented in
-[the workspace security guide](docs/WORKSPACES.md).
-
-Administrators use the server-guarded `/admin` area. Read-only inspection requires an active admin
-session; merge/split, moderation, queue/job controls, user suspension, source changes, and sanitized
-private-content reveal require a session less than 30 minutes old plus exact target confirmation.
-See [the administration and moderation runbook](docs/ADMIN_OPERATIONS.md).
-
-After building, connect an MCP client directly to `http://127.0.0.1:3001/mcp`, or run the thin stdio
-bridge with `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`:
+To build and boot the production-shaped container stack instead:
 
 ```sh
-pnpm mcp:stdio
-pnpm mcp:inspect --transport stdio
+docker compose --profile platform up --build
 ```
 
-Tool contracts, authentication, security behavior, and current Codex/Claude Code/Cursor/Gemini CLI
-configurations are documented in [the MCP guide](docs/MCP.md).
+The complete environment contract is grouped in [`.env.example`](.env.example). Production must use
+external MongoDB and Valkey services, HTTPS origins, strong unique secrets, and the distributed
+Valkey rate limiter. Follow [Deployment](docs/DEPLOYMENT.md), not this development shortcut.
 
-The portable Agent Skill teaches supported coding agents when and how to consult those MCP tools
-without blindly applying retrieved fixes. Manual development installation and the current behavior
-contract are documented in [the Agent Skill guide](docs/AGENT_SKILL.md).
+## Agent installation
 
-Outcome reporting uses a separate `knowledge:outcome` scope and never treats a search or selection
-as success. The immutable assessment algorithm, safety-review separation, abuse controls, and
-developer recomputation commands are documented in [the outcomes guide](docs/OUTCOMES.md).
-
-Start or operate the Phase 16 worker stack after configuring `QUEUE_REDIS_URL`:
-
-```sh
-pnpm jobs start
-pnpm jobs drain
-pnpm jobs status
-pnpm jobs enqueue source.official.sync \
-  --target-kind source_registry --target-id expo-documentation \
-  --options-json '{"limit":5,"scope":"curated"}'
-```
-
-`jobs start` runs continuously; `jobs drain` is the bounded scheduled-compute path. Per-source
-schedules are disabled until explicitly enabled and applied. Queue topology, retries, quarantine,
-graceful shutdown, outage behavior, the free Upstash/GitHub Actions deployment, and admin inspection
-are documented in [the operations guide](docs/OPERATIONS.md).
-
-Configure the API origin and API key in the environment that launches each agent, then inspect or
-apply the Phase 13 installer plan:
+The published `knownpath` CLI installs the canonical skill and a thin stdio MCP bridge. It stores
+only environment-variable references—never their values:
 
 ```sh
 export KNOWNPATH_API_URL='https://your-knownpath-origin.example'
 read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
-pnpm knownpath install --dry-run --agent all
-pnpm knownpath install --agent all
-pnpm knownpath doctor --agent all
+npx knownpath install --dry-run
+npx knownpath install
+npx knownpath doctor
 ```
 
-The CLI stores only references to those variable names and has no URL fallback. It supports Codex
-CLI, Claude Code, Cursor, Gemini CLI, and OpenCode at global or project scope. Users can run
-`npx knownpath install`; repository development can use `pnpm knownpath`. Exact changes, Windows
-setup, backups, conflicts, updates, and uninstall behavior are documented in
-[the installer guide](docs/INSTALLER.md).
+Supported adapters are Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. See
+[Agent installation](docs/AGENT_INSTALLATION.md), [MCP](docs/MCP.md), and
+[Agent Skill](docs/AGENT_SKILL.md).
 
-## Deploy the API
+## Seed an empty database
 
-The root `render.yaml` defines one Render web service for the Fastify API and keeps MongoDB Atlas as
-the product database. The current free hosted worker uses Upstash plus scheduled GitHub Actions; it
-does not require a paid Render background worker. Rotate previously exposed credentials before
-setup, then follow [the Render deployment guide](docs/DEPLOYMENT.md) for the Blueprint, free queue,
-GitHub secrets, Atlas network access, and verification flow.
+KnownPath does not ship fabricated knowledge. The documented seed flow uses bounded Expo/React
+Native GitHub and official-document ingestion, Gemini extraction, deterministic scoring,
+canonicalization, embeddings, and operator review. Start with [Ingestion](docs/INGESTION.md).
+Private/workspace data is never sent through the unpaid/public Gemini path.
 
-Stop local infrastructure without deleting named development volumes:
+## Common repository commands
 
-```sh
-pnpm dev:infra:down
-```
+| Command                               | Purpose                                               |
+| ------------------------------------- | ----------------------------------------------------- |
+| `pnpm dev`                            | Run workspace development tasks                       |
+| `pnpm dev:infra:all`                  | Start local MongoDB and Valkey                        |
+| `pnpm dev:stack`                      | Build and run the production-shaped Compose profile   |
+| `pnpm db:init`                        | Reconcile MongoDB validators and indexes idempotently |
+| `pnpm auth:user:create`               | Provision a user/admin; public registration is closed |
+| `pnpm jobs start` / `pnpm jobs drain` | Run continuous or bounded workers                     |
+| `pnpm typecheck`                      | Check strict TypeScript across workspaces             |
+| `pnpm lint`                           | Run ESLint flat-config checks                         |
+| `pnpm format:check`                   | Check Prettier formatting                             |
+| `pnpm build`                          | Build all applications and packages                   |
+| `pnpm security:audit`                 | Fail on high-severity production dependency findings  |
+| `pnpm package:validate`               | Pack and exercise the installable CLI in isolation    |
+| `pnpm release:status`                 | Show pending Changesets without publishing            |
 
-## Repository commands
+Operational commands and failure behavior are in [Operations](docs/OPERATIONS.md). Source-specific
+commands are in [GitHub ingestion](docs/GITHUB_INGESTION.md),
+[official-source ingestion](docs/OFFICIAL_SOURCE_INGESTION.md), and
+[AI extraction](docs/AI_EXTRACTION.md).
 
-| Command                                | Purpose                                                                    |
-| -------------------------------------- | -------------------------------------------------------------------------- |
-| `pnpm install`                         | Install the pinned workspace dependencies                                  |
-| `pnpm dev`                             | Run workspace development tasks                                            |
-| `pnpm build`                           | Build every compilable application and package                             |
-| `pnpm typecheck`                       | Run strict TypeScript validation across the workspace                      |
-| `pnpm lint`                            | Run the ESLint flat configuration across the workspace                     |
-| `pnpm format`                          | Format supported files with Prettier                                       |
-| `pnpm format:check`                    | Validate formatting without changing files                                 |
-| `pnpm dev:infra`                       | Start the required local Valkey queue service                              |
-| `pnpm dev:infra:down`                  | Stop the local container while preserving its data volume                  |
-| `pnpm db:init`                         | Idempotently create/reconcile MongoDB collections, validators, and indexes |
-| `pnpm db:inspect`                      | Print current collection validators and indexes                            |
-| `pnpm db:verify`                       | Run and clean up a repository-layer persistence round trip                 |
-| `pnpm jobs start`                      | Start BullMQ consumers for all operational queues                          |
-| `pnpm jobs status`                     | Inspect queue counts and durable worker/run state                          |
-| `pnpm auth:user:create`                | Safely provision a user/admin with a masked password prompt                |
-| `pnpm ingest:github`                   | Collect a bounded configured GitHub source through official APIs           |
-| `pnpm ingest:sources`                  | Discover or sync configured official documentation and release feeds       |
-| `pnpm extract`                         | Extract or inspect bounded public-source candidate experiences             |
-| `pnpm score`                           | Verify evidence and create/inspect immutable candidate assessments         |
-| `pnpm canonicalize`                    | Profile, compare, review, merge, split, reassign, or rebuild candidates    |
-| `pnpm run search`                      | Project, embed, index, inspect, or query canonical KnownPaths              |
-| `pnpm mcp:stdio`                       | Run the thin local MCP-to-HTTP bridge over stdio                           |
-| `pnpm mcp:inspect`                     | List or invoke MCP tools with the official SDK client                      |
-| `pnpm knownpath …`                     | Run the multi-agent installer CLI from this checkout                       |
-| `pnpm contributions inspect --id <id>` | Inspect a sanitized contribution and processing state                      |
-| `pnpm outcomes …`                      | Recompute or inspect immutable KnownPath outcome assessments               |
+## Open-source project
 
-## Structure
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Privacy](docs/PRIVACY.md)
+- [Release process](docs/RELEASE.md)
+- [Changelog](CHANGELOG.md)
 
-```text
-apps/
-  api/             Fastify HTTP process
-  cli/             Publishable installer CLI and stdio bridge entry point
-  mcp-server/      Thin stdio MCP bridge to the authenticated HTTP API
-  web/             Next.js application shell
-  worker/          Source ingestion commands and operational queue consumers
-packages/
-  agent-adapters/  Safe detection/configuration adapters and ownership state
-  ai/              Gemini provider, privacy gate, prompts, validation, and extraction lifecycle
-  auth/            Sessions, API keys, principals, authorization, and audit
-  config/          Typed environment parsing
-  database/        MongoDB lifecycle, repositories, validators, and indexes
-  domain/          Versioned domain schemas and canonicalization helpers
-  canonicalization/ Deterministic blocking, optional embeddings, and canonical projections
-  contributions/  Privacy-safe sanitization and low-trust contribution processing
-  github-ingestion/ GitHub API collection and source normalization
-  jobs/            BullMQ/Valkey queue, schedule, retry, and worker lifecycle boundary
-  pipelines/       Idempotent operational composition over capability services
-  source-ingestion/ Official documentation/feed discovery and normalization
-  verification/    Deterministic evidence verification and immutable seed scoring
-  search/          Embeddings, search projections, hybrid retrieval, and explainable ranking
-  mcp/             Shared MCP tool contracts, projections, server factory, and HTTP gateway
-  observability/   Manual OpenTelemetry traces/metrics with a privacy-safe attribute vocabulary
-  typescript-config/ Shared strict compiler configurations
-skills/
-  knownpath/        Portable Agent Skill instructions and on-demand examples
-```
-
-See [the architecture guide](docs/ARCHITECTURE.md), [data model](docs/DATA_MODEL.md),
-[contribution privacy guide](docs/CONTRIBUTIONS.md), [retrieval guide](docs/RETRIEVAL.md),
-[Knowledge HTTP API guide](docs/API.md), [MCP guide](docs/MCP.md),
-[Agent Skill guide](docs/AGENT_SKILL.md), [installer guide](docs/INSTALLER.md),
-[security architecture](docs/SECURITY_ARCHITECTURE.md),
-[security operations](docs/SECURITY_OPERATIONS.md), [observability guide](docs/OBSERVABILITY.md),
-[deployment guide](docs/DEPLOYMENT.md), [decision log](docs/DECISIONS.md), and
-[phase progress](progress.md) for the current boundaries and delivery status.
-
-## License
-
-KnownPath is licensed under the [Apache License 2.0](LICENSE).
+KnownPath is licensed under the [Apache License 2.0](LICENSE). No external release or registry
+publication is performed automatically from a contributor checkout.

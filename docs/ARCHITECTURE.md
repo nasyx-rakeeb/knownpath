@@ -2,9 +2,8 @@
 
 ## Scope
 
-This document describes the intended completed-platform boundaries and the smaller subset
-established through Phase 18. A boundary appearing here does not mean its future product behavior is
-implemented.
+This document describes the implemented platform boundaries through Phase 21. A documented boundary
+is not a claim that future roadmap behavior is already implemented.
 
 KnownPath will turn high-signal public technical material into reusable, verified engineering
 experiences that coding agents can retrieve and evaluate. MongoDB is the primary persistent
@@ -535,6 +534,18 @@ The source-ingestion network boundary resolves every allowed host, rejects any n
 answer, pins the validated lookup into the HTTP connection, and repeats URL policy checks on every
 manual redirect. See [`SECURITY_ARCHITECTURE.md`](SECURITY_ARCHITECTURE.md) and
 [`OBSERVABILITY.md`](OBSERVABILITY.md).
+
+## Phase 21 distribution boundary
+
+Only the `knownpath` installer/stdio package is public on npm. Internal `@knownpath/*` workspaces
+remain private and are deployed together from the monorepo. The canonical Agent Skill is copied into
+the CLI archive during build; `server.json` describes the same npm-backed stdio MCP distribution
+without creating a second server implementation.
+
+One multi-target root Dockerfile produces non-root API, worker, and web images. MongoDB and Valkey
+remain external production dependencies; Compose supplies a local development topology. Changesets
+records public SemVer intent, while npm, GitHub, container, deployment, and MCP Registry publication
+remain explicit independent maintainer actions.
 
 ## Technology fit
 

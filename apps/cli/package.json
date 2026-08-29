@@ -23,6 +23,7 @@
     "model-context-protocol",
     "react-native"
   ],
+  "mcpName": "io.github.nasyx-rakeeb/knownpath",
   "type": "module",
   "engines": {
     "node": ">=24.18.0 <25"

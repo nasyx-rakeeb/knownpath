@@ -2980,3 +2980,129 @@ The full threat model, observability contract, incident response, and rotation p
 
 **Phase 21 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt. Do not infer or begin Phase 21 from Phase 20.**
+
+## Phase 21 — Open-source deployment and release preparation
+
+### Phase goal
+
+Make KnownPath reproducibly installable, packageable, deployable, and understandable outside the
+original development machine. Prepare—not automatically perform—npm, MCP Registry, container,
+GitHub, and operator release paths while preserving the existing Apache-2.0 license, privacy
+boundaries, MongoDB product truth, and explicit phase stop.
+
+### Research performed and official references consulted
+
+Current official guidance was checked on 2026-08-29 before implementation:
+
+- Node/npm documentation for package metadata, `files`/bin behavior, `npm pack`,
+  [publishing](https://docs.npmjs.com/cli/v11/commands/npm-publish),
+  [trusted publishing/provenance](https://docs.npmjs.com/trusted-publishers), and GitHub's
+  [Node package publishing](https://docs.github.com/en/actions/tutorials/publish-packages/publish-nodejs-packages).
+- MCP Registry's current `2025-12-11` `server.json` schema,
+  [publishing/ownership](https://modelcontextprotocol.io/registry/publishing), npm `mcpName`
+  metadata, and official MCP Publisher v1.8.1.
+- The open [Agent Skills specification](https://agentskills.io/specification), official `skills-ref`
+  validator, and current distribution/discovery guidance already researched for Codex, Claude Code,
+  Cursor, Gemini CLI, and OpenCode.
+- pnpm's [Docker](https://pnpm.io/docker) and deploy guidance, Docker's
+  [build best practices](https://docs.docker.com/build/building/best-practices/), Node's official
+  container images, and Compose health/dependency behavior.
+- GitHub Actions' public-repository
+  [billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), workflow
+  security, CodeQL/dependency-review integration, and immutable action pinning.
+- [Semantic Versioning 2.0.0](https://semver.org/), current Changesets 3.0.1, Keep a Changelog,
+  Contributor Covenant 2.1, GitHub community/security file conventions, and Apache-2.0 metadata.
+
+### Architecture, packaging, and release decisions
+
+- Only `knownpath` is publishable on npm. Internal `@knownpath/*` workspaces remain private. The
+  seven-file CLI archive includes its executable, sourcemap, README, Apache-2.0 license, and
+  canonical skill. A package validator packs, inspects, installs, and executes the archive in an
+  isolated consumer without publishing.
+- Added `io.github.nasyx-rakeeb/knownpath` npm ownership metadata and root `server.json`. The
+  manifest points at `npx -y knownpath mcp` and declares required API URL/key environment variables.
+  MCP Registry publication remains an explicit post-npm maintainer action.
+- Adopted Changesets for public SemVer intent and version/changelog generation. The pending minor
+  Changeset proposes `knownpath@0.4.0`; source/package version remains 0.3.0 until the deliberate
+  version-and-publish workflow.
+- Added one multi-target Node 24 Dockerfile for non-root API, worker, and standalone Next.js web
+  images. pnpm's documented legacy deploy mode is explicit because injected workspace packages
+  currently break the established TypeScript declaration/project build graph. Compose adds an
+  optional full platform profile while MongoDB and Valkey keep their existing roles.
+- CI performs locked install, format/type/lint/build/audit, packed CLI, official skill/MCP metadata,
+  and all three container validations. It never publishes and includes no test job.
+- Documentation is provider-neutral. Render/Atlas/Upstash/GitHub Actions remains one current
+  low-cost example, not a mandatory hosting architecture.
+
+The approved design is
+[`docs/superpowers/specs/2026-08-29-knownpath-phase-21-open-source-release-design.md`](docs/superpowers/specs/2026-08-29-knownpath-phase-21-open-source-release-design.md).
+
+### Files, packages, and documentation created or updated
+
+- Added root `Dockerfile`, `.dockerignore`, expanded `compose.yaml`, deployment file lists for
+  API/worker, and Next.js standalone output.
+- Added Changesets configuration/pending release note, package/release scripts, packed CLI
+  validation, npm MCP ownership metadata, and root `server.json`.
+- Added `.github/workflows/ci.yml` with SHA-pinned official actions and independent container
+  targets; existing Dependabot, CodeQL, dependency-review, audit, and queue workflows remain.
+- Added `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `docs/AGENT_INSTALLATION.md`,
+  `docs/INGESTION.md`, `docs/PRIVACY.md`, and `docs/RELEASE.md`. Reworked README and deployment
+  guidance; updated architecture, decisions, MCP, Agent Skill, operations, security policy, and the
+  complete grouped environment example.
+- The environment example covers all 101 schema keys and contains no credential defaults. No tests
+  were added.
+
+### Commands and behavior successfully verified
+
+- `pnpm install --frozen-lockfile` completed for all 26 projects. Final `pnpm format:check` passed;
+  `pnpm typecheck` completed **43/43** tasks; `pnpm lint` completed **24/24**; `pnpm build`
+  completed **24/24**; and `pnpm security:audit` reported `No known vulnerabilities found`.
+- `pnpm package:validate` built and inspected exactly seven files, rejected unresolved
+  workspace/catalog specifications and local sourcemap paths, installed the tarball into an isolated
+  npm consumer, and exercised version/help/status plus a project-scoped Codex install dry-run. No
+  fake API key appeared in output.
+- `pnpm release:status` reported only the pending `knownpath` minor bump to 0.4.0.
+  `docker compose config --quiet`, Actionlint 1.7.11, official `skills-ref` at pinned commit
+  `69ef37e...`, and official MCP Publisher 1.8.1 validation all passed.
+- Clean container install/build produced API, worker, and web targets; all runtime users were
+  `node`. API and web images include health checks. With synthetic process-local secrets against
+  local MongoDB/Valkey, API liveness returned `ok`, readiness returned `ready` with MongoDB, auth,
+  and queues `ok`, and explicit `development_memory` rate limiting. The bounded worker emitted
+  `worker.ready` and `worker.drain.complete`; the standalone web image returned HTTP 200.
+- The checkout's existing ignored `.env` was intentionally preserved. Its missing auth/rate-limit
+  values caused the first Compose application boot to fail clearly, as required; verification then
+  used generated process-local values rather than writing credentials. A schema/example comparison
+  found 101 configuration keys, 101 example keys, and no missing keys.
+- `git diff --check` passed. A workspace scan found no committed package archives, key files, or
+  recognized Gemini/npm/MongoDB/Valkey credential patterns.
+
+### Environment and manual setup still required
+
+- A real deployment still requires operator-managed MongoDB, Valkey, unique auth/key-pepper secrets,
+  HTTPS URLs/origins, first-admin creation, GitHub/Gemini credentials where used, optional Atlas
+  search indexes, and optional OTLP collector. Fill an ignored `.env` or platform secret store
+  before using the full Compose profile.
+- The prepared 0.4.0 Changeset has not been applied or published. A maintainer must review the
+  generated version/changelog diff, authenticate via npm trusted publishing or an approved
+  interactive method, publish npm, verify the exact artifact, then separately publish MCP Registry
+  metadata, tag/release GitHub, build/push images, and deploy. None occurred in Phase 21.
+- GitHub repository settings must enable the supported security features, private vulnerability
+  reporting, branch protection/review policy, and any trusted-publisher release environment.
+- Initial production data remains an operator-controlled bounded seed and review/publication flow;
+  no fabricated knowledge was added.
+
+### Known limitations intentionally left for later phases
+
+- No unit, integration, or E2E tests were introduced by explicit phase rule. CI validates compile,
+  format, lint, package, supply-chain, metadata, and container contracts only.
+- No automatic external release, container registry, package registry, hosted environment,
+  production URL, billing, public registration, or license change was added.
+- pnpm injected workspace deployment is deferred until the TypeScript declaration/project graph can
+  use it without breaking builds; the documented maintained legacy deploy path is explicit.
+- Free/low-cost hosted examples have cold-start, quota, and schedule-latency limits and are not an
+  always-on SLA.
+
+### Exact next phase
+
+**Phase 22 (awaiting its prompt): continue only with the capability explicitly requested by the next
+phase prompt. Do not infer or begin Phase 22 from Phase 21.**

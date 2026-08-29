@@ -1089,3 +1089,37 @@ private/special DNS answers and rebinding. Custom dependency scanners duplicate 
 [OWASP SSRF](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html),
 [OpenTelemetry JavaScript](https://opentelemetry.io/docs/languages/js/),
 [GitHub supply-chain security](https://docs.github.com/en/code-security/concepts/supply-chain-security/supply-chain-security)
+
+## 2026-08-29 — Publish one CLI distribution and deploy three non-root application targets
+
+**Decision:** Keep only `knownpath` public on npm; internal `@knownpath/*` packages remain private
+monorepo implementation details. Package the canonical Agent Skill and stdio MCP bridge in that one
+archive, and declare the same distribution in MCP Registry `server.json` metadata. Use Changesets
+for SemVer intent and changelog/version generation, while keeping npm, MCP Registry, GitHub,
+container, and deployment publication as explicit separate maintainer actions.
+
+Build API, worker, and web from one multi-target Node 24 Dockerfile with non-root runtime users. Use
+pnpm's documented legacy deploy mode because the current declaration-based workspace build graph
+requires workspace symlink resolution; retain a future migration path to injected workspace packages
+once the TypeScript project/declaration graph supports it cleanly. Keep Compose as a local
+development topology and deployment documentation provider-neutral.
+
+**Why:** One installable package matches `npx knownpath install`, avoids exposing unstable internal
+package contracts, and gives MCP ownership one auditable npm identity. Changesets avoids custom
+version scripting. Separate minimal runtime targets preserve process boundaries without three
+duplicated Dockerfiles. Explicit publishing prevents validation jobs or contributor checkouts from
+mutating external systems.
+
+**Rejected:** Publishing every workspace would create unsupported public APIs. A second MCP npm
+package would duplicate the bridge/tool distribution. A Render-only deployment model would hinder
+self-hosting. Automatically publishing from ordinary CI would broaden credential and release risk.
+Silently choosing a new license was unnecessary because Apache-2.0 is already owner-selected and
+committed.
+
+**References:**
+[npm package specification](https://docs.npmjs.com/cli/v11/configuring-npm/package-json),
+[npm trusted publishing](https://docs.npmjs.com/trusted-publishers),
+[MCP Registry publishing](https://modelcontextprotocol.io/registry/publishing),
+[pnpm Docker guidance](https://pnpm.io/docker),
+[Docker build best practices](https://docs.docker.com/build/building/best-practices/),
+[Changesets](https://github.com/changesets/changesets), [Semantic Versioning](https://semver.org/)

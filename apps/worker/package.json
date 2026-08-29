@@ -5,6 +5,9 @@
   "description": "KnownPath background processing runtime.",
   "license": "Apache-2.0",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "canonicalize": "tsx --env-file-if-exists=../../.env src/index.ts canonicalize",

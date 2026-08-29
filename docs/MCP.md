@@ -79,6 +79,11 @@ The published equivalent is `npx knownpath install`. See [the installer guide](I
 required environment setup, supported agents, backups, and uninstall behavior. The manual
 configurations below remain useful for transport development and troubleshooting.
 
+The root `server.json` is the MCP Registry-compatible distribution manifest for
+`io.github.nasyx-rakeeb/knownpath`. It points to the same `knownpath` npm package and `mcp`
+subcommand, with required environment-variable declarations. Registry publication is an explicit
+maintainer release step; the manifest does not publish or authenticate anything by itself.
+
 Build the workspace, then configure the bridge in the ignored `.env` or the agent's process
 environment:
 

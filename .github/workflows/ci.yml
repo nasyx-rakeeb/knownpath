@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: knownpath-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate formatting
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: pnpm build
+
+      - name: Audit dependencies
+        run: pnpm security:audit
+
+      - name: Validate packed CLI, MCP metadata, and installer dry run
+        run: pnpm package:validate
+
+      - name: Validate Agent Skill with the official reference implementation
+        run: |
+          python3 -m venv "${RUNNER_TEMP}/skills-ref"
+          "${RUNNER_TEMP}/skills-ref/bin/pip" install --disable-pip-version-check \
+            'git+https://github.com/agentskills/agentskills.git@69ef37e9424c0a7ea9dd2293b559e43ec8176379#subdirectory=skills-ref'
+          "${RUNNER_TEMP}/skills-ref/bin/skills-ref" validate skills/knownpath
+
+      - name: Validate MCP Registry metadata with the official publisher
+        env:
+          MCP_PUBLISHER_VERSION: 1.8.1
+        run: |
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          release="https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "${RUNNER_TEMP}/${archive}" "${release}/${archive}"
+          curl --fail --location --silent --show-error --output "${RUNNER_TEMP}/checksums.txt" \
+            "${release}/registry_${MCP_PUBLISHER_VERSION}_checksums.txt"
+          cd "${RUNNER_TEMP}"
+          grep " ${archive}$" checksums.txt | sha256sum --check --strict
+          tar --extract --gzip --file "${archive}"
+          cd "${GITHUB_WORKSPACE}"
+          "${RUNNER_TEMP}/mcp-publisher" validate
+
+  containers:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [api, worker, web]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build production image
+        run:
+          docker build --target "${{ matrix.target }}" --tag "knownpath-${{ matrix.target }}:ci" .
+
+      - name: Verify non-root runtime user
+        run: |
+          user="$(docker image inspect "knownpath-${{ matrix.target }}:ci" --format '{{.Config.User}}')"
+          test -n "${user}"
+          test "${user}" != "0"

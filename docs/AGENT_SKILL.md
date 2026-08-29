@@ -27,7 +27,7 @@ The artifact follows the open Agent Skills specification. Its frontmatter uses o
 dynamic prompt syntax, pre-approved tools, executable scripts, or UI metadata. Detailed Expo and
 React Native examples are loaded only when useful.
 
-The current skill version is `1.2.0`.
+The current skill version is `1.3.0`.
 
 ## Required MCP setup
 
