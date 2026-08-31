@@ -21,18 +21,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@knownpath/ai": "workspace:*",
-    "@knownpath/canonicalization": "workspace:*",
-    "@knownpath/config": "workspace:*",
-    "@knownpath/contributions": "workspace:*",
     "@knownpath/database": "workspace:*",
     "@knownpath/domain": "workspace:*",
-    "@knownpath/github-ingestion": "workspace:*",
-    "@knownpath/jobs": "workspace:*",
-    "@knownpath/outcomes": "workspace:*",
-    "@knownpath/search": "workspace:*",
-    "@knownpath/source-ingestion": "workspace:*",
-    "@knownpath/verification": "workspace:*"
+    "@knownpath/jobs": "workspace:*"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

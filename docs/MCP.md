@@ -220,10 +220,11 @@ records only the fixed tool name, duration, and success/error—not inputs, reco
 IDs, or returned content.
 
 - MCP accepts bearer API keys only. Browser sessions do not authenticate the MCP endpoint.
-- OAuth discovery/authorization is not implemented in Phase 11. Clients must be configured with a
-  KnownPath key; this is documented rather than pretending OAuth compliance.
-- The backend validates Host and Origin, limits protocol bodies to 64 KiB, applies the existing
-  bounded process-local rate policy, and sends `Cache-Control: no-store`.
+- OAuth discovery/authorization is not implemented. Clients must be configured with a KnownPath key;
+  this is documented rather than pretending OAuth compliance.
+- The backend validates Host and Origin, limits protocol bodies to 64 KiB, applies distributed
+  Valkey-backed production policies (or explicitly configured local memory limits), and sends
+  `Cache-Control: no-store`.
 - The stdio bridge bounds request duration and response bytes, propagates cancellation through
   `fetch`, and emits only safe diagnostics on stderr. Keys and Authorization headers are never
   logged.
@@ -242,5 +243,5 @@ IDs, or returned content.
 - [MCP Inspector](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector)
 - [OpenAI Codex MCP](https://developers.openai.com/codex/mcp/)
 - [Claude Code MCP](https://code.claude.com/docs/en/mcp)
-- [Cursor MCP](https://docs.cursor.com/en/context/mcp)
+- [Cursor MCP](https://cursor.com/docs/mcp)
 - [Gemini CLI MCP servers](https://geminicli.com/docs/tools/mcp-server/)

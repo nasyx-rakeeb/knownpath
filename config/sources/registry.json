@@ -236,9 +236,9 @@
         "classificationBasis": "official_domain",
         "publisher": "React Native"
       },
-      "attributionUrl": "https://github.com/reactjs/react-native-website",
+      "attributionUrl": "https://github.com/react/react-native-website",
       "licenseIdentifier": "CC-BY-4.0",
-      "licenseUrl": "https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs"
+      "licenseUrl": "https://github.com/react/react-native-website/blob/main/LICENSE-docs"
     },
     {
       "key": "expo-changelog",
@@ -307,9 +307,9 @@
         "classificationBasis": "official_domain",
         "publisher": "React Native"
       },
-      "attributionUrl": "https://github.com/reactjs/react-native-website",
+      "attributionUrl": "https://github.com/react/react-native-website",
       "licenseIdentifier": "CC-BY-4.0",
-      "licenseUrl": "https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs"
+      "licenseUrl": "https://github.com/react/react-native-website/blob/main/LICENSE-docs"
     }
   ]
 }

@@ -11,8 +11,15 @@ export const nonEmptyStringSchema = z.string().trim().min(1).max(10_000);
 export const shortStringSchema = z.string().trim().min(1).max(256);
 export const sha256Schema = z.hash("sha256");
 
-export const timestampInputSchema = z.iso
-  .datetime({ offset: true })
+export const timestampInputSchema = z
+  .preprocess(
+    // Boundary adapters may validate before a domain service validates again.
+    // Convert that canonical value back to its external representation so the
+    // schema stays idempotent while its advertised JSON Schema remains a
+    // date-time string (not a non-JSON Date type).
+    (value) => (value instanceof Date ? value.toISOString() : value),
+    z.iso.datetime({ offset: true }),
+  )
   .transform((value) => new Date(value));
 
 export const timestampSchema = z

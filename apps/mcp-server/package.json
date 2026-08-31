@@ -15,8 +15,7 @@
   },
   "dependencies": {
     "@knownpath/config": "workspace:*",
-    "@knownpath/mcp": "workspace:*",
-    "@modelcontextprotocol/server": "catalog:"
+    "@knownpath/mcp": "workspace:*"
   },
   "devDependencies": {
     "@knownpath/typescript-config": "workspace:*",

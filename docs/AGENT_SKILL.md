@@ -149,8 +149,8 @@ installer-owned copies and refuses locally modified content.
 Validate the open format with the reference implementation:
 
 ```sh
-skills-ref validate skills/knownpath
-skills-ref read-properties skills/knownpath
+agentskills validate skills/knownpath
+agentskills read-properties skills/knownpath
 ```
 
 The repository also uses the bundled skill-creator validator as a second structural check. These are

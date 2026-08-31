@@ -3106,3 +3106,193 @@ The approved design is
 
 **Phase 22 (awaiting its prompt): continue only with the capability explicitly requested by the next
 phase prompt. Do not infer or begin Phase 22 from Phase 21.**
+
+## Phase 22 — Complete platform audit and polish
+
+### Phase goal and full system status
+
+Audit the implementation rather than trusting prior phase claims, repair concrete defects without a
+rewrite, and manually exercise the complete public and tenant-scoped learning loops. KnownPath now
+has coherent TypeScript boundaries for ingestion, extraction, verification, canonicalization,
+retrieval, API/MCP delivery, contributions, outcomes, operations, user/admin web surfaces, tenant
+authorization, observability, packaging, and deployment. MongoDB remains the durable product store;
+Valkey remains ephemeral queue, coordination, and distributed rate-limit infrastructure. Automated
+unit, integration, and E2E tests remain explicitly deferred by the build sequence.
+
+The final architecture is: allowlisted public sources are normalized into immutable source items;
+public records may be processed by configured Gemini extraction/embedding providers; deterministic
+verification creates immutable assessments; reversible canonicalization produces KnownPaths; hybrid
+retrieval combines exact, lexical, semantic, environment, version, trust, freshness, and outcome
+signals; the API is the authorization/business-logic boundary for web and MCP clients; contributions
+and outcomes return through privacy, abuse, scoring, and review pipelines. Private/team content
+stays tenant-scoped and is blocked from the unpaid/public Gemini path.
+
+### Fresh official research and compatibility review
+
+Current official material was checked on 2026-08-30 through 2026-08-31 before final verification:
+
+- The current [MCP specification](https://modelcontextprotocol.io/specification/2025-11-25),
+  [transport rules](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), and
+  official TypeScript SDK v2 server/client packages confirmed the existing Streamable HTTP and stdio
+  bridge architecture, Origin/auth handling, cancellation, and compact tool contracts.
+- The open [Agent Skills specification](https://agentskills.io/specification) and official
+  `skills-ref` validator confirmed the canonical skill metadata and progressive instruction layout.
+- Current official client documentation was checked for
+  [Codex MCP](https://developers.openai.com/codex/mcp),
+  [Codex Skills](https://developers.openai.com/codex/skills),
+  [Claude Code MCP](https://docs.anthropic.com/en/docs/claude-code/mcp),
+  [Claude Code Skills](https://docs.anthropic.com/en/docs/claude-code/skills),
+  [Cursor MCP](https://cursor.com/docs/mcp), [Cursor Skills](https://cursor.com/docs/skills),
+  [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/), and
+  [Gemini CLI Skills](https://geminicli.com/docs/cli/skills/). The canonical skill remains portable;
+  adapters own client-specific paths and config formats.
+- Google’s official Gemini model, structured-output, SDK, rate-limit, and embeddings documentation
+  confirmed configurable `@google/genai`, the current `gemini-3.5-flash-lite` extraction selection,
+  `gemini-embedding-2`, 768 configured dimensions, strict structured validation, and model/version
+  metadata. Provider policy—not content—continues to decide whether data may leave KnownPath.
+- GitHub’s current REST version `2026-03-10`, GraphQL Discussions schema, pagination, conditional
+  requests, rate-limit, retry, and API best-practice guidance confirmed the collector contracts. The
+  canonical Expo/React Native repositories were checked live.
+- MongoDB’s current Search/Vector Search index definition, filter, lifecycle, and queryability
+  documentation confirmed Atlas definition reconciliation and tenant-filter fields. BullMQ 6.2.0
+  retry/backoff, stalled-job recovery, and graceful worker behavior remain compatible with Valkey’s
+  Redis protocol.
+
+### Audit gaps found and fixed
+
+- Corrected the obsolete React Native documentation repository and license links from
+  `reactjs/react-native-website` to the current official `react/react-native-website` location in
+  source configuration and documentation.
+- Atlas index initialization previously treated a matching name as sufficient. It now compares the
+  live definition, updates drifted Search/Vector Search indexes, reports created/reused/updated
+  separately, and waits for both `READY` and `queryable`. Live definitions now include `ownerUserId`
+  and `workspaceId` tenant filters.
+- External timestamps could fail after an HTTP adapter transformed them to `Date` and a service
+  validated them again. The shared boundary schema is now idempotent while still advertising a
+  strict JSON date-time string; real MCP outcome submission and deduplication then succeeded.
+- Uninstalling the final managed agent attempted directory removal on the regular installer-state
+  file. A symlink-safe owned-file removal primitive now removes only that file; real
+  uninstall/reinstall completed without changing unrelated config.
+- Added the web app’s missing direct `server-only` declaration and removed genuinely unused direct
+  dependencies from internal package manifests. Bundled CLI runtime dependencies remain explicit by
+  design. The only reported deprecated transitive dependency is `node-domexception@1.0.0`; no direct
+  deprecated package or security advisory was found.
+- Reconciled README, architecture, data model, API, MCP, retrieval, ingestion, installer, decisions,
+  Agent Skill, and historical source-design references with implemented behavior. Added a patch
+  Changeset for the published CLI uninstall correction and documented all unreleased fixes.
+
+### End-to-end and manual verification performed
+
+- A frozen pnpm install completed across all 26 projects. Final combined gates completed **72/72**
+  typecheck/lint/build tasks; formatting passed; package validation packed seven files, installed
+  the tarball in an isolated consumer, and executed the CLI; `pnpm audit --audit-level high`
+  reported no known vulnerabilities. All five GitHub workflow YAML files parsed successfully.
+- MongoDB initialization created all 33 collections/index sets in a clean local database; a second
+  run reused all 33, and the repository round trip cleaned its temporary record. The isolated local
+  and Atlas smoke databases were dropped after verification.
+- A bounded unauthenticated `expo/expo` Issues sync created two real items on the first run and
+  reported both unchanged on the second. A targeted Expo documentation page likewise changed from
+  created to unchanged. Persisted items retained comments/text, objective provenance, update times,
+  hashes, authorship associations, and available reactions; no token appeared in output.
+- Live Gemini processed bounded public Expo records. Invalid reusable/evidence claims were
+  quarantined, an unchanged successful extraction avoided another provider call, and a real useful
+  candidate was deterministically rescored to a new immutable high-confidence assessment. The
+  private/team unpaid-provider block remained enforced.
+- Atlas re-projection reused current `gemini-embedding-2` vectors without provider calls. Exact
+  error search returned the compatible review KnownPath above looser matches with separate exact,
+  lexical, semantic, version, platform, trust, freshness, and outcome explanations. Atlas Search and
+  Vector Search were both `READY` and queryable; local fallback search worked without vector
+  services.
+- Against an isolated real API database, liveness/readiness, OpenAPI 3.1 (53 paths), stable invalid
+  input errors, missing IDs, invalid/revoked auth, admin-only review access, and audit events were
+  inspected. Ordinary clients could not search or fetch review records. Browser responses exposed no
+  keys, embeddings, raw source dumps, private removed fields, or admin-only data.
+- The official MCP SDK inspector observed exactly six tools: `knownpath_search`, `knownpath_get`,
+  `knownpath_alternatives`, `knownpath_status`, `knownpath_contribute`, and
+  `knownpath_report_outcome`. Streamable HTTP and the environment-only stdio bridge both searched
+  successfully; malformed auth/input remained concise and secret-free.
+- A consented synthetic public contribution passed MCP/API sanitization into source, candidate,
+  immutable assessment, moderation, review canonicalization, and searchable projection. Fake token,
+  email, and home-path content was detected/sanitized and absent from responses. Self-report alone
+  produced low trust and never auto-published knowledge.
+- One real MCP outcome produced one immutable record; retrying the same execution reused it instead
+  of incrementing counts. The Wilson-derived aggregate stayed `very_low` confidence for the single
+  sample. Safety review state remained separate from ranking state.
+- Two isolated workspaces were exercised. Workspace 1 could retrieve its team review KnownPath;
+  Workspace 2 received authorization denial for both search and direct detail. Public results were
+  unchanged. Public sharing created a separate sanitized public contribution rather than flipping
+  the proprietary record.
+- User and admin web routes loaded through the real API. An ordinary session received 404 for the
+  admin surface while a real admin could inspect operational/audit pages. Twelve invalid sign-ins
+  produced ten `401` responses followed by two `429` responses. Visual browser/mobile and assistive
+  technology inspection remains a genuine external manual check because no interactive browser was
+  available in this environment.
+- SafeSourceHttpClient denied an allowlisted literal loopback URL through its SSRF policy. Pino logs
+  omitted a fake Authorization secret. Console OpenTelemetry showed correlated HTTP -> MongoDB and
+  MCP -> tool spans with only bounded route/backend/scope attributes—no query, credential, user ID,
+  workspace ID, content, or filesystem path.
+- Local MongoDB 8 and Valkey 9.1.1 became healthy. BullMQ completed a bounded job, quarantined a
+  permanent failure after one attempt, quarantined a transient failure after three attempts, and
+  stopped the worker gracefully. The local services were stopped after cleanup.
+- Production API, worker, and web container targets built successfully and ran as non-root `node`;
+  API/web health checks were present. The official Agent Skills validator reported
+  `Valid skill: skills/knownpath`.
+- Installer dry-run, install, repeated install, status, doctor, uninstall, and reinstall were
+  exercised for locally installed Codex, Claude Code, and OpenCode. The second install made zero
+  changes; pre/post config hashes matched; only environment-variable names—not values—were stored.
+  Cursor and Gemini CLI adapters were verified against current official documentation but those
+  clients were not installed locally.
+- The deployed API at `https://knownpath-api.onrender.com` cold-started and then returned liveness
+  `ok` and readiness `ready` with MongoDB, auth, distributed rate limiter, and queues all `ok`.
+
+### Current supported surface and seed architecture
+
+- Installer/client adapters: OpenAI Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. Local
+  real lifecycle verification covered Codex, Claude, and OpenCode; Cursor/Gemini remain doc-derived
+  until installed on a suitable machine.
+- Initial GitHub registries: `expo/expo`, `react/react-native`,
+  `react-native-community/discussions-and-proposals`, `reactwg/react-native-new-architecture`, and
+  `react-native-community/upgrade-support`. Curated official registries cover Expo
+  documentation/changelog and React Native documentation/releases, with full indexes available for
+  targeted retrieval.
+- Gemini extraction and embedding are provider/config abstractions with public-only free-path
+  enforcement, prompt/model/schema/content-hash versioning, strict structured output, quarantine,
+  and reproducible reprocessing. Search stays useful locally without Atlas vector retrieval.
+- Public, personal-private, and workspace/team visibility is enforced in repositories, services,
+  API, MCP, embeddings, outcomes, and dashboard access. Admin private-content reveal remains
+  sanitized, reason-gated, freshly authenticated, role checked, and audited.
+
+### External/manual checks and release/deployment status
+
+- No Phase 22 package publish, MCP Registry publish, GitHub release, push, or hosted redeploy was
+  performed; external release actions require explicit maintainer intent. The live deployment is
+  healthy but does not include this uncommitted audit patch until separately deployed.
+- A GitHub token was unavailable, so authenticated Discussions/backfill and higher-rate GitHub
+  behavior were not reverified live. Unauthenticated official API ingestion was real and bounded.
+- Cursor and Gemini CLI were unavailable locally. Dashboard visual/mobile/accessibility inspection,
+  an external OTLP collector, and a private-data-approved AI provider remain external checks.
+- Existing real canonical records remain review-state; the audit did not fabricate or publish
+  knowledge to make verification easier. Promotion still requires real moderation/evidence.
+- CI, Docker, npm tarball, Changesets, MCP metadata, Apache-2.0 licensing, environment example, and
+  operator documentation are release-ready. The pending Changeset proposes `knownpath@0.4.2` after
+  deliberate review and publication.
+
+### Security and privacy status
+
+Server-side auth, fresh-admin confirmation, audit trails, tenant filters, distributed production
+rate limits, payload/time limits, source allowlists, DNS/IP/redirect SSRF checks, prompt-injection
+boundaries, structured AI validation, secret/PII sanitization, outcome deduplication/abuse controls,
+safe installer writes, critical/degraded readiness, and low-cardinality OpenTelemetry correlation
+were all inspected. No recognized Gemini, npm, GitHub, MongoDB, or Valkey credentials were found in
+tracked files; ignored local `.env` remained untracked. Synthetic credentials and smoke databases
+were removed after verification.
+
+### Explicitly deferred work
+
+Automated unit, integration, and E2E tests are intentionally deferred to a separate future project,
+as required by every phase in this sequence. Remaining work is operational release/deployment and
+external-client verification, not a new KnownPath feature phase.
+
+### Final phase boundary
+
+Phase 22 completes this build sequence. Do not start another feature phase implicitly.

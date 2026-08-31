@@ -37,9 +37,9 @@ The design is based on official sources and live endpoint behavior checked on 20
   Markdown document endpoints. The [React Native sitemap](https://reactnative.dev/sitemap.xml)
   provides canonical discovery, though it does not consistently provide modification dates.
 - React Native documentation is maintained in the official
-  [react-native-website repository](https://github.com/reactjs/react-native-website). Its
+  [react-native-website repository](https://github.com/react/react-native-website). Its
   documentation content is licensed under
-  [CC BY 4.0](https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs), requiring
+  [CC BY 4.0](https://github.com/react/react-native-website/blob/main/LICENSE-docs), requiring
   preserved attribution.
 - The official [React Native RSS feed](https://reactnative.dev/blog/rss.xml) exposes full feed
   content for release and announcement entries. Framework release provenance is also available from

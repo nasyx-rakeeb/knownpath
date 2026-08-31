@@ -123,6 +123,13 @@ export async function removeOwnedDirectory(path: string): Promise<void> {
   await rm(path, { force: true, recursive: true });
 }
 
+export async function removeOwnedFile(path: string): Promise<void> {
+  assertAbsolutePath(path);
+  if (!(await pathExists(path))) return;
+  await assertSafeExistingFile(path);
+  await rm(path, { force: true });
+}
+
 export async function readSkillVersion(path: string): Promise<string | undefined> {
   const source = await readTextIfPresent(join(path, "SKILL.md"));
   return source?.match(/^\s{2}version:\s*["']?([^"'\s]+)["']?\s*$/mu)?.[1];

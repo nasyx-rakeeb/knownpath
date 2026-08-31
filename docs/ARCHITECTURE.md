@@ -2,10 +2,11 @@
 
 ## Scope
 
-This document describes the implemented platform boundaries through Phase 21. A documented boundary
-is not a claim that future roadmap behavior is already implemented.
+This document describes the implemented platform after the Phase 22 audit. Historical phase labels
+identify when a boundary was introduced; the current behavior is the combined system described
+below.
 
-KnownPath will turn high-signal public technical material into reusable, verified engineering
+KnownPath turns high-signal public technical material into reusable, verified engineering
 experiences that coding agents can retrieve and evaluate. MongoDB is the primary persistent
 database.
 
@@ -136,9 +137,7 @@ administration application service; Next.js never invokes them directly. Private
 content is hidden by default and can reveal only the persisted sanitized payload through a distinct
 fresh-admin capability. See [the administration runbook](ADMIN_OPERATIONS.md).
 
-## Intended completed-platform data flow
-
-The following is a roadmap-level flow, not implemented behavior:
+## End-to-end platform data flow
 
 ```text
 public technical sources
@@ -164,9 +163,6 @@ AI extraction boundary ---> deterministic scoring and verification
              usefulness/contribution feedback
 ```
 
-Later phases must define trust enforcement, processing behavior, scoring, retrieval-specific
-indexes, and feedback aggregation before implementing this complete flow.
-
 ## Current runtime and persistence flow
 
 1. Docker Compose provides loopback-bound Valkey for queues and an optional loopback MongoDB for
@@ -174,7 +170,7 @@ indexes, and feedback aggregation before implementing this complete flow.
 2. Applications and database commands parse their environment through `@knownpath/config`.
 3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
    closes the client during shutdown.
-4. Database initialization creates/reconciles 29 collections, critical validators, and named indexes
+4. Database initialization creates/reconciles 33 collections, critical validators, and named indexes
    idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
 5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
    not access raw collections.
@@ -216,7 +212,8 @@ indexes, and feedback aggregation before implementing this complete flow.
     Search projections include privacy-thresholded aggregates and versioned ranking components.
 17. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
     skill. Config files contain only references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`;
-    retrieval and authorization remain centralized in the API. Dashboard behavior remains deferred.
+    retrieval and authorization remain centralized in the API. The dashboard consumes those same
+    safe session APIs and adds no parallel business-logic path.
 18. BullMQ consumers run six workload-isolated queues. MongoDB stores pipeline intent before
     dispatch; source-specific schedulers, retries with jitter, global provider limits, stalled-job
     recovery, reconciliation, quarantine, heartbeats, and graceful shutdown are centralized in
@@ -224,11 +221,12 @@ indexes, and feedback aggregation before implementing this complete flow.
 
 ## Configuration and secrets
 
-`.env.example` documents all variables known through Phase 16. `.env` and variant files are ignored.
-MongoDB runs without authentication only in the loopback-bound local Compose environment. Better
-Auth and API-key HMAC secrets are required and have no committed default. Production startup rejects
-an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy addresses, docs exposure,
-cookie security, and rate-limit settings are explicit configuration rather than framework defaults.
+`.env.example` documents the complete current configuration by subsystem. `.env` and variant files
+are ignored. MongoDB runs without authentication only in the loopback-bound local Compose
+environment. Better Auth and API-key HMAC secrets are required and have no committed default.
+Production startup rejects an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy
+addresses, docs exposure, cookie security, and rate-limit settings are explicit configuration rather
+than framework defaults.
 
 Invalid configuration fails before an application starts. Database callers supply a validated
 `MongoConfig`; only command entry points read process globals. The reusable database layer receives
@@ -236,14 +234,15 @@ configuration explicitly.
 
 Valkey is auxiliary, not a product datastore. MongoDB records pipeline intent before dispatch and
 retains auditable run/step history. Valkey owns only queue delivery, scheduler state, retries,
-provider rate limiting, locks, and ephemeral worker coordination. API reads remain available when
-queues are disabled or degraded; workers require Valkey. See [OPERATIONS.md](OPERATIONS.md).
+provider and request rate limiting, locks, and ephemeral worker coordination. API product reads
+remain available when job queues are disabled or degraded; production request-rate protection and
+workers require Valkey. See [OPERATIONS.md](OPERATIONS.md).
 
 `GITHUB_TOKEN` has no committed default and is never logged. Public REST collection can operate
 without it at GitHub's lower limit. Discussions require authenticated GraphQL and are reported as a
 skipped capability when the token is absent.
 
-`GEMINI_API_KEY` has no committed default and is never logged. Phase 6's provider capability and
+`GEMINI_API_KEY` has no committed default and is never logged. The unpaid provider capability and
 environment policy are both `public_only`; private/team input blocks before provider construction.
 Model, request, retry, spacing, and token/call/target budgets are centralized configuration.
 
@@ -267,8 +266,9 @@ search metadata are embedded for locality. Entities with independent growth or l
 referenced.
 
 Zod schemas are the full runtime authority. MongoDB validators enforce critical stored envelopes as
-defense in depth. Provider-neutral embedding state exists in the domain, but vectors and vector
-indexes do not. See [`docs/DATA_MODEL.md`](DATA_MODEL.md).
+defense in depth. Provider-neutral embedding state, rebuildable search projections, and Atlas-only
+search index definitions exist in the domain/search layers. See
+[`docs/DATA_MODEL.md`](DATA_MODEL.md).
 
 ## Phase 3 authentication and HTTP boundary
 
@@ -285,16 +285,15 @@ required pepper. Key management requires a human session. Bearer keys can authen
 machine routes only when their owner is active and the required scope is present.
 
 Authentication produces an anonymous, session, or API-key principal. Framework-neutral policy
-functions implement authenticated, session-only, scoped, and administrator checks so future MCP and
-CLI transports can reuse the same decisions. Team/workspace context remains an additive future
-principal field rather than a route-layer redesign.
+functions implement authenticated, session-only, scoped, administrator, and workspace-role checks
+shared by HTTP, MCP, dashboard, and CLI clients.
 
 Fastify supplies server-generated request IDs, Zod request/response schemas, a stable error
 envelope, credential-safe structured logs, CORS allowlists, explicit proxy trust, security headers,
-and a patched per-process rate limiter. The limiter boundary can receive distributed storage later;
-Phase 10 intentionally adds no Redis or Valkey. Sensitive actions append bounded `audit_events`
-without credentials. OpenAPI 3.1 is generated from route schemas at `/api/v1/openapi.json`; Swagger
-UI is configuration-controlled at `/docs`.
+and route-class policies backed by Valkey in production. Explicit local development may use the
+in-memory limiter; production fails fast instead of silently degrading. Sensitive actions append
+bounded `audit_events` without credentials. OpenAPI 3.1 is generated from route schemas at
+`/api/v1/openapi.json`; Swagger UI is configuration-controlled at `/docs`.
 
 ## Phase 4 GitHub ingestion boundary
 
@@ -386,7 +385,8 @@ Blocked pairs receive deterministic ecosystem/package/platform/version/error/roo
 separate lexical problem/solution similarities. Hard incompatibilities remain separate. Ambiguous
 pairs enter review. The public Gemini embedding provider is constructed only after candidate and
 every referenced source are verified public; semantic similarity can strengthen or prioritize but
-cannot authorize an automatic merge. No vector index or retrieval API exists.
+cannot authorize an automatic merge. Candidate vectors remain ordinary pair-comparison records; they
+are separate from the KnownPath retrieval projection and Atlas vector index.
 
 Current candidate relationships live in `canonical_memberships`. Append-only events make create,
 merge, split, reassign, and rebuild operations resumable on standalone local MongoDB. Every rebuild
@@ -409,9 +409,8 @@ an explicit developer option.
 
 The unpaid Gemini provider remains public-only for both document and query embeddings. Local
 contributors retain useful non-vector retrieval without Atlas or paid infrastructure. Search is
-available through the worker/developer CLI and is now exposed through the authorization-aware HTTP
-knowledge service. MCP exposure remains a later phase. See [`docs/RETRIEVAL.md`](RETRIEVAL.md) and
-[`docs/API.md`](API.md).
+available through the worker/developer CLI, authorization-aware HTTP service, MCP, and dashboard.
+See [`docs/RETRIEVAL.md`](RETRIEVAL.md), [`docs/API.md`](API.md), and [`docs/MCP.md`](MCP.md).
 
 ## Phase 10 knowledge API boundary
 

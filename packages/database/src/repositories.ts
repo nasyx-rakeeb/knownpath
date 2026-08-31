@@ -1860,6 +1860,10 @@ export class KnownPathSearchDocumentRepository
     return this.collection.createSearchIndexes([...definitions]);
   }
 
+  public async updateAtlasIndex(name: string, definition: Record<string, unknown>): Promise<void> {
+    await this.collection.updateSearchIndex(name, definition);
+  }
+
   public async listAtlasIndexes(): Promise<Record<string, unknown>[]> {
     return this.collection.listSearchIndexes().toArray() as Promise<Record<string, unknown>[]>;
   }

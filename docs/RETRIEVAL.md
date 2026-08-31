@@ -2,9 +2,9 @@
 
 ## Scope
 
-Phase 9 established canonical retrieval through an explainable staged pipeline. Phase 10 now exposes
-that service through authenticated safe HTTP contracts; it still does not expose an anonymous public
-endpoint or MCP tool. The developer CLI remains available for direct inspection.
+Phase 9 established canonical retrieval through an explainable staged pipeline. The same service is
+now exposed through authenticated safe HTTP contracts, MCP tools, and the dashboard; no anonymous
+knowledge endpoint is exposed. The developer CLI remains available for direct inspection.
 
 ## Backends
 
@@ -18,7 +18,8 @@ Semantic retrieval is explicitly reported as unavailable; exact and lexical retr
 - `knownpath_vector_v1` indexes `embedding.values` as a 768-dimensional cosine vector by default and
   includes visibility, lifecycle, model, ecosystem, package, and platform filter fields.
 
-Atlas index creation is idempotent by name and polls `listSearchIndexes()` until both indexes are
+Atlas index initialization compares current definitions, creates missing indexes, updates drifted
+definitions, and polls `listSearchIndexes()` until the latest generation is both `READY` and
 queryable or the configured timeout expires. `pnpm run search indexes print` emits the exact current
 definitions without contacting Atlas. A MongoDB Atlas Free cluster currently permits three combined
 Search and Vector Search indexes and 0.5 GB storage; programmatic search-index creation may be

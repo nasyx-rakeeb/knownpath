@@ -2,7 +2,7 @@ import { dirname } from "node:path";
 import { rmdir } from "node:fs/promises";
 
 import { installerStateVersion } from "./constants.js";
-import { atomicWrite, readTextIfPresent, removeOwnedDirectory } from "./filesystem.js";
+import { atomicWrite, readTextIfPresent, removeOwnedFile } from "./filesystem.js";
 import {
   InstallerError,
   supportedAgentIds,
@@ -47,7 +47,7 @@ export async function readInstallerState(path: string): Promise<InstallerState> 
 
 export async function writeInstallerState(path: string, state: InstallerState): Promise<void> {
   if (state.installations.length === 0) {
-    await removeOwnedDirectory(path);
+    await removeOwnedFile(path);
     await removeEmptyProjectStateDirectory(path);
     return;
   }

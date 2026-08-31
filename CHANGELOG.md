@@ -10,6 +10,12 @@ intents.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve strict JSON timestamp contracts across repeated HTTP/MCP/domain validation.
+- Remove the final installer ownership-state file safely during uninstall.
+- Reconcile drifted Atlas Search and Vector Search definitions before reporting readiness.
+
 ## [0.4.1] - 2026-08-29
 
 ### Fixed

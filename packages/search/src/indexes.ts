@@ -8,6 +8,7 @@ export interface SearchIndexNames {
 export interface AtlasSearchIndexInitialization {
   readonly created: readonly string[];
   readonly reused: readonly string[];
+  readonly updated: readonly string[];
   readonly indexes: readonly Record<string, unknown>[];
   readonly ready: boolean;
 }
@@ -81,8 +82,25 @@ export async function createAtlasSearchIndexes(
     missing.length === 0
       ? []
       : await database.repositories.knownPathSearchDocuments.createAtlasIndexes(missing);
+  const changed = definitions.filter((definition) => {
+    const existing = before.find((index) => indexName(index) === definition.name);
+    return (
+      existing !== undefined &&
+      !containsDefinition(existing["latestDefinition"], definition.definition)
+    );
+  });
+  for (const definition of changed) {
+    await database.repositories.knownPathSearchDocuments.updateAtlasIndex(
+      definition.name,
+      definition.definition,
+    );
+  }
+  const updated = changed.map((definition) => definition.name);
+  const updatedNames = new Set(updated);
   const reused = definitions
-    .filter((definition) => existingNames.has(definition.name))
+    .filter(
+      (definition) => existingNames.has(definition.name) && !updatedNames.has(definition.name),
+    )
     .map((definition) => definition.name);
   const deadline = Date.now() + readyTimeoutMs;
   let indexes = await inspectAtlasSearchIndexes(database);
@@ -92,11 +110,11 @@ export async function createAtlasSearchIndexes(
       definitions.map((definition) => definition.name),
     )
   ) {
-    if (Date.now() >= deadline) return { created, reused, indexes, ready: false };
+    if (Date.now() >= deadline) return { created, reused, updated, indexes, ready: false };
     await delay(Math.min(2_000, Math.max(1, deadline - Date.now())));
     indexes = await inspectAtlasSearchIndexes(database);
   }
-  return { created, reused, indexes, ready: true };
+  return { created, reused, updated, indexes, ready: true };
 }
 
 export async function inspectAtlasSearchIndexes(
@@ -109,13 +127,31 @@ function indexName(index: Record<string, unknown>): string | undefined {
   return typeof index["name"] === "string" ? index["name"] : undefined;
 }
 
+function containsDefinition(actual: unknown, expected: unknown): boolean {
+  if (Array.isArray(expected)) {
+    return (
+      Array.isArray(actual) &&
+      actual.length === expected.length &&
+      expected.every((value, index) => containsDefinition(actual[index], value))
+    );
+  }
+  if (typeof expected === "object" && expected !== null) {
+    if (typeof actual !== "object" || actual === null || Array.isArray(actual)) return false;
+    const actualRecord = actual as Record<string, unknown>;
+    return Object.entries(expected).every(([key, value]) =>
+      containsDefinition(actualRecord[key], value),
+    );
+  }
+  return actual === expected;
+}
+
 function allIndexesReady(
   indexes: readonly Record<string, unknown>[],
   requiredNames: readonly string[],
 ): boolean {
   return requiredNames.every((requiredName) => {
     const index = indexes.find((candidate) => indexName(candidate) === requiredName);
-    return index?.["queryable"] === true || index?.["status"] === "READY";
+    return index?.["queryable"] === true && index["status"] === "READY";
   });
 }
 

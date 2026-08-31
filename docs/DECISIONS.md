@@ -339,7 +339,7 @@ Hardcoded adapter paths would make curation changes architectural changes.
 [Expo changelog RSS](https://expo.dev/changelog/rss.xml),
 [React Native LLM index](https://reactnative.dev/llms.txt),
 [React Native RSS](https://reactnative.dev/blog/rss.xml),
-[React Native documentation license](https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs)
+[React Native documentation license](https://github.com/react/react-native-website/blob/main/LICENSE-docs)
 
 ## 2026-08-22 — Separate immutable source revisions from mutable fetch state
 
@@ -761,8 +761,7 @@ premature in this phase. GitHub Copilot, Cline, and Windsurf adapters remain def
 depending on preview, extension-specific, or insufficiently stable mechanisms.
 
 **References:** [OpenAI Codex MCP](https://developers.openai.com/codex/mcp/),
-[Claude Code MCP](https://code.claude.com/docs/en/mcp),
-[Cursor MCP](https://cursor.com/docs/context/mcp),
+[Claude Code MCP](https://code.claude.com/docs/en/mcp), [Cursor MCP](https://cursor.com/docs/mcp),
 [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/),
 [OpenCode MCP](https://opencode.ai/docs/mcp-servers/),
 [Agent Skills specification](https://agentskills.io/specification)
@@ -1123,3 +1122,32 @@ committed.
 [pnpm Docker guidance](https://pnpm.io/docker),
 [Docker build best practices](https://docs.docker.com/build/building/best-practices/),
 [Changesets](https://github.com/changesets/changesets), [Semantic Versioning](https://semver.org/)
+
+## 2026-08-31 — Reconcile Atlas index drift and keep boundary validation idempotent
+
+**Decision:** Database initialization remains responsible for ordinary MongoDB collections and
+indexes, while retrieval initialization now compares Atlas Search/Vector Search definitions and
+updates an existing named index when its required definition has drifted. Readiness requires the
+latest generation to report both `READY` and queryable. External timestamp contracts remain JSON
+date-time strings, but their preprocessing accepts a canonical `Date` produced by an earlier trusted
+validation boundary so Fastify, MCP bridges, and domain services can safely validate the same value.
+
+Installer state cleanup uses a dedicated regular-file deletion primitive. Symlink traversal remains
+forbidden, configuration writes remain atomic/backed up, and uninstall removes only explicitly owned
+entries and state.
+
+**Why:** A matching Atlas index name did not prove its tenant-filter definition was current, and
+Atlas can leave the old generation queryable while a replacement is still building. Revalidating a
+transformed timestamp exposed a real HTTP/MCP outcome-reporting failure. Treating a JSON state file
+as a directory prevented the final installer owner from uninstalling. Each repair preserves the
+existing architecture and tightens an observable lifecycle boundary without adding dependencies.
+
+**Rejected:** Dropping/recreating Atlas indexes causes unnecessary search downtime. Skipping domain
+revalidation would weaken defense in depth. Advertising JavaScript `Date` values in JSON Schema is
+not protocol-compatible. Relaxing symlink protections or recursively deleting installer state would
+weaken the Phase 20 filesystem boundary.
+
+**References:**
+[MongoDB Search index management](https://www.mongodb.com/docs/manual/reference/method/db.collection.updateSearchIndex/),
+[Zod transforms](https://zod.dev/api?id=transforms),
+[Node.js file-system promises](https://nodejs.org/api/fs.html#promises-api)

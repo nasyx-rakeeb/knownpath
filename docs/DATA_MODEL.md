@@ -2,9 +2,8 @@
 
 ## Scope
 
-This document is the Phase 16 reference for KnownPath's durable domain contracts and MongoDB
-persistence model. It describes structures that exist now, even when the later workflow that will
-populate them is intentionally absent.
+This document is the post-Phase-22 reference for KnownPath's durable domain contracts and MongoDB
+persistence model. Historical phase labels identify when structures were introduced.
 
 The runtime schemas live in `@knownpath/domain`. MongoDB connection management, validators,
 repositories, indexes, and initialization live in `@knownpath/database`.
@@ -22,8 +21,9 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 - Deterministic keys contain `{ value, version }`, where `value` is a SHA-256 digest of a versioned,
   ordered canonical tuple.
 - Visibility is `public`, `private`, or `team`. Private records require `ownerUserId`; team records
-  require an opaque `teamId`.
-- Lifecycle/moderation state is soft. Phase 2 defines no automatic deletion or TTL indexes.
+  require `workspaceId`.
+- Lifecycle/moderation state is soft. Product records have no TTL indexes; only ephemeral worker
+  heartbeats expire automatically.
 
 ## Collections and relationships
 
@@ -58,6 +58,10 @@ repositories, indexes, and initialization live in `@knownpath/database`.
 | `pipeline_runs`                  | Durable operator/API/scheduler pipeline intent, aggregate state, and safe counters.               |
 | `pipeline_steps`                 | Durable idempotent job intent and lifecycle; BullMQ delivery is an ephemeral projection.          |
 | `worker_heartbeats`              | Short-lived worker availability projection with a MongoDB TTL index.                              |
+| `workspaces`                     | Independent tenant roots with owner, lifecycle, and default contribution scope.                   |
+| `workspace_memberships`          | User/workspace role and membership lifecycle used by every tenant authorization path.             |
+| `workspace_invitations`          | Existing-user invitations with inviter, invitee, role, expiry, and audited status.                |
+| `knowledge_share_requests`       | Explicit sanitized private/team-to-public share workflow without changing source visibility.      |
 
 Source registries, immutable source snapshots, processing runs, candidates, canonical records,
 contributions, and outcomes are separate because they grow and change independently. Bounded problem
@@ -421,9 +425,11 @@ These are ordinary MongoDB indexes. Phase 8 creates no vector index.
   errors, solutions, and bounded searchable text.
 
 Atlas deployments separately manage `knownpath_lexical_v1` (`type: search`) and
-`knownpath_vector_v1` (`type: vectorSearch`) through `listSearchIndexes`/`createSearchIndexes`.
-These are not ordinary `createIndexes` entries and are unavailable on the default local standalone
-MongoDB path. Their exact definitions are documented in [`docs/RETRIEVAL.md`](RETRIEVAL.md).
+`knownpath_vector_v1` (`type: vectorSearch`) through the driver's search-index lifecycle methods.
+Initialization creates missing definitions, reconciles definition drift, and waits for the latest
+generation to be ready/queryable. These are not ordinary `createIndexes` entries and are unavailable
+on the default local standalone MongoDB path. Their exact definitions are documented in
+[`docs/RETRIEVAL.md`](RETRIEVAL.md).
 
 ### `knowledge_search_events`
 
@@ -607,9 +613,11 @@ round trip and confirms cleanup. It does not seed production knowledge.
   explicit operational policy because revision, assessment, content-hash, and model metadata make
   them reproducible; Phase 9 adds no automatic deletion.
 
-## Deferred model behavior
+## Current boundary summary
 
-The schemas do not imply that HTTP/MCP search exposure, contribution promotion, public registration,
-recovery, OAuth, team membership, or dashboards are implemented. Team IDs remain opaque until the
-team/workspace model exists. Candidate embeddings still support only blocked pair comparison;
-KnownPath search projections are the separate Phase 9 retrieval corpus.
+The shared structures support HTTP/MCP retrieval, consented contribution and outcome reporting,
+closed-registration user sessions, personal/workspace authorization, user and admin dashboards, and
+explicit sanitized public sharing. Public registration, email verification/reset, OAuth, and an
+externally approved private-data AI provider remain intentionally unimplemented. Candidate
+embeddings support pair comparison only; KnownPath search projections are the separate retrieval
+corpus.

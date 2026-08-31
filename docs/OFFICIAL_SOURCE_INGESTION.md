@@ -28,7 +28,7 @@ Official references consulted for the adapter include the
 [React Native LLM index](https://reactnative.dev/llms.txt),
 [React Native sitemap](https://reactnative.dev/sitemap.xml),
 [React Native feed](https://reactnative.dev/blog/rss.xml), and the React Native website's
-[CC BY 4.0 documentation license](https://github.com/reactjs/react-native-website/blob/main/LICENSE-docs).
+[CC BY 4.0 documentation license](https://github.com/react/react-native-website/blob/main/LICENSE-docs).
 
 ## Curated versus full-catalog behavior
 

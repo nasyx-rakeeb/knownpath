@@ -117,9 +117,9 @@ pnpm ingest:github \
   --backfill
 ```
 
-Advance backfill windows manually after inspecting rate usage and run counters. Phase 4 has no
-scheduler or distributed queue, so failed/rate-limited runs are retained for operators to inspect
-and rerun.
+Advance backfill windows manually after inspecting rate usage and run counters. Operational syncs
+may also be scheduled through the Phase 16 BullMQ/Valkey pipeline; failed or rate-limited durable
+runs remain available for operators to inspect and retry.
 
 ## Official references
 

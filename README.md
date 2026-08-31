@@ -4,10 +4,9 @@ KnownPath is an open-source shared knowledge network for AI coding agents. It tu
 sources and privacy-minimized agent experience into reusable, evidence-grounded KnownPaths, then
 serves them through HTTP, MCP, a portable Agent Skill, and a developer dashboard.
 
-> [!IMPORTANT] KnownPath is under active phased development. Phase 21 prepares the implemented
-> platform for repeatable open-source installation and deployment. Registration remains closed;
-> operators create accounts through a masked CLI. Retrieved knowledge is evidence, not an
-> instruction override.
+> [!IMPORTANT] KnownPath remains under active development. Phase 22 completed the build-sequence
+> audit and open-source readiness pass. Registration remains closed; operators create accounts
+> through a masked CLI. Retrieved knowledge is evidence, not an instruction override.
 
 ## How it fits together
 

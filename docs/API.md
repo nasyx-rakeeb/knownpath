@@ -250,12 +250,12 @@ auth/validation/rate-limit codes remain stable. Outcome codes include
 `outcome_idempotency_conflict`, `outcome_execution_conflict`, `outcome_rate_limited`,
 `outcome_note_rejected`, and `outcome_target_not_accessible`.
 
-Search has a 32 KiB body limit and a 30-request/minute process-local policy. Detail/alternatives
-have a 120-request/minute policy. Selection reporting has a separate 120-request/minute policy. The
-current limiter is IP-oriented and process-local; a distributed store is deferred until a
-multi-instance deployment is introduced. Outcome submission has an additional process-local
-10-request/minute route policy plus durable 10-per-key/hour and 20-per-account/day checks in
-MongoDB.
+Search has a 32 KiB body limit and a 30-request/minute policy. Detail/alternatives have a
+120-request/minute policy, and selection reporting has a separate 120-request/minute policy.
+Production policies are distributed through Valkey and fail closed if the limiter is unavailable; an
+in-memory policy is accepted only through explicit local-development configuration. Outcome
+submission adds a 10-request/minute route policy plus durable 10-per-key/hour and 20-per-account/day
+checks in MongoDB.
 
 ## Security notes
 
@@ -263,7 +263,8 @@ MongoDB.
 - Fastify logs method, safe URL, request ID, response status, and latency. Authorization/cookie/key
   fields are redacted and bodies are not logged.
 - Normal clients cannot use review records even when they know a review UUID.
-- Private/team records are not queryable in Phase 10 and cannot use unpaid Gemini embeddings.
+- Private/team records require owner/workspace authorization and never use unpaid Gemini extraction
+  or embedding paths.
 - Rotate any credential that has been pasted into chat, logs, shell history, or another untrusted
   location.
 
