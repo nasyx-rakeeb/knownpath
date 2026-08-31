@@ -158,7 +158,7 @@ key.
 
 ## Contribution privacy
 
-Installer 0.4.1 bundles skill 1.3.0 and the real `knownpath_contribute` and
+Installer 0.4.2 bundles skill 1.3.0 and the real `knownpath_contribute` and
 `knownpath_report_outcome` contracts. Installation does not enable background sharing: the skill
 offers a contribution only after observed success and asks for explicit consent for that submission.
 A key must deliberately include `knowledge:contribute`; a read-only key continues to retrieve only.

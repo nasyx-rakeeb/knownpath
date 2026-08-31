@@ -1,5 +1,12 @@
 # knownpath
 
+## 0.4.2
+
+### Patch Changes
+
+- 30c996e: Fix uninstall cleanup when the last managed agent removes the regular installer-state
+  file.
+
 ## 0.4.1
 
 ### Patch Changes
