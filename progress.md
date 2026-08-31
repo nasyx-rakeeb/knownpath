@@ -3303,3 +3303,25 @@ external-client verification, not a new KnownPath feature phase.
 ### Final phase boundary
 
 Phase 22 completes this build sequence. Do not start another feature phase implicitly.
+
+## Post-Phase 22 — Public README rewrite
+
+The root README was rewritten for external developers rather than as an implementation handoff. It
+now leads with the problem and product value, places the real `npx knownpath` installation flow near
+the top, explains the evidence pipeline and feedback loop, lists supported agents, distinguishes
+hosted use from self-hosting and contributor setup, and summarizes trust, privacy scopes,
+architecture, operations, security, status, and contribution paths with links to focused docs.
+
+Internal phase/build-sequence wording, verification narration, and prerequisite-first framing were
+removed from the public overview. The rewrite was checked against the current CLI help and npm
+`knownpath@0.4.1`, five implemented installer adapters, six registered MCP tools, API-key scopes,
+contribution/outcome contracts, tenant visibility rules, root scripts, deployment topology, and
+repository file layout. Every relative README link and documented command name was verified; a
+malformed `KNOWNPATH_API_KEY` code span in the directly linked installation guide was corrected.
+
+A live hosted liveness check returned HTTP 503 during the rewrite. The README therefore uses an
+operator-provided API-origin placeholder and does not claim that the current free deployment is
+continuously available.
+
+This entry records documentation and product-positioning changes only. No application, schema,
+configuration, dependency, infrastructure, or runtime behavior changed.

@@ -21,7 +21,7 @@ npx knownpath install --agent all
 ```
 
 There is no localhost or production URL fallback. Configuration stores only references to
-`KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY), not their values.
+`KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`, not their values.
 
 ### Windows PowerShell
 
