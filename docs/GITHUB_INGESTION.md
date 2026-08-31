@@ -43,6 +43,19 @@ much lower primary limit (normally 60 requests/hour rather than 5,000 authentica
 GitHub GraphQL requires authentication, so discussion collection is explicitly counted and logged as
 `capabilitySkipped` without a token.
 
+For a one-off local run, an existing authenticated GitHub CLI session can supply the token without
+copying it into `.env` or a shell-history argument:
+
+```sh
+export GITHUB_TOKEN="$(gh auth token)"
+pnpm ingest:github --source react-native-discussions --types discussions --limit 1
+unset GITHUB_TOKEN
+```
+
+The token still exists in that shell process environment while the command runs. Use a dedicated
+short-lived shell where practical, never enable shell tracing, and keep persistent worker/deployment
+credentials in the platform's secret store rather than deriving them from a developer login.
+
 The client processes requests serially, follows explicit cursor/page pagination, observes primary
 and secondary rate-limit responses, honors `Retry-After`/reset information through Octokit's
 throttling support, and uses bounded retry/backoff for transient failures. Waits longer than

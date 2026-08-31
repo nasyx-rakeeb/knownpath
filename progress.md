@@ -3194,6 +3194,12 @@ Current official material was checked on 2026-08-30 through 2026-08-31 before fi
   reported both unchanged on the second. A targeted Expo documentation page likewise changed from
   created to unchanged. Persisted items retained comments/text, objective provenance, update times,
   hashes, authorship associations, and available reactions; no token appeared in output.
+- After the initial commit, the authenticated GitHub CLI keyring session supplied `GITHUB_TOKEN`
+  directly to a bounded GraphQL run without writing or printing it. One real
+  `react-native-community/discussions-and-proposals` discussion plus four comments were created; the
+  identical second run reported all five unchanged. Inspection confirmed canonical URLs, immutable
+  node identities, content hashes, observed timestamps, collaborator association, category/state,
+  upvotes, and reaction summaries in MongoDB.
 - Live Gemini processed bounded public Expo records. Invalid reusable/evidence claims were
   quarantined, an unchanged successful extraction avoided another provider call, and a real useful
   candidate was deterministically rescored to a new immutable high-confidence assessment. The
@@ -3264,11 +3270,12 @@ Current official material was checked on 2026-08-30 through 2026-08-31 before fi
 
 ### External/manual checks and release/deployment status
 
-- No Phase 22 package publish, MCP Registry publish, GitHub release, push, or hosted redeploy was
-  performed; external release actions require explicit maintainer intent. The live deployment is
-  healthy but does not include this uncommitted audit patch until separately deployed.
-- A GitHub token was unavailable, so authenticated Discussions/backfill and higher-rate GitHub
-  behavior were not reverified live. Unauthenticated official API ingestion was real and bounded.
+- No Phase 22 package publish, MCP Registry publish, GitHub release, or explicit hosted redeploy was
+  performed; external release actions require explicit maintainer intent. The Phase 22 audit commit
+  was pushed to `origin/main`; hosted rollout of that commit was not separately reverified.
+- Authenticated GraphQL Discussions ingestion and idempotent replay were verified with the GitHub
+  CLI keyring token. Large authenticated backfills remain deliberately unrun; they should use
+  bounded windows and operational rate monitoring.
 - Cursor and Gemini CLI were unavailable locally. Dashboard visual/mobile/accessibility inspection,
   an external OTLP collector, and a private-data-approved AI provider remain external checks.
 - Existing real canonical records remain review-state; the audit did not fabricate or publish
