@@ -1,182 +1,144 @@
-# Official Source Ingestion
+# Official Expo and React Native sources
 
-## Scope
+KnownPath ingests structured first-party documentation and release material to complement community
+evidence. Official content is authoritative context, but it remains untrusted input at the ingestion
+boundary and may be version-specific or outdated.
 
-Phase 5 collects normalized first-party Expo and React Native documentation and release material for
-later analysis. It does not extract fixes, create candidate experiences or KnownPaths, calculate
-trust scores, build search indexes, or publish complete source pages.
+## Sources
 
-All remote content remains untrusted input even when it comes from an official domain.
+| Source key                   | Structured source                                | Default focus                                   |
+| ---------------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| `expo-documentation`         | Expo `llms.txt`, Markdown pages, sitemap         | upgrades, migrations, troubleshooting           |
+| `react-native-documentation` | React Native `llms.txt`, Markdown pages, sitemap | upgrades, compatibility, troubleshooting        |
+| `expo-changelog`             | Expo changelog RSS                               | SDK/tool releases and breaking/deprecation info |
+| `react-native-releases`      | React Native blog RSS                            | releases, migration, compatibility              |
 
-## Structured sources
+All URLs, origins, path prefixes, curated rules, version patterns, authority, publisher, license,
+and attribution live in `config/sources/registry.json`.
 
-| Source key                   | Discovery/content                                                         | Normal curated focus                                                                       | Authority and attribution                                                |
-| ---------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `expo-documentation`         | `https://docs.expo.dev/llms.txt`, `.md` documents, and sitemap metadata   | SDK upgrades, native upgrades, troubleshooting, SDK-library migrations                     | Expo first-party; source repository MIT attribution                      |
-| `react-native-documentation` | `https://reactnative.dev/llms.txt`, `.md` documents, and sitemap metadata | Upgrading, troubleshooting, release compatibility, versioning, and strict API guidance     | React Native first-party; documentation CC BY 4.0 attribution            |
-| `expo-changelog`             | Official Expo changelog RSS                                               | SDK/tooling releases and migration, compatibility, deprecation, or breaking-change entries | Expo first-party; feed summary only                                      |
-| `react-native-releases`      | Official React Native blog RSS                                            | Framework releases and migration, compatibility, deprecation, or breaking-change entries   | React Native first-party; feed-supplied content normalized to plain text |
+## Curated sync and full discovery
 
-The source URLs, curation rules, classification patterns, versions, allowlists, publisher,
-authority, and licensing metadata live in `config/sources/registry.json`. Adding another supported
-source or expanding curation should normally be a reviewed data change, not adapter code.
+Normal sync uses `--scope curated`. It discovers the complete official index but fetches only
+configured high-signal pages likely to contain reusable technical knowledge.
 
-Official references consulted for the adapter include the
-[Expo LLM index](https://docs.expo.dev/llms.txt), [Expo sitemap](https://docs.expo.dev/sitemap.xml),
-[Expo robots policy](https://docs.expo.dev/robots.txt),
-[Expo changelog feed](https://expo.dev/changelog/rss.xml),
-[React Native LLM index](https://reactnative.dev/llms.txt),
-[React Native sitemap](https://reactnative.dev/sitemap.xml),
-[React Native feed](https://reactnative.dev/blog/rss.xml), and the React Native website's
-[CC BY 4.0 documentation license](https://github.com/react/react-native-website/blob/main/LICENSE-docs).
-
-## Curated versus full-catalog behavior
-
-Normal synchronization defaults to `--scope curated`. The adapter always discovers the complete
-official index so it can validate a target and notice authoritative removals, but only fetches the
-configured high-signal candidates. This keeps routine collection focused and inexpensive.
-
-Every indexed page remains available on demand:
+Any indexed page remains available for targeted refresh:
 
 ```sh
-pnpm ingest:sources sync --source expo-documentation \
-  --page https://docs.expo.dev/versions/latest/sdk/camera --limit 1
+pnpm ingest:sources sync \
+  --source expo-documentation \
+  --page https://docs.expo.dev/versions/latest/sdk/camera \
+  --limit 1
 ```
 
-An explicit full-catalog operation is supported but remains bounded:
+Full-catalog ingestion is possible but must be explicit and bounded:
 
 ```sh
-pnpm ingest:sources sync --source react-native-documentation --scope all --limit 25 --dry-run
+pnpm ingest:sources sync \
+  --source react-native-documentation \
+  --scope all \
+  --limit 25 \
+  --dry-run
 ```
 
-Do not schedule `--scope all` as the normal Phase 5 behavior. Raise limits gradually while observing
-response and MongoDB size, run duration, and source policy.
+Do not schedule full-catalog ingestion by default.
 
 ## Commands
-
-MongoDB must be running and initialized before using the worker:
 
 ```sh
 pnpm dev:infra
 pnpm db:init
-```
 
-Discover and classify candidates without writing registry, run, snapshot, state, or cursor records:
-
-```sh
 pnpm ingest:sources discover --source expo-documentation --limit 20
 pnpm ingest:sources discover --all --limit 10
-```
-
-Preview selected content fetches without persistence:
-
-```sh
 pnpm ingest:sources sync --source react-native-documentation --limit 5 --dry-run
-```
-
-Synchronize one source or all enabled official sources:
-
-```sh
 pnpm ingest:sources sync --source expo-changelog --limit 5
 pnpm ingest:sources sync --all --limit 5
-```
-
-Filter candidates carrying a deterministically detected version:
-
-```sh
 pnpm ingest:sources sync --source react-native-releases --version 0.87 --limit 5
 ```
 
-`--page` requires one `--source`; it cannot be combined with `--all`. A targeted indexed page
-bypasses the normal curated filter. `--limit` applies per selected source.
+`discover` makes no registry, run, snapshot, state, or cursor writes. `--page` requires one source
+and bypasses its curated filter. `--limit` applies per source.
 
-## Incremental behavior
+## Normalization
 
-Complete indexes, sitemaps, and feeds are stored as small immutable catalog snapshots. Their mutable
-`source_item_states` rows retain ETag and Last-Modified values. A `304 Not Modified` reads the
-retained catalog body and updates only its fetch timestamp.
+Documentation is fetched from the official Markdown representation rather than rendered site HTML.
+KnownPath stores normalized text plus bounded:
 
-Each selected document has a stable identity derived from its canonical URL or feed GUID. Page
-requests send `If-None-Match` and `If-Modified-Since` when prior state supplies those values. A new
-normalized representation creates an immutable `source_items` revision. A `304` or equal versioned
-digest updates only state and increments `unchanged`.
+- headings and paragraphs;
+- code and lists;
+- tables;
+- blockquotes;
+- admonitions.
 
-State records include:
+Feed-supplied HTML is converted to plain text. Scripts, styles, images, navigation, and complete
+rendered pages are not retained.
 
-- canonical URL and lifecycle (`active`, `deprecated`, or `deleted`);
-- latest immutable snapshot ID and normalized digest;
-- ETag, Last-Modified, and source-observed revision where available;
-- last fetched, last changed, and last observed timestamps;
-- document type, framework/ecosystem, detected versions, authority, publisher, and attribution.
+Metadata includes canonical URL, source identity, document type, framework/ecosystem, detected
+versions, published/observed/captured time, content hash, media type, size, authority, publisher,
+attribution, and license.
 
-Documentation deletion is inferred only after a successful changed complete index fetch during a
-non-targeted, non-version-filtered synchronization. Limits affect selected fetches, not complete
-index discovery. Missing entries in rolling RSS feeds are never treated as deletions.
+Authority is registry/provider metadata, not an AI judgment. These sources are classified
+`first_party_official`.
 
-## Normalization and provenance
+## Incremental refresh
 
-Documentation is fetched from the official Markdown representation rather than rendered website
-HTML. The immutable item retains normalized Markdown plus bounded heading, paragraph, code, list,
-table, blockquote, and admonition blocks. Release-feed HTML supplied inside RSS is converted to
-plain text; scripts, styles, images, and page navigation are not retained.
+Catalog and page state stores ETag, Last-Modified, latest source hash/snapshot, lifecycle, and fetch
+times. Requests send `If-None-Match` and `If-Modified-Since` when available.
 
-Every document stores canonical URL, immutable source identity, observed/published/captured times,
-content hash, media type, byte length, source registry, provider metadata, deterministic document
-type, ecosystem/framework/version metadata, source quality, attribution, and license.
+- `304 Not Modified` reuses the retained body and updates fetch state.
+- Equal normalized content records `unchanged`.
+- Changed content creates another immutable source revision.
+- A successful changed complete documentation index may mark missing pages deprecated.
+- Missing items in a rolling RSS feed are never treated as deletion.
 
-Authority is configuration/provider-derived, not model-derived. Official documents and feeds are
-`first_party_official`. GitHub snapshots use GitHub's exposed author association to distinguish
-maintainer (`OWNER`, `MEMBER`, or `COLLABORATOR`) from community evidence. A future extraction model
-may consume this evidence class but must not invent or elevate it.
+Lifecycle values are `active`, `deprecated`, and `deleted`. Disabling a registry stops selection but
+does not erase retained provenance.
 
-## Fetch safety and rate behavior
+## Fetch security
 
-The official-source adapter needs no credentials. `SOURCE_USER_AGENT`, request timeout, response
-size, retry count, and manifest path are explicit in `.env.example`.
+The adapter permits only configured HTTPS origins, standard HTTPS ports, and canonical path
+prefixes. It:
 
-The HTTP boundary:
-
-- permits exact configured HTTPS origins, standard HTTPS ports, and canonical path prefixes only;
-- resolves all A/AAAA answers and rejects loopback, private, link-local, multicast, reserved,
-  unspecified, mapped-private, and other non-global destinations;
-- pins the validated DNS lookup into the outbound connection to prevent validation/use rebinding;
-- validates every redirect origin, path, DNS destination, and port and limits redirect depth;
-- checks the configured robots policy before discovery;
-- bounds decoded response bytes and request duration;
-- accepts only expected text, Markdown, XML, RSS, or Atom media types;
+- validates every DNS A/AAAA result and rejects non-public destinations;
+- pins validated resolution to prevent DNS rebinding;
+- revalidates each redirect's origin, path, DNS destination, and port;
+- enforces redirect, time, decoded-size, and media-type limits;
+- checks robots policy before discovery;
 - uses serial requests and bounded exponential backoff with jitter;
-- honors numeric or HTTP-date `Retry-After` values up to the bounded wait;
-- logs source identities, safe URLs, counts, stages, and error classes, never bodies or credentials.
+- honors bounded numeric and HTTP-date `Retry-After` values.
 
-A configured hostname resolving to even one non-public address fails closed. Infrastructure-level
-egress filtering remains recommended defense in depth.
+A hostname resolving to even one loopback, private, link-local, multicast, reserved, unspecified, or
+mapped-private address fails closed. Network egress filtering remains recommended defense in depth.
 
-Treat repeated `429` responses as an instruction to stop or reduce cadence. Phase 5 adds no
-distributed scheduler or automatic retry queue.
+The adapter requires no credential. Its user agent, timeouts, response size, retry count, and
+registry path are configured in `.env.example`.
 
-## Retention and attribution
+## Attribution and retention
 
-Catalog and document snapshots are internal evidence for later extraction, deterministic
-verification, and refresh. Preserve canonical URLs, publisher, authority basis, attribution, and
-license when evolving the data.
+KnownPath retains source text internally as evidence for extraction, verification, and refresh. The
+user-facing product exposes generalized knowledge, canonical links, and bounded evidence excerpts;
+it is not a mirror of complete copyrighted pages.
 
-KnownPath's future user-facing output must provide generalized reusable knowledge and provenance
-links, with only bounded evidence excerpts where justified. It must not become a mirror for complete
-copyrighted pages. Expo changelog ingestion therefore stores only the content supplied by its
-official feed and does not scrape full changelog article HTML.
+Expo documentation retains its configured MIT attribution. React Native documentation retains
+CC-BY-4.0 attribution. Expo changelog collection stores only feed-provided summaries and does not
+scrape the full article.
 
-Physical purge automation is intentionally deferred until a general retention and takedown policy is
-designed. Disabling a registry stops selection but does not silently delete retained provenance.
+Before adding a source:
 
-## Extending curation safely
+1. confirm ownership, terms/license, robots policy, and the most structured official endpoint;
+2. add the narrowest registry allowlist and curation rules;
+3. inspect discovery;
+4. run a small dry-run;
+5. sync one sample and inspect provenance;
+6. repeat it and confirm no duplicate snapshot.
 
-1. Confirm ownership, reuse terms/license, robots policy, and the most structured official endpoint.
-2. Add or adjust a runtime-validated registry entry and keep origins/path prefixes minimal.
-3. Use `discover` to inspect discovered/selected counts.
-4. Use `sync --dry-run` with a small limit.
-5. Synchronize one bounded sample and inspect MongoDB provenance, normalized content, authority,
-   versions, validators, and hashes.
-6. Repeat the command and require `created: 0` with unchanged snapshots before increasing scope.
+## Official sources
 
-Do not add a generic HTML crawler merely to support a new site. A source needing a different
-official structured mechanism should receive a focused adapter and an architecture decision.
+- [Expo `llms.txt`](https://docs.expo.dev/llms.txt)
+- [Expo sitemap](https://docs.expo.dev/sitemap.xml)
+- [Expo robots policy](https://docs.expo.dev/robots.txt)
+- [Expo changelog feed](https://expo.dev/changelog/rss.xml)
+- [React Native `llms.txt`](https://reactnative.dev/llms.txt)
+- [React Native sitemap](https://reactnative.dev/sitemap.xml)
+- [React Native release feed](https://reactnative.dev/blog/rss.xml)
+- [React Native documentation license](https://github.com/react/react-native-website/blob/main/LICENSE-docs)

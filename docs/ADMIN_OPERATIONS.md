@@ -1,99 +1,180 @@
-# Administration and moderation operations
+# Administration and moderation
 
-Phase 18 adds an internal `/admin` console backed by versioned `/api/v1/admin/*` contracts. It uses
-the existing Next.js dashboard and Fastify API; it is not a separate database client or a generic
-MongoDB/Valkey console. Fastify authenticates and authorizes every read and mutation. Hiding a link
-in the browser is never treated as authorization.
+The internal `/admin` console is for trusted KnownPath operators. It uses the same Next.js
+application, API, repositories, and domain services as the product; it is not a raw MongoDB or
+Valkey console.
+
+Every read and mutation is authorized by the Fastify backend. Hiding navigation is not
+authorization.
 
 ## Access model
 
-Only a valid browser session whose active MongoDB user has role `admin` can access administration
-routes. Phase 18 defines named capabilities for sources, operations, knowledge, contributions,
-private-content review, users, and audit. The current `admin` role receives the complete set; the
-capability boundary allows narrower roles to be introduced later without changing route contracts.
+Only an active user with role `admin` and a valid browser session can access admin routes under
+`/api/v1/admin`.
 
-Read-only pages accept any valid admin session. High-impact actions additionally require:
+Named capabilities cover:
 
-- a session created no more than 30 minutes ago;
-- the action and exact target in a versioned confirmation object;
-- the exact phrase `CONFIRM <action> <target>`;
+- sources;
+- operations/jobs;
+- knowledge/moderation;
+- contributions;
+- private sanitized content;
+- users;
+- audit history.
+
+The current admin role receives the complete set. Capability checks remain centralized so narrower
+operator roles can be introduced without changing endpoint contracts.
+
+## Fresh authentication and confirmation
+
+Read-only pages can use any valid admin session. High-impact actions require:
+
+- a session created within the last 30 minutes;
+- confirmation contract version;
+- exact action;
+- exact target;
+- exact phrase `CONFIRM <action> <target>`;
 - a bounded operator reason.
 
-The API checks all four requirements centrally. This applies to canonical merge/split/reassignment,
-moderation transitions, source changes/sync, queue pause/resume, job retry, user suspension/restore,
-and private-content reveal. Reauthenticate through the normal sign-in flow when the API returns
-`fresh_admin_session_required`.
+The API validates every field. Frontend confirmation alone never authorizes an action.
 
-## Views and safe projections
+Fresh confirmation applies to:
 
-The console provides cursor-paginated, status-filtered, searchable views for sources and normalized
-source items, pipeline runs, extraction attempts, candidates, KnownPaths, contributions, outcomes,
-users, and audit events. Details are explicit projections:
+- merge, split, and reassignment;
+- approve, quarantine, reject, deprecate, and restore;
+- source changes and sync;
+- queue pause/resume;
+- job retry/reprocess;
+- user suspension/restore;
+- private sanitized-content reveal.
 
-- source text is escaped plain text and capped before response serialization;
-- candidates include extraction and immutable assessment history;
-- KnownPaths include membership, revision, source/outcome confidence, freshness, safety, and
-  provenance summaries;
-- users expose lifecycle metadata and API-key prefix, scopes, status, and timestamps only;
-- health exposes component state, queue counts, worker heartbeat counts, and configured provider
-  names, never provider credentials or connection strings.
+Sign in again when the API returns `fresh_admin_session_required`.
 
-API-key plaintext/hashes, authorization or cookie values, session tokens, MongoDB/Valkey URIs,
-provider credentials, raw embeddings, hidden reasoning, and unrestricted provider payloads have no
-admin response fields.
+## Available views
 
-## Private contribution review
+The console provides filtered, searched, cursor-paginated views for:
 
-Private contribution metadata and sanitization status are visible without content. Sanitized
-structured content remains hidden until an administrator with `private_content:read` supplies a
-fresh session, a stated moderation/security reason, and target-specific confirmation. Every allowed
-or denied attempt creates an audit event. Repeated reveals therefore remain visible by actor and
-target.
+- source registries and normalized source items;
+- pipeline runs and steps;
+- extraction attempts and validation quarantine;
+- candidate experiences and immutable assessments;
+- KnownPaths, revisions, memberships, trust, freshness, outcomes, and safety;
+- agent contributions;
+- suspicious/abuse outcome signals;
+- users and API-key metadata;
+- audit events;
+- health, queues, worker heartbeats, and provider state.
 
-The reveal endpoint returns only the persisted sanitized V2 payload. KnownPath does not retain a
-reversible original submission; its request digest, removed fields, secrets, credentials, and
-redacted characters cannot be revealed. Responses use `Cache-Control: no-store`, and the UI keeps
-revealed content only in component memory until the operator hides or leaves the view.
+## Safe projections
 
-## Reversible controls
+Admin responses intentionally omit:
 
-- Moderation uses lifecycle transitions and optimistic expected-state checks. It does not hard
-  delete records or silently change private visibility to public.
-- Canonical operations require a read-only preview digest. Execution recomputes the preview before
-  using the Phase 8 primitives. Candidates, memberships, revisions, and actor-attributed operation
-  events remain available for later split/reassignment.
-- Queue pause/resume uses BullMQ's supported operations. Retrying a failed/quarantined step creates
-  a new durable operator-triggered run; the original run and step are preserved.
-- User suspension is reversible and immediately prevents the suspended identity from authenticating.
+- API-key plaintext and hashes;
+- Authorization/cookie/session values;
+- MongoDB and Valkey URIs;
+- provider credentials;
+- raw embeddings;
+- hidden reasoning;
+- unrestricted provider payloads.
 
-Every sensitive action records actor, target, request ID, outcome, timestamp, action, and sanitized
-reason in `audit_events`. Canonicalization also records the administrator on its immutable event
-stream.
+Source text is returned as bounded escaped plain text. Public candidates and KnownPaths expose
+bounded evidence and score breakdowns. Private candidates and KnownPaths show metadata only.
+User-key views contain prefix, status, scopes, binding, and timestamps.
 
-## Operating the console
+## Private contribution reveal
 
-Start the same foundational services used by the rest of KnownPath:
+Private contribution metadata and sanitization status are visible by default; content is not.
+
+Revealing content requires:
+
+- `private_content:read`;
+- fresh admin authentication;
+- exact target confirmation;
+- a stated moderation/security reason.
+
+The endpoint returns only the persisted sanitized version 2 payload with `Cache-Control: no-store`.
+KnownPath does not store a reversible original request, so removed secrets, fields, and redacted
+characters cannot be recovered.
+
+Every allowed or denied reveal attempt is audited. The UI keeps revealed content only in component
+memory until hidden or navigated away.
+
+## Moderation
+
+Moderation uses reversible lifecycle transitions with expected-state checks. It does not hard-delete
+records or change private content to public.
+
+Available transitions depend on the resource and include:
+
+- approve;
+- quarantine;
+- reject;
+- deprecate;
+- restore.
+
+Each action records actor, target, request ID, action, sanitized reason, timestamp, and success or
+failure.
+
+## Canonical merge and split
+
+The console requires a read-only preview before execution. The preview identifies candidates,
+affected KnownPaths, relationship changes, and a digest. Execution recomputes that preview and
+rejects a stale/mismatched digest.
+
+Underlying canonicalization operations preserve candidates, memberships, revisions, provenance, and
+actor-attributed events. A mistaken merge can be split or reassigned.
+
+## Job and source controls
+
+Operators can:
+
+- inspect queue/run/step state;
+- pause or resume supported queues;
+- retry a failed or quarantined pipeline step;
+- request bounded source sync;
+- trigger score, extraction, canonicalization, or embedding reprocessing through existing jobs.
+
+Retry creates a new durable operator-triggered run. The original run and step remain in history.
+Queue operations use BullMQ APIs; if Valkey is unavailable, mutations fail explicitly with
+`queue_unavailable`. Read-only MongoDB views continue where possible.
+
+## User administration
+
+Admins can inspect minimized user lifecycle metadata and key prefixes/scopes/status, then suspend or
+restore an account with fresh confirmation.
+
+Suspension immediately prevents authentication. The API never returns a user's password hash,
+session token, or API-key secret.
+
+## Audit review
+
+Review audit history for:
+
+- repeated private-content access;
+- moderation and canonicalization changes;
+- source and queue controls;
+- failed sensitive confirmations;
+- user suspension/restore;
+- review-record knowledge access.
+
+Audit metadata is bounded and excludes submitted content and credentials.
+
+## Run locally
 
 ```sh
-pnpm db:init
 pnpm dev:infra
+pnpm db:init
 pnpm --filter @knownpath/api dev
 KNOWNPATH_API_URL=http://127.0.0.1:3001 pnpm --filter @knownpath/web dev
 ```
 
-Provision an administrator through the existing masked CLI, sign in at `/sign-in`, then open
-`/admin`. Queue controls return `queue_unavailable` without configured/reachable Valkey while
-read-only MongoDB administration continues. The console does not compensate by claiming a job was
-queued.
+Create the first admin through the masked CLI:
 
-## References
+```sh
+pnpm auth:user:create
+```
 
-- [Better Auth admin plugin](https://better-auth.com/docs/plugins/admin)
-- [Better Auth session management](https://better-auth.com/docs/concepts/session-management)
-- [Next.js authentication](https://nextjs.org/docs/app/guides/authentication)
-- [Next.js data security](https://nextjs.org/docs/app/guides/data-security)
-- [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
-- [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
-- [BullMQ pausing queues](https://docs.bullmq.io/guide/workers/pausing-queues)
-- [BullMQ retrying jobs](https://docs.bullmq.io/guide/retrying-failing-jobs)
-- [WAI-ARIA alert dialog pattern](https://www.w3.org/WAI/ARIA/apg/patterns/alertdialog/)
+Sign in at `/sign-in`, then open `/admin`.
+
+See [Operations](OPERATIONS.md), [Security operations](SECURITY_OPERATIONS.md), and
+[Security architecture](SECURITY_ARCHITECTURE.md).

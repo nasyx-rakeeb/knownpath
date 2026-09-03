@@ -20,9 +20,9 @@ Coding agents repeatedly encounter the same classes of problems:
 - tooling quirks and recurring error messages;
 - debugging paths that look promising but do not work.
 
-Today, much of that work is repeated from scratch. KnownPath gives agents a shared memory of prior
-technical experience while preserving the evidence needed to decide whether a solution fits the
-current repository.
+Today, much of that work is repeated from scratch. KnownPath gives agents shared knowledge from
+prior technical experience while preserving the evidence needed to decide whether a solution fits
+the current repository.
 
 ## How it works
 

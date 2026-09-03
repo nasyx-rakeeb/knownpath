@@ -1,24 +1,47 @@
-# Deployment
+# Self-hosting and deployment
 
-KnownPath is provider-neutral. A deployment needs three application processes plus MongoDB and
-Valkey; it does not require a paid identity, database abstraction, queue, or observability vendor.
+This guide is for operators who choose to run KnownPath. It is not required for developers using the
+hosted network through `npx knownpath install`; those users only need a provisioned API URL and key.
+See [Agent installation](AGENT_INSTALLATION.md).
+
+KnownPath is provider-neutral and can run on a container platform, virtual machines, or Kubernetes.
+Provider examples are illustrative, not required architecture.
 
 ## Production topology
 
-| Component                  | Container target    | State/role                                                 |
-| -------------------------- | ------------------- | ---------------------------------------------------------- |
-| Fastify API + remote MCP   | `api`               | Stateless HTTP; critical MongoDB and rate-limiter checks   |
-| Next.js dashboard          | `web`               | Stateless server-rendered UI that calls the API            |
-| BullMQ consumers/scheduler | `worker`            | Continuous or bounded jobs; requires Valkey                |
-| MongoDB                    | managed/self-hosted | Only persistent product database and audit source of truth |
-| Valkey-compatible service  | managed/self-hosted | Ephemeral queues, schedules, locks, and rate limits        |
-| OpenTelemetry Collector    | optional            | Operator-controlled OTLP routing; never product truth      |
+| Component                 | Image target           | Responsibility                                                         |
+| ------------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| Fastify API + remote MCP  | `api`                  | Stateless HTTP, auth, retrieval, mutations, critical dependency checks |
+| Next.js dashboard         | `web`                  | Stateless server-rendered user/admin interface                         |
+| BullMQ worker             | `worker`               | Continuous or bounded pipelines and schedules                          |
+| MongoDB                   | Managed or self-hosted | Only durable product database and audit source of truth                |
+| Valkey-compatible service | Managed or self-hosted | Queues, schedules, leases, locks, coordination, distributed limits     |
+| OpenTelemetry Collector   | Optional               | Operator-controlled OTLP routing; never product state                  |
 
-The root [`Dockerfile`](../Dockerfile) builds `api`, `web`, or `worker` targets as non-root Node 24
-processes. The local [`compose.yaml`](../compose.yaml) is a reproducible development topology, not a
-production availability design.
+The root [Dockerfile](../Dockerfile) builds non-root Node 24 images for all three application
+targets. [compose.yaml](../compose.yaml) is a reproducible development topology, not a production
+high-availability design.
 
-## Build
+## Prerequisites
+
+- Node.js 24 LTS and pnpm 11 when operating from source;
+- MongoDB with TLS, authentication, backups, and appropriate network controls;
+- Valkey/Redis-protocol service with `noeviction` for BullMQ;
+- a canonical HTTPS API URL, dashboard URL, and trusted browser origins;
+- independent session and API-key hashing secrets;
+- optional GitHub token for higher public API limits and Discussions;
+- optional Gemini key for public extraction/embeddings; and
+- optional MongoDB Atlas Search/Vector Search when `SEARCH_BACKEND=atlas`.
+
+Use [`.env.example`](../.env.example) as the complete configuration contract. Inject real values
+through the host's secret manager; do not bake them into images or commit `.env`.
+
+Production must set `API_RATE_LIMIT_STORE=valkey`, a reachable `QUEUE_REDIS_URL`, HTTPS auth URLs,
+exact CORS/trusted origins, and distinct `BETTER_AUTH_SECRET` and `API_KEY_PEPPER`. Provider secrets
+belong only on processes that use them. Public/unpaid Gemini must remain blocked for private/team
+content.
+
+## Build images
 
 ```sh
 docker build --target api -t knownpath-api:local .
@@ -26,105 +49,80 @@ docker build --target worker -t knownpath-worker:local .
 docker build --target web -t knownpath-web:local .
 ```
 
-Pin deployed images to an immutable version/digest. Keep API and worker on the same application
-release so job payload and domain schema versions agree.
-
-## Required configuration
-
-Use the grouped [`.env.example`](../.env.example) as the contract, but inject real values through
-the host's secret manager. At minimum:
-
-- MongoDB URI/database and network/TLS access;
-- Valkey TLS URL with eviction disabled;
-- unique `BETTER_AUTH_SECRET` and `API_KEY_PEPPER`;
-- canonical HTTPS `BETTER_AUTH_URL`, dashboard/API origins, trusted proxies, and CORS origins;
-- `API_RATE_LIMIT_STORE=valkey` in production;
-- public-data Gemini and GitHub credentials only on worker/provider processes that need them;
-- dashboard `KNOWNPATH_API_URL`; no application process needs a user API key;
-- optional OTLP endpoint without credentials embedded in telemetry attributes.
-
-Never put `KNOWNPATH_API_KEY` in a server image or agent config. The stdio bridge reads it only from
-the environment that launches the agent. Public/unpaid Gemini remains hard-blocked for
-private/workspace content.
+Pin deployments to an immutable tag or digest. Deploy API and worker from the same KnownPath release
+so domain and job payload versions agree.
 
 ## Initialize and provision
 
-From a trusted operator environment using production MongoDB configuration:
+From a trusted operator environment configured for the production database:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm db:init
-SEARCH_BACKEND=atlas pnpm run search indexes status # only when Atlas search is selected
+SEARCH_BACKEND=atlas pnpm run search indexes status  # only for Atlas search
 pnpm auth:user:create
 ```
 
-`db:init` is idempotent and should run before traffic on each schema/index release. Registration
-remains closed. Never bake the first-admin credential into an image, manifest, or CI variable.
+`db:init` is idempotent and should run before traffic on a schema/index release. Registration is
+closed; create the initial administrator through the interactive CLI and never store its credential
+in an image or CI definition.
 
-## Run and verify
+## Run
 
-Start API and web as long-running HTTP services and the worker as either:
+- Run the API and web targets as long-lived HTTP services behind TLS.
+- Run `node dist/index.js jobs start` in the worker image for continuous consumption, or
+  `node dist/index.js jobs drain` for bounded scheduled compute.
+- Do not expose MongoDB or Valkey directly to the public internet.
+- Keep scheduled source refresh disabled until sources, quotas, and expected workload are reviewed.
 
-- `node dist/index.js jobs start` for continuous processing; or
-- `node dist/index.js jobs drain` for bounded scheduled compute.
-
-Expose API/web only behind TLS. Do not expose MongoDB or Valkey publicly. Verify:
+Verify the deployment:
 
 ```sh
 curl --fail --show-error https://knownpath.example/health/live
 curl --fail --show-error https://knownpath.example/health/ready
 ```
 
-Readiness fails for critical MongoDB/distributed-rate-limiter failure and reports optional queue or
-telemetry degradation separately. Then verify authenticated search, remote MCP, stdio MCP, dashboard
-session/API-key lifecycle, worker heartbeat, and an idempotent bounded job.
+Readiness fails for critical MongoDB or production rate-limiter failure and reports optional queue
+or telemetry degradation separately. Then verify an authenticated search, remote and stdio MCP,
+dashboard session/API-key lifecycle, a worker heartbeat, and one bounded idempotent pipeline job.
 
 ## Local production-shaped stack
 
 ```sh
 cp .env.example .env
-# fill local secrets
+# set local secrets and required URLs
 docker compose --profile platform up --build
 ```
 
-Compose publishes web/API only on loopback, creates local MongoDB/Valkey volumes, waits on health
-conditions, and uses container-network origins internally. Stop without deleting named data:
+Compose publishes API and web only on loopback, creates MongoDB/Valkey volumes, and waits on health
+conditions. Stop without deleting named data:
 
 ```sh
 docker compose down
 ```
 
-## Current low-cost hosted example
+## Low-cost deployment example
 
-The committed `render.yaml` deploys the API on Render; MongoDB Atlas supplies product persistence.
-The existing `.github/workflows/process-queues.yml` can drain BullMQ through a Valkey-compatible
-Upstash TLS URL on a schedule. This is an example, not a platform requirement or always-on SLA.
-Render free services may sleep and GitHub schedules may be delayed/disabled after inactivity.
+The repository includes [render.yaml](../render.yaml) for a Render API deployment and
+[`.github/workflows/process-queues.yml`](../.github/workflows/process-queues.yml) for bounded worker
+drains against a Valkey-compatible TLS service such as Upstash. MongoDB Atlas can provide the
+database and optional search indexes.
 
-For that topology:
+This topology is not an always-on SLA. Free services can sleep, provider quotas are bounded, and
+GitHub scheduled workflows can be delayed or disabled after repository inactivity. Configure the
+same MongoDB and Valkey endpoints for API/workers, run the worker workflow manually first, and only
+then enable its scheduled mode. Deploy the web app separately with the canonical API origin.
 
-1. import `render.yaml` as a Blueprint and enter only prompted secrets;
-2. permit the service's outbound network in Atlas;
-3. set the same `QUEUE_REDIS_URL` on API and worker workflow;
-4. store MongoDB, Valkey, auth/pepper, Gemini, and optional GitHub values as GitHub Actions secrets;
-5. manually run the queue workflow before enabling its schedule variable;
-6. deploy the web container/service separately with the canonical API origin.
+## Scaling and failure recovery
 
-Do not add automatic paid upgrades. Monitor free-tier storage, commands, provider quotas, schedule
-latency, and cold starts before claiming production availability.
+- Scale API instances only with the shared Valkey limiter.
+- Scale workers without bypassing per-provider concurrency and rate limits.
+- Back up MongoDB and practice restoration. Valkey loss must not lose product records; reconcile
+  durable `pending_dispatch` intent after recovery.
+- Preserve immutable assessments, canonical history, consent, outcomes, and audit events.
+- Send telemetry through an operator-controlled collector and keep content out of labels.
+- Follow [Operations](OPERATIONS.md) for retry/quarantine and
+  [Security operations](SECURITY_OPERATIONS.md) for credential rotation.
 
-## Backups, scaling, and failures
-
-- Back up MongoDB using provider-native consistent backups and practice restoration. Valkey loss
-  must not lose product records; durable `pending_dispatch` intent is reconciled after recovery.
-- Scale API horizontally only with the shared Valkey limiter. Scale workers with queue/provider
-  concurrency limits intact.
-- Preserve immutable assessment, canonical history, consent, outcome, and audit records.
-- Rotate credentials in the order documented in [Security operations](SECURITY_OPERATIONS.md).
-- Export telemetry through an operator-controlled collector as described in
-  [Observability](OBSERVABILITY.md).
-- Follow [Operations](OPERATIONS.md) for retries, quarantine, stalled recovery, and queue outage
-  behavior.
-
-Release preflight and rollback are in [Release](RELEASE.md); the empty-database data path is in
-[Ingestion](INGESTION.md).
+See [Release](RELEASE.md) for preflight and rollback, [Ingestion](INGESTION.md) for initial seeding,
+and [Retrieval](RETRIEVAL.md) for local versus Atlas search behavior.

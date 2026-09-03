@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-KnownPath is under active phased development. Security fixes target the latest published `knownpath`
-npm package and current `main` platform release. Older unreleased snapshots and operator-modified
+KnownPath is under active development. Security fixes target the latest published `knownpath` npm
+package and current `main` platform release. Older unreleased snapshots and operator-modified
 deployments are not maintained as separate support lines.
 
 ## Report a vulnerability

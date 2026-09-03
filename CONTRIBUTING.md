@@ -41,8 +41,8 @@ Dependency direction and boundaries are documented in [Architecture](docs/ARCHIT
 
 ## Required checks
 
-No unit, integration, or E2E suite exists yet by deliberate project phase policy. Every change must
-instead pass the applicable non-test checks:
+No unit, integration, or E2E suite exists yet. Every change must pass the applicable non-test
+checks:
 
 ```sh
 pnpm format:check

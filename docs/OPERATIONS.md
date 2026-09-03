@@ -1,29 +1,49 @@
-# Background pipeline operations
+# Operations
 
-Phase 16 uses BullMQ 6.2.0 over the Valkey-compatible Redis protocol. MongoDB remains the only
-persistent product database. Valkey holds queue entries, schedules, retry timing, global provider
-rate limits, locks, stalled-job coordination, and retained job diagnostics; it is never the only
-copy of a source, candidate, contribution, outcome, KnownPath, or pipeline intent.
+This guide is for operators running KnownPath workers and source pipelines. Ordinary hosted users do
+not need to operate MongoDB, Valkey, workers, or provider integrations.
 
-## Runtime topology
+## Worker architecture
 
-- `@knownpath/jobs` is the only BullMQ-facing package. It owns connections, queue names, retry and
-  retention policy, scheduling, dispatch, worker lifecycle, and MongoDB status projection.
-- `@knownpath/pipelines` maps typed job payloads to domain services and creates bounded downstream
-  jobs. Payloads contain IDs and processing options, not source bodies or credentials.
-- `@knownpath/worker jobs start` runs consumers for `control`, `github`, `sources`, `ai`,
-  `knowledge`, and `feedback`.
-- `pipeline_runs`, `pipeline_steps`, and `worker_heartbeats` provide durable inspection and audit
-  state. A step is inserted as `pending_dispatch` before BullMQ receives it.
+KnownPath uses BullMQ 6.2.0 over the Valkey-compatible Redis protocol. MongoDB remains the only
+durable product database; Valkey holds queues, schedules, retry timing, rate limits, leases, stalled
+job coordination, and bounded job diagnostics.
 
-The normal chain is changed source -> extraction -> deterministic assessment -> conservative
-canonicalization/rebuild -> search projection. Contributions enter at contribution processing;
-outcomes enter at aggregation and projection. Each target becomes its own job so one poison record
-does not stop unrelated work.
+```text
+durable intent in MongoDB
+          │
+          ▼
+  BullMQ job in Valkey
+          │
+          ▼
+typed pipeline handler
+          │
+          ├── update durable product state
+          └── enqueue bounded next step
+```
 
-## Local setup
+`@knownpath/jobs` owns BullMQ connections, queue names, retry/retention policy, scheduling, and
+worker lifecycle. `@knownpath/pipelines` maps versioned payloads to domain services. Payloads
+contain record IDs and options, not source bodies or credentials.
 
-Copy `.env.example` to `.env`, configure MongoDB, and start Valkey:
+Workers consume six queues: `control`, `github`, `sources`, `ai`, `knowledge`, and `feedback`.
+Durable `pipeline_runs`, `pipeline_steps`, and `worker_heartbeats` records support inspection and
+reconciliation. A step is stored as `pending_dispatch` before it is sent to BullMQ.
+
+## Pipelines
+
+Changed public sources proceed through extraction, deterministic assessment, conservative
+canonicalization/rebuild, and search projection. Contribution processing begins at the contribution
+step; outcome processing begins at aggregation and projection. Each target is a separate job so a
+poison record cannot block an entire run.
+
+Handlers are idempotent through source content hashes, extraction keys, immutable assessments,
+canonical memberships, projection hashes, contribution IDs, and outcome inputs. Retrying a job must
+not create a second business record.
+
+## Local operation
+
+Start Valkey, initialize MongoDB, and run continuous workers:
 
 ```sh
 pnpm dev:infra
@@ -31,30 +51,39 @@ pnpm db:init
 pnpm jobs start
 ```
 
-The Compose Valkey service is loopback-only, uses AOF plus periodic snapshots, and explicitly uses
-`noeviction`, which BullMQ requires for reliable queue keys. The worker refuses to start without
-`QUEUE_REDIS_URL`. Set `QUEUE_SCHEDULES_ENABLED=true` before applying schedules:
+Use `pnpm dev:infra:all` to start local MongoDB and Valkey together. The Compose Valkey service is
+loopback-only, persists AOF/snapshots for development diagnostics, and uses `noeviction`, as BullMQ
+requires.
+
+For bounded scheduled compute, use:
+
+```sh
+pnpm jobs drain
+```
+
+The drain command exits after runnable queues remain idle for `QUEUE_DRAIN_IDLE_MS`. Future
+schedules and delayed retries do not prevent exit; `QUEUE_DRAIN_MAX_RUNTIME_MS` returns a nonzero
+status if runnable work exceeds the budget.
+
+## Schedules
+
+Schedules are disabled until explicitly enabled:
+
+```dotenv
+QUEUE_SCHEDULES_ENABLED=true
+```
+
+Then apply and inspect them idempotently:
 
 ```sh
 pnpm jobs schedules apply
 pnpm jobs schedules status
+pnpm jobs schedules remove
 ```
 
-Use `pnpm dev:infra:all` when local MongoDB is also needed. The production-shaped application
-profile is `docker compose --profile platform up --build`; production operators should deploy the
-independent non-root `api`, `worker`, and `web` image targets with external MongoDB and Valkey. See
-[Deployment](DEPLOYMENT.md).
-
-For bounded compute, `pnpm jobs drain` starts the same six consumers and exits after every runnable
-queue has remained idle for `QUEUE_DRAIN_IDLE_MS`. Future scheduled jobs and delayed retries do not
-keep the process alive; they are eligible on the next invocation. `QUEUE_DRAIN_MAX_RUNTIME_MS`
-causes a non-zero exit if runnable work remains beyond the execution budget. `jobs start` retains
-its existing continuous-worker behavior.
-
-Every enabled entry in `config/sources/registry.json` has `refreshIntervalMinutes`. Applying
-schedules creates one source-specific scheduler so failures and rate limits remain isolated.
-Maintenance reconciliation runs every five minutes, stale inspection every fifteen minutes, and
-freshness rescoring daily. Schedules are disabled by default and may be removed idempotently.
+Each enabled source registry entry receives an independent refresh schedule. Maintenance
+reconciliation runs every five minutes, stale inspection every fifteen minutes, and freshness
+rescoring daily.
 
 ## Enqueue and inspect
 
@@ -68,93 +97,57 @@ pnpm jobs resume ai
 pnpm jobs retry-failed ai
 ```
 
-The Phase 18 administration API exposes safe queue counts, durable runs, worker heartbeats,
-fresh-session queue pause/resume, and preserved-history retry. It never returns job source bodies,
-provider secrets, or credentials. See [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md).
+The admin API and dashboard expose safe queue counts, durable runs, heartbeats, pause/resume, and
+preserved-history retry controls. Sensitive queue actions require fresh admin authentication,
+confirmation, a reason, and an audit event. See [Admin operations](ADMIN_OPERATIONS.md).
 
-## Retry, quarantine, and recovery
+## Retry and quarantine
 
-Default work receives five attempts with exponential backoff from two seconds and 50% jitter. GitHub
-begins at five seconds; Gemini extraction/embedding begins at ten seconds with four attempts; local
-development failures use three attempts from one second. Permanent errors become BullMQ
-`UnrecoverableError` failures. Exhausted work is marked `quarantined` in MongoDB with a bounded safe
-error and remains available for operator inspection; retries never overwrite product entities.
+Default jobs receive five attempts with exponential backoff from two seconds and 50% jitter. GitHub
+work starts at five seconds. Gemini extraction and embedding start at ten seconds with four
+attempts. BullMQ lock renewal and stalled-job checks recover interrupted work, with
+`maxStalledCount=2`.
 
-BullMQ's lock renewal and stalled checker recover interrupted jobs, with `maxStalledCount=2`.
-Handlers are idempotent through existing source hashes, extraction keys, immutable assessments,
-canonical memberships, projections, contribution IDs, and outcome assessment inputs. A bounded
-graceful shutdown stops intake, waits for active jobs, then forces close only after
-`QUEUE_WORKER_SHUTDOWN_MS`.
+Permanent failures use BullMQ's unrecoverable failure path. Exhausted work is marked `quarantined`
+in MongoDB with a bounded safe error; retries do not overwrite product entities. Graceful shutdown
+stops intake, waits for active jobs, and forces closure only after `QUEUE_WORKER_SHUTDOWN_MS`.
 
-## Failure behavior
+## Valkey outages
 
-- If Valkey is absent from API configuration, normal auth and knowledge reads work and readiness
-  reports queues as `disabled`. Contributions retain their existing synchronous path.
-- If Valkey is configured but unavailable, normal API reads continue and readiness reports queues as
-  `unavailable`. Queue administration returns `queue_unavailable` with HTTP 503.
-- Contribution and outcome data is written to MongoDB before dispatch. A dispatch timeout leaves a
-  durable `pending_dispatch` step; reconciliation resubmits it when Valkey returns.
-- Workers fail startup clearly when Valkey is missing or unreachable. No business state is inferred
-  from missing BullMQ jobs.
+- Workers refuse to start when `QUEUE_REDIS_URL` is missing or unreachable.
+- Production API startup and readiness require Valkey for distributed rate limiting; there is no
+  in-memory production fallback.
+- If the limiter is healthy but the queue path is unavailable, readiness reports `degraded` and
+  queue administration returns `queue_unavailable` (`503`).
+- Contributions and outcomes are written to MongoDB before dispatch. A timed-out dispatch leaves a
+  durable `pending_dispatch` step for reconciliation.
+- Missing BullMQ jobs are never interpreted as missing business data.
 
-## Free hosted worker path
+## Provider limits and source maintenance
 
-The early hosted deployment uses an Upstash free Redis-compatible database and
-`.github/workflows/process-queues.yml` instead of a paid always-on Render worker. Upstash officially
-supports BullMQ over its TLS Redis URL. The workflow runs at minutes 7 and 37 of every hour and can
-also be started manually. It drains runnable work for at most ten minutes and then closes all
-workers gracefully. Schedule installation is an explicit manual-dispatch option so connecting the
-infrastructure cannot accidentally start every configured source against free provider quotas.
+Queue concurrency and rate limits are configured independently for GitHub, official sources, and
+Gemini. Increase them only after reviewing the external provider's current quotas and the source's
+refresh policy. Use bounded backfills and targeted reprocessing for prompt, score, or embedding
+version changes.
 
-This path is intentionally not an always-on production SLA. GitHub can delay scheduled workflows,
-and it disables schedules in public repositories after 60 days without repository activity. A
-delayed retry may wait for the next invocation. Standard GitHub-hosted runners are currently free
-for public repositories, and the selected Upstash tier has bounded command/storage quotas. Monitor
-both providers before increasing source cadence. The hosted drain polls every five seconds and
-requires fifteen seconds of runnable idleness, deliberately reducing idle queue commands.
+Before enabling a source, review its ownership, allowed origins/paths, robots policy, attribution,
+and expected update cadence. Monitor last sync, lag, discovered/changed/failed counts, and
+rate-limit state.
 
-The workflow has read-only repository permissions, runs only from `main`, does not execute for pull
-requests, permits only one worker run at a time, and pins official actions to immutable revisions.
-Its required credentials are repository Actions secrets; it never echoes them. Scheduled events are
-skipped until `KNOWNPATH_SCHEDULED_WORKER_ENABLED=true` is configured as a repository Actions
-variable after a successful manual run. See
-[`DEPLOYMENT.md`](DEPLOYMENT.md#configure-the-free-queue-and-scheduled-worker) for exact setup.
+## Retention and cleanup
 
-## Security and telemetry operations
+Completed and failed BullMQ entries use configured time/count retention and are operational
+diagnostics only. Do not use queue cleanup as a product-data deletion mechanism. Preserve durable
+source provenance, immutable assessments, canonical history, consent, outcomes, and audit records
+according to the deployment's retention policy.
 
-The API requires `API_RATE_LIMIT_STORE=valkey` in production and proves the configured Valkey
-connection before listening. `memory` must be written explicitly in a local development `.env`.
-`/health/ready` distinguishes critical MongoDB/rate-limiter failure (`503`) from optional queue
-degradation (`200` with `status: degraded`). No dependency state causes product data to move from
-MongoDB into Valkey.
-
-Use `OTEL_EXPORTER=console` only for bounded local inspection. Production operators should set
-`OTEL_EXPORTER=otlp` and point at an operator-controlled OpenTelemetry Collector. Collector failure
-does not block product operations. See [`OBSERVABILITY.md`](OBSERVABILITY.md).
-
-Before a release run:
-
-```sh
-pnpm security:audit
-pnpm typecheck
-pnpm lint
-pnpm format:check
-pnpm build
-```
-
-Incident containment and rotation order are in [`SECURITY_OPERATIONS.md`](SECURITY_OPERATIONS.md).
-Release preflight and rollback are in [`RELEASE.md`](RELEASE.md).
+See [Deployment](DEPLOYMENT.md), [Observability](OBSERVABILITY.md), and
+[Security operations](SECURITY_OPERATIONS.md).
 
 ## References
 
-- [BullMQ connections](https://docs.bullmq.io/guide/connections)
-- [BullMQ retries and jitter](https://docs.bullmq.io/guide/retrying-failing-jobs)
-- [BullMQ job schedulers](https://docs.bullmq.io/guide/job-schedulers)
-- [BullMQ rate limiting](https://docs.bullmq.io/guide/rate-limiting)
-- [BullMQ graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown)
 - [BullMQ production guidance](https://docs.bullmq.io/guide/going-to-production)
+- [BullMQ retries](https://docs.bullmq.io/guide/retrying-failing-jobs)
+- [BullMQ job schedulers](https://docs.bullmq.io/guide/job-schedulers)
+- [BullMQ graceful shutdown](https://docs.bullmq.io/guide/workers/graceful-shutdown)
 - [Valkey installation](https://valkey.io/topics/installation/)
-- [Upstash BullMQ integration](https://upstash.com/docs/redis/integrations/bullmq)
-- [Upstash Redis free limits](https://upstash.com/docs/redis/overall/billing)
-- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
-- [GitHub scheduled workflow behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule)

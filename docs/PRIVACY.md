@@ -1,51 +1,82 @@
-# Privacy model
+# Privacy
 
-KnownPath stores reusable technical experience, not private repositories, credentials, prompts, or
-hidden chain-of-thought. Data minimization and server-side scope enforcement apply across HTTP, MCP,
-workers, dashboards, retrieval, and administration.
+KnownPath is designed to store reusable technical knowledge, not private repositories, credentials,
+prompts, or hidden chain-of-thought. Data minimization and server-side authorization apply across
+the API, MCP server, workers, dashboards, retrieval, and administration.
+
+This document describes the product's technical privacy behavior. Operators remain responsible for
+their own legal notices, retention policy, and deployment jurisdiction.
+
+## Data KnownPath stores
+
+- Public source metadata and normalized text from configured GitHub repositories and official
+  documentation.
+- Generalized agent contributions: a problem, environment, symptoms, solution steps, caveats, and an
+  observable success summary.
+- Agent outcomes: an attempted-result category, compatibility metadata, and an optional concise
+  sanitized note.
+- Account, API-key metadata, workspace membership, consent, provenance, moderation, and audit
+  records needed to operate the service.
+
+Ordinary contribution and outcome contracts do not request raw files, full repository content, or
+chain-of-thought.
 
 ## Visibility
 
-- **Public** contributions require explicit consent and enter low-trust processing; they are not
-  published as truth from self-report.
-- **Personal private** records remain owner-scoped in MongoDB.
-- **Workspace** records remain scoped to live authorized membership and workspace-bound keys.
-- Sharing private/workspace knowledge publicly creates a new sanitized, consented contribution. It
-  never flips proprietary content to public in place.
+KnownPath enforces three scopes in backend repository and authorization services:
 
-Every repository query and direct-ID read receives a server-derived tenant predicate. Public search
-and aggregates never reveal the existence or behavior of private/workspace records.
+- **Public:** available to ordinary clients after the canonical record is published. Public agent
+  contributions require explicit consent and enter a low-trust review pipeline.
+- **Private:** visible only to the owning user.
+- **Team/workspace:** visible only to authorized members and workspace-scoped API keys.
 
-## Provider boundary
+Private and team records do not affect public search results or public outcome aggregates. Sharing
+private or team knowledge publicly creates a separate, sanitized, consented contribution; it never
+changes the original record's visibility in place.
 
-The unpaid/public Gemini path is allowed only for verified-public source records, candidates, and
-embeddings. Personal-private and workspace content, query text, and records are rejected before a
-provider call. A future private-safe provider requires explicit configuration and approval; the
-system never silently downgrades to a public provider.
+## Sanitization and retention
 
-## Contributions and outcomes
+The contribution pipeline detects and redacts obvious credentials, token-like values, email/PII,
+home-directory usernames, and credential-bearing repository remotes. It rejects submissions that
+still appear high-risk or contain excessive private source material. KnownPath retains the sanitized
+structured submission, provenance, consent state, sanitization report, moderation state, and audit
+history. Removed sensitive fields are not available to users or administrators.
 
-Ordinary contributions use generalized structured fields, environment metadata, ordered steps, and
-an observable success summary. Raw files and chain-of-thought are outside the contract. The
-sanitizer removes obvious secrets, email/PII, user home paths, and credential-bearing remotes, and
-rejects remaining high-risk or excessive content. Outcomes capture an attempted-result category and
-optional concise sanitized note, not repository contents.
+Self-reported success does not make a contribution trusted or published. See
+[Contributions](CONTRIBUTIONS.md) and [Outcomes](OUTCOMES.md).
 
-Immutable provenance, consent, sanitization reports, moderation state, and audit history remain
-available for accountability. Self-report does not create high trust.
+## External AI providers
 
-## Administration and telemetry
+The configured unpaid Gemini route accepts verified-public data only. Private and team source
+records, candidates, embeddings, contributions, and queries are rejected before any provider call.
+KnownPath never silently falls back to a public provider. A private-safe provider can be introduced
+only through explicit provider configuration and approval.
 
-Private content is hidden from ordinary admin views. An appropriately authorized administrator may
-reveal only the sanitized structured version for moderation/security, with fresh authentication, a
-stated reason, exact confirmation, and an audit event. Unsanitized originals and removed fields are
-not retained for display.
+## Administration
 
-Logs and OpenTelemetry use bounded identifiers and fixed labels. Query text, private content,
-credentials, user/workspace identifiers, raw source bodies, and other high-cardinality sensitive
-values are excluded. See [Observability](OBSERVABILITY.md) and
-[Security architecture](SECURITY_ARCHITECTURE.md).
+Private contribution content is hidden from normal admin views. An administrator with the required
+capability can reveal only the sanitized structured version for a necessary moderation or security
+review. The backend requires:
 
-Operators define account and data-retention policy for their deployment. Queue retention is
-diagnostic and ephemeral; MongoDB remains product truth. Removing or restricting data must use
-domain lifecycle/moderation operations so provenance and safety audit requirements remain intact.
+- a session authenticated within the 30-minute freshness window;
+- a stated reason and exact confirmation; and
+- an audit event for every reveal.
+
+The original unsanitized submission and removed values are never displayed.
+
+## Logs and telemetry
+
+Logs and OpenTelemetry data use bounded event classes and correlation IDs. They exclude query text,
+source and contribution content, credentials, emails, IP addresses, user/workspace/API-key IDs,
+KnownPath IDs, URLs, and other sensitive or high-cardinality values. See
+[Observability](OBSERVABILITY.md).
+
+## Operator responsibilities
+
+Self-hosting operators should define retention and deletion policy, protect MongoDB backups and
+telemetry collectors, restrict administrative access, and rotate credentials through the documented
+runbook. Product records should be restricted or removed through domain lifecycle operations so
+provenance and required security audit history remain coherent.
+
+See [Workspaces](WORKSPACES.md), [Security architecture](SECURITY_ARCHITECTURE.md), and
+[Security operations](SECURITY_OPERATIONS.md).

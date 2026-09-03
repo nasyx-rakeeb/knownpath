@@ -1,76 +1,108 @@
 # Security operations
 
+This runbook is for operators responding to credential exposure, account abuse, ingestion attacks,
+or infrastructure compromise. For design boundaries, see
+[Security architecture](SECURITY_ARCHITECTURE.md).
+
 ## Report a vulnerability
 
-Do not open a public issue containing an exploitable vulnerability, credential, private record, or
-tenant identifier. Use the repository's GitHub **Security > Report a vulnerability** private
-advisory flow. Include the affected version/commit, minimal reproduction, impact, and safe contact
-details. Do not test against data or accounts you do not own.
+Use the repository's GitHub **Security → Report a vulnerability** private advisory flow. Do not put
+exploitable details, credentials, private records, or tenant identifiers in a public issue. Include
+the affected version or commit, impact, a minimal safe reproduction, and contact details. Test only
+against systems and data you own or are authorized to assess.
 
-## Initial incident response
+## Incident response
 
-1. Preserve timestamps, request IDs, trace IDs, audit events, deployment revision, and affected
-   provider status. Do not copy private source bodies into an incident chat or ticket.
-2. Contain the path: revoke a key/session, suspend an account, pause a queue, disable a source, or
-   restrict a record through the existing reversible operation. Avoid hard deletion.
-3. Rotate the smallest affected credential set using the order below.
-4. Inspect MongoDB audit/history records and Valkey queue/limit health. Treat logs/telemetry as
-   supporting evidence, not the source of product truth.
-5. Patch and verify in a bounded environment. Use request/tenant isolation checks before restoring.
-6. Record impact, timeline, evidence, actions, and follow-up without including secrets/private text.
+1. Preserve timestamps, deployment revision, request/trace IDs, and relevant audit events without
+   copying private source content into incident tooling.
+2. Contain the smallest affected path: revoke a key/session, suspend an account, pause a queue,
+   disable a source, or apply a reversible moderation state.
+3. Rotate the affected credentials and redeploy all consumers atomically where required.
+4. Inspect MongoDB audit/history records and Valkey queue/limit health. Logs and telemetry are
+   supporting evidence, not product truth.
+5. Patch and verify the affected boundary with bounded tenant, authentication, and provider checks.
+6. Record impact, timeline, actions, and follow-up without retaining credentials or private text.
 
 ## Credential rotation
 
-Never paste secrets into issues, commits, shell history, agent prompts, or logs.
+Never put secrets in issues, commits, shell history, agent prompts, or logs.
 
 ### KnownPath API key
 
-Issue a replacement through the authenticated API/dashboard, update the launching shell's
-`KNOWNPATH_API_KEY`, verify `knownpath doctor`, then revoke the old key. Agent configurations
-contain only the environment-variable reference and need no rewrite.
+Create a replacement through the dashboard or authenticated API, update `KNOWNPATH_API_KEY` in the
+agent's launch environment, run `knownpath doctor`, and revoke the old key. Installer-managed agent
+configuration contains only the variable reference and does not need rewriting.
 
-### `BETTER_AUTH_SECRET`
+### Session and API-key secrets
 
-Generate a new independent 32-byte-or-greater value and update every API instance together. Existing
-sessions may be invalidated; require users to sign in again. Never reuse `API_KEY_PEPPER`.
+- **`BETTER_AUTH_SECRET`:** replace it on every API instance together. Existing sessions may become
+  invalid and users should sign in again.
+- **`API_KEY_PEPPER`:** changing it invalidates every existing API-key digest. Plan a maintenance
+  window, deploy the new value atomically, issue replacements through a trusted flow, verify them,
+  and revoke obsolete metadata.
 
-### `API_KEY_PEPPER`
-
-Changing the pepper invalidates every stored API-key digest. Announce the maintenance window, rotate
-the deployed value atomically across API/worker environments, issue replacement keys through a
-trusted session/CLI flow, verify them, and revoke obsolete metadata. It must differ from the auth
-secret.
+The two values must be independent and at least 32 bytes.
 
 ### MongoDB
 
-Create a least-privileged replacement database user/credential, deploy the new `MONGODB_URI`, verify
-readiness and a bounded repository operation, then revoke the old credential. Review Atlas network
-allowlists and access logs. Never place the URI in telemetry.
+Create a least-privileged replacement database credential, deploy the new `MONGODB_URI`, verify
+readiness and a bounded repository operation, then revoke the old credential. Review network
+allowlists and access records. Never expose the URI in telemetry.
 
 ### Valkey
 
-Rotate the provider credential/URL in the API and scheduled worker together. Production API startup
-must prove `PING` before serving. MongoDB durable intent permits job reconciliation if ephemeral
-queue state is lost, but operators must inspect incomplete pipeline steps before retrying.
+Rotate `QUEUE_REDIS_URL` for API and worker deployments together. Production API startup must prove
+the limiter connection before serving. MongoDB retains durable pipeline intent, but if queue state
+was lost, reconcile and inspect incomplete steps before retrying.
 
-### GitHub and Gemini
+### GitHub, Gemini, and OTLP
 
-Revoke the old provider token/key first when compromise is suspected. Configure the replacement only
-in the relevant worker/provider environment. GitHub tokens should retain only required public-data
-capabilities. Gemini remains public-only unless an architecture decision approves private handling.
+Revoke a compromised provider credential, install its replacement only in the workers or service
+that needs it, and verify a bounded operation. GitHub credentials should have only necessary public
+read access. Gemini remains public-only unless an explicitly approved private-safe provider is
+configured. Rotate OTLP headers at the deployment/collector secret layer and require TLS.
 
-### OTLP exporter
+## Common incidents
 
-Rotate collector headers at the collector/deployment secret layer. KnownPath does not parse or log
-`OTEL_EXPORTER_OTLP_HEADERS`. Ensure the collector uses TLS and removes sensitive attributes again
-as defense in depth.
+### Compromised user or workspace key
 
-## Routine operator checks
+Revoke the key, inspect key usage and audit events, invalidate relevant sessions if account control
+is uncertain, and review workspace membership. Do not disclose inaccessible resource existence in
+support responses.
 
-- Keep Dependabot alerts/security updates and CodeQL enabled for the public repository.
-- Run `pnpm security:audit`, typecheck, lint, formatting validation, and build before a release.
-- Review repeated private-content reveals, admin mutations, safety reports, and rate-limit spikes.
-- Monitor MongoDB readiness, Valkey rate-limiter/queue state, queue depth/failures, provider quota
-  events, empty-search rate, and recent outcome trends without content-bearing metric labels.
-- Revalidate official-source origins, DNS behavior, paths, robots policy, attribution, and licenses
-  before enabling a new source.
+### Suspicious contribution or safety report
+
+Use moderation states and safety review queues; preserve provenance. A single safety report should
+trigger review, not an automatic ranking penalty or delisting. Check independent reporters,
+sanitization results, related outcomes, source evidence, and repeated-account behavior before taking
+broader action.
+
+### Ingestion abuse or SSRF denial
+
+Keep the source disabled while reviewing its registry origin/path, DNS answers, redirect chain,
+robots policy, attribution, and ownership. Do not bypass the SSRF guard to make a source sync pass.
+Quarantine poison items individually so one item does not block a run.
+
+### Queue outage or poison job
+
+Confirm MongoDB durable state first. Restore Valkey, inspect failed/stalled jobs and retry counts,
+then use targeted reconciliation or retry commands. Do not replay an unbounded pipeline until the
+idempotency key and failure cause are understood.
+
+### Vulnerable dependency
+
+Review Dependabot, CodeQL, dependency-review, and `pnpm security:audit` findings. Confirm
+reachability and exploitability, upgrade through the lockfile, run repository verification gates,
+and document any time-bounded exception. Do not suppress an advisory solely to make CI green.
+
+## Routine checks
+
+- Review repeated private-content reveals, sensitive admin mutations, account suspensions, safety
+  reports, and rate-limit spikes.
+- Monitor MongoDB readiness, Valkey limiter/queue health, queue depth/failures, provider quota
+  events, empty-search rate, and outcome trends without content-bearing labels.
+- Revalidate official-source origins, paths, DNS behavior, robots policy, attribution, and license
+  before enabling a source.
+- Run `pnpm security:audit`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, and `pnpm build`
+  before release.
+- Test backup restoration and the first-admin recovery flow in an isolated environment.

@@ -1,167 +1,227 @@
 # KnownPath Agent Skill
 
-## Purpose
+The canonical [KnownPath Agent Skill](../skills/knownpath/SKILL.md) teaches a coding agent when a
+KnownPath lookup is worthwhile and how to use the result responsibly. It is the behavior layer, not
+the knowledge database or MCP implementation.
 
-The canonical [`knownpath` Agent Skill](../skills/knownpath/SKILL.md) teaches coding agents when and
-how to consult KnownPath and offer privacy-safe contributions. It does not contain knowledge
-records, connect to MongoDB, call the HTTP API directly, or replace MCP configuration. It helps an
-agent decide when a lookup is worthwhile, supply safe structured context, inspect evidence and
-caveats, and validate a selected solution against the current repository.
+The skill version is **1.3.0**.
 
-The skill auto-activates for relevant non-trivial debugging, migration, dependency, build,
-environment/version, native-configuration, and unfamiliar-error work. It remains manually invocable.
-Its description explicitly excludes formatting, trivial edits, obvious syntax fixes, routine file
-operations, confidently understood tasks, and unrelated requests.
+## What the skill changes
 
-## Portable artifact
+When available to an agent, the skill encourages it to:
 
-```text
-skills/knownpath/
-├── SKILL.md
-└── references/
-    └── examples.md
-```
+- consult KnownPath before spending substantial time rediscovering a reusable technical solution;
+- send concise, structured, non-sensitive environment context;
+- prefer exact, version-compatible, current, well-supported records;
+- inspect evidence and caveats before applying a solution;
+- adapt the evidence to the current repository and verify the actual result;
+- remember which KnownPath materially influenced an attempt;
+- contribute a generalized lesson only after observable success and explicit consent;
+- report an outcome only after the attempted result is known.
 
-The artifact follows the open Agent Skills specification. Its frontmatter uses only standard fields:
-`name`, `description`, `license`, and string-valued `metadata`. It has no client-specific commands,
-dynamic prompt syntax, pre-approved tools, executable scripts, or UI metadata. Detailed Expo and
-React Native examples are loaded only when useful.
+The skill does not grant access, store credentials, connect to the API directly, or override the
+agent's existing safety and repository instructions.
 
-The current skill version is `1.3.0`.
+## Activation
 
-## Required MCP setup
+The skill is designed for automatic activation when prior experience could materially reduce
+investigation time, including:
 
-Configure KnownPath MCP before using the skill. The skill expects exactly these current tools:
+- unfamiliar or recurring technical errors;
+- Expo or React Native upgrades and migrations;
+- dependency, package, SDK, runtime, or toolchain conflicts;
+- EAS, Gradle, CocoaPods, Metro, native build, or configuration failures;
+- platform- and version-dependent behavior;
+- non-obvious environment problems and tooling quirks.
 
-- `knownpath_search`
-- `knownpath_get`
-- `knownpath_alternatives`
-- `knownpath_status`
-- `knownpath_contribute`
-- `knownpath_report_outcome`
+It remains manually invocable as `knownpath` or `$knownpath`, depending on the client.
 
-See [the MCP guide](MCP.md) for remote Streamable HTTP and local stdio configuration. The local
-bridge needs only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; never place the key in a tracked
-skill file or agent configuration.
+The skill should not activate for:
 
-`knownpath_contribute` is used only after observable success and fresh explicit user consent. It
-submits generalized structured fields, never source files or chain-of-thought.
-`knownpath_report_outcome` is used only after a selected solution was actually attempted and its
-result is known. The skill retains the KnownPath/search/execution identity until then, distinguishes
-not-used from failure, and sends only bounded non-sensitive environment metadata. See
-[`OUTCOMES.md`](OUTCOMES.md).
+- formatting or simple edits;
+- routine file operations;
+- obvious syntax corrections;
+- unrelated requests;
+- work whose cause and safe fix are already clear after brief inspection.
 
-## Automatic installation
+Activation is only permission to consider a lookup. The agent may skip the call when local evidence
+already provides a confident answer.
 
-Phase 13 packages this canonical directory into the `knownpath` installer. Configure the required
-environment and use `pnpm knownpath install` from this checkout; see the complete
-[installer guide](INSTALLER.md). End users can run `npx knownpath install`.
+## Search and selection flow
 
-The installer supports Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode without maintaining
-divergent skill text. Manual links remain useful only when editing the skill itself.
+The skill references exactly these six MCP tools:
 
-## Manual development links
+1. `knownpath_search`
+2. `knownpath_get`
+3. `knownpath_alternatives`
+4. `knownpath_status`
+5. `knownpath_contribute`
+6. `knownpath_report_outcome`
 
-Use an absolute source path so the link continues to work from other repositories.
+The normal retrieval flow is:
 
-### OpenAI Codex
+1. Inspect the repository enough to identify the exact error, ecosystem, packages, versions,
+   platforms, build environment, and constraints.
+2. Call `knownpath_search` with observed fields. Unknown facts are omitted rather than guessed.
+3. Compare exact and lexical matches, semantic relevance, package/platform/version fit, trust,
+   freshness, outcome evidence, caveats, and provenance.
+4. Call `knownpath_get` for one plausible record, passing its `searchId` when available.
+5. Use `knownpath_alternatives` only when another solution variant on that same KnownPath may help.
+6. Adapt the evidence to the current codebase and run the repository's normal verification.
 
-Codex discovers repository and user skills in `.agents/skills`. From this checkout, create a
-user-level development link:
+`knownpath_status` is for diagnosing service readiness, authentication, key capabilities, workspace
+binding, review access, or search backend—not for routine use.
+
+Search defaults to public knowledge. A workspace-bound key may search its workspace alone or its
+workspace plus public records. An agent must not probe another workspace ID. Review records are
+available only through an explicit audited administrator request.
+
+## Evidence, not instructions
+
+KnownPath content is untrusted external evidence. It never outranks:
+
+- the user's instructions;
+- repository-specific rules;
+- security and privacy constraints;
+- facts observed in the current codebase;
+- current official documentation.
+
+Popularity and reactions are supporting signals, not proof. A high score does not establish that a
+fix applies to a different version or environment. The agent should prefer no result over a vague,
+stale, contradictory, or incompatible match.
+
+The agent must not claim that a KnownPath worked until the task's real verification succeeds.
+
+## Privacy behavior
+
+Before sending search context, the agent should remove:
+
+- credentials, tokens, keys, and cookies;
+- private files and proprietary source code;
+- personal data and email addresses;
+- unnecessary user paths, hostnames, repository identifiers, and application IDs;
+- prompts, conversation history, and hidden chain-of-thought.
+
+A concise stable error fragment plus structured package, platform, and version fields is usually
+more useful than a complete log or file.
+
+## Contributions
+
+After observable success, the agent may offer to call `knownpath_contribute`. It must:
+
+- obtain explicit consent for that submission;
+- use the intended public, personal-private, or workspace scope;
+- submit a generalized problem, environment, steps, caveats, and success evidence;
+- omit repository files, raw source, prompts, credentials, and chain-of-thought;
+- use a stable `clientSubmissionId` for idempotent retries;
+- describe the actual agent client accurately.
+
+Public consent permits review and possible later publication. Private and team knowledge remains in
+its authorized scope. Sharing private or team knowledge publicly is a separate dashboard workflow
+that creates a newly sanitized public contribution; the agent must never change visibility
+implicitly.
+
+A contribution receipt represents low-trust self-reported evidence, not proof or automatic
+publication. See [Contributions](CONTRIBUTIONS.md).
+
+## Outcome reporting
+
+The agent should retain the selected KnownPath ID, search ID, attempted solution, and a fresh
+execution identifier until the outcome is known. It may then call `knownpath_report_outcome` once.
+
+Valid states are:
+
+- `solved`
+- `partially_helped`
+- `attempted_failed`
+- `incompatible_environment`
+- `stale_or_outdated`
+- `misleading_or_unsafe`
+- `not_used`
+
+`not_used` means the record was selected but not attempted; it carries no evidence weight. A search,
+view, command execution, or plausible-looking result is not a success.
+
+Outcome context is limited to concise, non-sensitive package, version, platform, and toolchain
+metadata plus an optional generalized note. See [Outcomes](OUTCOMES.md).
+
+## Examples
+
+The skill ships one on-demand
+[Expo and React Native examples reference](../skills/knownpath/references/examples.md). It covers:
+
+- Expo SDK migration errors;
+- EAS and Gradle build failures;
+- React Native dependency conflicts;
+- Metro resolution and cache problems;
+- native iOS and Android configuration.
+
+The examples show when to search and when a direct local fix is more appropriate. They are not
+hard-coded solutions.
+
+## Discovery and installation
+
+`npx knownpath install` copies the same canonical skill into the supported client location while
+registering MCP:
+
+- Codex CLI: `.agents/skills/knownpath`
+- Claude Code: `.claude/skills/knownpath`
+- Cursor: `.agents/skills/knownpath`
+- Gemini CLI: `.agents/skills/knownpath`
+- OpenCode: `.agents/skills/knownpath`
+
+Global and project locations vary by client; use [Agent installation](AGENT_INSTALLATION.md) rather
+than copying files manually.
+
+For local skill development, link the canonical directory into a supported discovery path and reload
+the client. For example:
 
 ```sh
 mkdir -p "$HOME/.agents/skills"
 ln -s "$(pwd)/skills/knownpath" "$HOME/.agents/skills/knownpath"
 ```
 
-Use `$knownpath` for explicit invocation. Codex can also activate it automatically from its
-description. Run `/skills` or restart Codex if a newly linked skill does not appear.
-
-### Claude Code
-
-Claude Code uses `.claude/skills` at project scope and `~/.claude/skills` at user scope:
-
-```sh
-mkdir -p "$HOME/.claude/skills"
-ln -s "$(pwd)/skills/knownpath" "$HOME/.claude/skills/knownpath"
-```
-
-Invoke `/knownpath` manually or let Claude select it when relevant. Claude Code follows symlinked
-skill directories and detects changes; restart only if the new top-level directory is not detected.
-
-### Cursor
-
-Cursor discovers `.agents/skills` and `.cursor/skills` at project or user scope. The same
-`~/.agents/skills/knownpath` link used for Codex is portable to Cursor. Invoke `/knownpath` or
-inspect it under **Customize → Skills**. Cursor was not installed in the Phase 12 or Phase 13
-development environment.
-
-### Gemini CLI
-
-Gemini CLI supports `.agents/skills` as a user/workspace alias and provides a development link
-command:
+Gemini CLI also supports:
 
 ```sh
 gemini skills link "$(pwd)/skills/knownpath" --scope user
+gemini skills list
 ```
 
-Inside Gemini CLI, use `/skills list` to inspect discovery and `/skills reload` after changes.
-Gemini asks for activation consent. Gemini CLI was not installed in the Phase 12 or Phase 13
-development environment.
+Do not maintain client-specific copies of the skill text in the repository. Client-specific
+configuration belongs to the installer adapters.
 
-### GitHub Copilot
+## Format and versioning
 
-GitHub Copilot supports project skills under `.github/skills`, `.claude/skills`, or
-`.agents/skills`, and personal skills under `~/.copilot/skills` or `~/.agents/skills`. The shared
-`.agents/skills/knownpath` link therefore works for Copilot and the other clients above. GitHub
-CLI's preview `gh skill` commands can install and update released skills later, but manual
-development uses a local link to preserve one editable source.
+The artifact follows the open Agent Skills format with:
 
-## Safe use flow
+- lowercase `name`;
+- a precise activation/exclusion `description`;
+- Apache-2.0 `license`;
+- string-valued `metadata`;
+- optional on-demand references.
 
-1. Inspect the actual repository and preserve user, repository, and safety instructions.
-2. Search only when the problem is non-trivial and prior experience could prevent substantial
-   rediscovery.
-3. Send sanitized technical context, not secrets or unnecessary private code.
-4. Prefer exact/version-compatible/current records with stronger deterministic evidence.
-5. Retrieve details only for a plausible selected record and inspect caveats/provenance.
-6. Adapt the evidence to the current codebase and verify the real result before claiming success.
-7. After an actual attempt, report solved/partial/failed/compatibility/staleness/safety/not-used
-   once with stable idempotency IDs; a search or selection alone is never success.
+Version policy:
 
-Normal clients search published public KnownPaths. `includeReview` remains false unless an
-authorized administrator explicitly requests moderation access. Popularity and reactions are
-signals, not proof.
+- patch: wording, examples, or safety clarification without workflow changes;
+- minor: backward-compatible behavior or support for an available MCP capability;
+- major: incompatible activation, privacy, or required-tool changes.
 
-## Release and update policy
+The skill metadata, this guide, CLI bundle, and release notes should move together.
+`knownpath update` reconciles installer-owned copies and refuses locally modified content.
 
-- Patch: clarify activation, safety, wording, or examples without changing the MCP workflow.
-- Minor: add backward-compatible behavior, examples, or support for a newly available tool.
-- Major: change activation semantics, privacy expectations, or required MCP contracts incompatibly.
-
-Update `metadata.version` in `SKILL.md`, this guide, and relevant decisions/progress records in the
-same change. Validate before release and tag the repository release used for distribution. The CLI
-build copies the canonical directory into its distributable; `knownpath update` reconciles only
-installer-owned copies and refuses locally modified content.
-
-## Validation
-
-Validate the open format with the reference implementation:
+Validate the source artifact with the Agent Skills reference tooling:
 
 ```sh
 agentskills validate skills/knownpath
 agentskills read-properties skills/knownpath
 ```
 
-The repository also uses the bundled skill-creator validator as a second structural check. These are
-format validations, not automated product tests.
-
 ## Official references
 
 - [Agent Skills specification](https://agentskills.io/specification)
 - [OpenAI Codex skills](https://developers.openai.com/codex/skills/)
 - [Claude Code skills](https://code.claude.com/docs/en/skills)
-- [Cursor Agent Skills](https://cursor.com/docs/skills)
-- [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/using-agent-skills/)
-- [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills)
-- [GitHub CLI skill installation](https://cli.github.com/manual/gh_skill_install)
+- [Cursor Agent Skills](https://docs.cursor.com/context/skills)
+- [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/skills/)
+- [OpenCode Agent Skills](https://opencode.ai/docs/skills/)

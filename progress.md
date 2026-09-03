@@ -3325,3 +3325,24 @@ continuously available.
 
 This entry records documentation and product-positioning changes only. No application, schema,
 configuration, dependency, infrastructure, or runtime behavior changed.
+
+## Post-Phase 22 — Public documentation rewrite
+
+All 27 top-level documents in `docs/` were rewritten or reconciled as final-purpose guidance for
+users, integrators, contributors, operators, and maintainers. The update removes build-sequence
+language, standardizes current domain terminology, separates normal hosted-agent use from optional
+self-hosting, and aligns the documented CLI, MCP tools, HTTP routes, visibility rules, learning
+loop, pipeline, deployment, security, and release behavior with the implementation. Architectural
+decision history was preserved and superseded choices are now identified explicitly.
+
+`docs/superpowers/` was intentionally left unchanged as historical design material. Root and npm
+package-facing documentation were checked for contradictions; `apps/cli/README.md` now describes the
+`knownpath` package as the installer and stdio bridge. Current official agent, MCP, Gemini, GitHub,
+MongoDB, framework, queue, auth, security, observability, packaging, and release references were
+rechecked. The published package and GitHub release were confirmed at `0.4.2`.
+
+Formatting, typecheck, lint, build, packed-package validation, CLI help commands, relative links,
+and diff whitespace checks passed. The dependency audit initially found newly disclosed `fast-uri`
+advisories in transitive lockfile resolutions; only those resolutions were refreshed from
+`3.1.5`/`4.1.2` to patched `3.1.7`/`4.1.4`, after which the audit reported no known vulnerabilities.
+No product feature phase was started and no runtime behavior was changed.

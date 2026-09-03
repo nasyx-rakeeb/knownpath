@@ -1,99 +1,75 @@
-# Knowledge HTTP API
+# KnownPath HTTP API
 
-## Administration API
+The Fastify API is the authorization and business-logic boundary for the dashboard, MCP server,
+installer diagnostics, and direct integrations. Route handlers validate shared runtime contracts and
+call domain services; clients never access MongoDB directly.
 
-Phase 18 exposes versioned, cookie-session-only administration routes under `/api/v1/admin`. Every
-route validates strict shared contracts and enforces an active administrator on the server. The
-surface includes overview/health, cursor-paginated resource list/detail, source controls,
-moderation, queue controls, preserved-history job retry, private sanitized-content reveal, user
-suspension/restore, and canonical preview/execute.
+## Base URL and discovery
 
-Sensitive requests include `confirmation.version`, `action`, exact `target`, operator `reason`, and
-the phrase `CONFIRM <action> <target>`. They fail with `fresh_admin_session_required` when the
-session is older than 30 minutes and `admin_confirmation_invalid` when action, target, or phrase do
-not match. Browser confirmation alone cannot authorize a mutation. All sensitive outcomes are
-audited.
+All JSON endpoints use the stable `/api/v1` prefix. A deployment exposes its OpenAPI 3.1 document
+at:
 
-Admin responses are safe projections: source content is bounded escaped text; user key data is
-prefix/status/scope metadata only; credentials, session tokens, key hashes/plaintext, provider
-secrets, connection strings, raw embeddings, and hidden reasoning are absent. Private contribution
-detail omits content until `/api/v1/admin/private-content/reveal` verifies a fresh session, the
-dedicated capability, a stated reason, and exact confirmation. Only sanitized V2 content can be
-returned, with `no-store` caching. See [`ADMIN_OPERATIONS.md`](ADMIN_OPERATIONS.md).
+```text
+GET /api/v1/openapi.json
+```
 
-## Scope
+Swagger UI is available at `/docs/` only when `API_DOCS_ENABLED=true`. The MCP endpoint at `/mcp` is
+intentionally outside OpenAPI because it speaks MCP rather than a REST contract.
 
-Phase 10 exposes safe canonical knowledge through Fastify under `/api/v1`. The transport composes
-the reusable authorization and knowledge-access services; route handlers do not query MongoDB or
-implement ranking. The API does not expose anonymous knowledge access, unauthorized private/team
-retrieval, raw source documents, embeddings, model internals, individual agent outcomes, or reporter
-identity.
+## Authentication
 
-Phase 11 additionally mounts the authenticated MCP Streamable HTTP endpoint at `/mcp` and a safe
-bridge-status endpoint at `/api/v1/mcp/status`. They reuse the same access service and policies
-rather than reimplementing routes. See [the MCP guide](MCP.md); `/mcp` is intentionally omitted from
-OpenAPI because its wire contract is MCP rather than an ordinary JSON REST route.
+KnownPath supports:
 
-OpenAPI 3.1 is available at `/api/v1/openapi.json`. When `API_DOCS_ENABLED=true`, Swagger UI is
-available at `/docs/`.
+- a Better Auth cookie session for dashboard and workspace-management routes;
+- `Authorization: Bearer <KnownPath API key>` for agent and integration routes.
 
-## Authentication and lifecycle access
+API keys use explicit scopes:
 
-All knowledge routes accept a Better Auth session or `Authorization: Bearer <KnownPath API key>`.
-API keys require `knowledge:read`.
+| Scope                  | Capability                              |
+| ---------------------- | --------------------------------------- |
+| `account:read`         | Read safe account metadata              |
+| `api-keys:read`        | List API-key metadata                   |
+| `api-keys:write`       | Issue, rotate, and revoke personal keys |
+| `knowledge:read`       | Search and read KnownPaths              |
+| `knowledge:contribute` | Submit generalized experiences          |
+| `knowledge:outcome`    | Report attempted-solution outcomes      |
 
-The default access mode is always:
+Full API keys are returned only at creation or rotation. Responses otherwise expose only metadata
+such as prefix, status, scopes, binding, and last-used time.
 
-- visibility `public`; and
-- lifecycle `published`.
+## Error envelope
 
-Authenticated callers may explicitly request `personal`, `workspace`, or `workspace_and_public`
-scope. The server derives the owner from the principal and requires live membership for the exact
-workspace. Workspace-bound keys cannot switch workspace or access personal records. Tenant detail
-and alternatives require the same scope; an ID alone never bypasses it. See
-[`WORKSPACES.md`](WORKSPACES.md).
+Errors use a stable envelope and include the request ID used in logs and traces:
 
-`includeReview: true` is accepted only from an API key whose active owner is an administrator and
-whose scopes include `knowledge:read`. It is never inferred from the owner role. Sessions, normal
-user keys, missing credentials, and admin keys without explicit review intent cannot read review
-records. Inaccessible and nonexistent details both return `knowledge_not_found`.
+```json
+{
+  "error": {
+    "code": "knowledge_not_found",
+    "message": "The requested KnownPath was not found"
+  },
+  "requestId": "server-generated-id"
+}
+```
 
-Every authorized review search/detail/alternatives read appends an `audit_events` record with the
-admin user ID, API-key ID, request ID, target, and timestamp. Credentials and unrestricted query or
-source content are not included.
+Validation errors may include bounded field details. Responses never include stack traces,
+credentials, provider responses, or database internals.
 
-## Routes
-
-### User dashboard data
-
-Phase 17 adds cookie-session-only, owner-scoped dashboard DTOs. These routes do not return raw query
-text, secret session tokens, API-key hashes, source bodies, embeddings, or individual users' outcome
-data:
-
-- `GET /api/v1/account/dashboard` returns 30-day aggregate counts and a bounded safe activity feed.
-- `GET /api/v1/account/search-activity` returns safe query dimensions, result counts, and selections
-  using an integrity-protected cursor.
-- `GET /api/v1/account/contributions` and `GET /api/v1/account/outcomes` return only the current
-  owner's sanitized history.
-- `PATCH /api/v1/account/profile` updates the display name and records an audit event.
-- `GET /api/v1/account/sessions` exposes non-secret session metadata.
-  `POST /api/v1/account/sessions/:id/revoke` revokes an owned session by its non-secret ID and is
-  audited.
-
-API-key creation and rotation continue to reveal the plaintext key exactly once. The dashboard keeps
-that value only in transient component state and requires the user to acknowledge saving it before
-closing the reveal dialog.
+## Knowledge API
 
 ### Search
 
-`POST /api/v1/knowledge/search` accepts natural-language text plus optional errors, ecosystem,
-packages, versions, platforms, environment tokens, context, semantic mode, limit, and minimum score.
-Callers cannot provide raw database visibility or status filters.
+```http
+POST /api/v1/knowledge/search
+```
+
+Requires `knowledge:read` or an authenticated session. The request accepts natural-language `text`
+plus optional errors, ecosystem, packages, versions, platforms, environment tokens, context,
+semantic mode, result limit, minimum score, scope, and review intent.
 
 ```sh
-curl --request POST http://127.0.0.1:3001/api/v1/knowledge/search \
-  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
-  --header "Content-Type: application/json" \
+curl "$KNOWNPATH_API_URL/api/v1/knowledge/search" \
+  -H "Authorization: Bearer $KNOWNPATH_API_KEY" \
+  -H "Content-Type: application/json" \
   --data '{
     "text": "EAS build cannot resolve a generated file",
     "errors": ["None of these files exist"],
@@ -104,174 +80,196 @@ curl --request POST http://127.0.0.1:3001/api/v1/knowledge/search \
   }'
 ```
 
-An administrator may explicitly inspect review records:
-
-```sh
-curl --request POST http://127.0.0.1:3001/api/v1/knowledge/search \
-  --header "Authorization: Bearer $KNOWNPATH_ADMIN_API_KEY" \
-  --header "Content-Type: application/json" \
-  --data '{
-    "text": "Expo EAS build ignored file",
-    "includeReview": true,
-    "minimumScore": 0
-  }'
-```
-
-The response returns `searchId`, effective access mode, retrieval capability states, and concise
-ranked results. Each result includes applicability, caveats, deterministic trust/freshness, version
-compatibility, relevance components, penalties, explanations, and bounded safe provenance. It omits
-search-document IDs, assessment/candidate IDs, policy digests, embeddings, provider metadata,
-content hashes, and raw documents. Privacy-thresholded aggregate outcome verification is included
-separately: fewer than three independent reporters produce only `limited`; qualifying aggregates
-expose conservative confidence, effective sample size, recent successes, compatibility/staleness
-counts, and trend.
-
-Search is deliberately bounded top-k rather than cursor-paginated because the ranking/index corpus
-can change between pages.
+Results include a `searchId`, access mode, semantic capability state, ranked KnownPaths,
+applicability, trust, freshness, aggregate outcomes, match components, and safe provenance links.
+Search is bounded top-k rather than cursor-paginated because rankings may change between calls.
 
 ### Detail
 
-```sh
-curl http://127.0.0.1:3001/api/v1/known-paths/KNOWN_PATH_UUID \
-  --header "Authorization: Bearer $KNOWNPATH_API_KEY"
+```http
+GET /api/v1/known-paths/:id
 ```
 
-For an authorized review read, append `?includeReview=true`. Detail returns the generalized problem,
-symptoms, normalized errors, applicability, solution variants/steps/caveats, deterministic trust,
-freshness, and safe provenance. A provenance item contains only a source ID, canonical link, title,
-source type/kind, deterministic authority/publisher classification, relationship, bounded locator,
-and bounded excerpt.
+```sh
+curl "$KNOWNPATH_API_URL/api/v1/known-paths/$KNOWN_PATH_ID" \
+  -H "Authorization: Bearer $KNOWNPATH_API_KEY"
+```
+
+Detail includes the generalized problem, symptoms, normalized errors, applicability, solution
+variants, steps, caveats, trust, freshness, outcomes, and bounded provenance. It excludes raw source
+bodies, embeddings, provider metadata, internal hashes, and individual reporter data.
 
 ### Alternatives
 
-```sh
-curl "http://127.0.0.1:3001/api/v1/known-paths/KNOWN_PATH_UUID/alternatives?limit=10" \
-  --header "Authorization: Bearer $KNOWNPATH_API_KEY"
+```http
+GET /api/v1/known-paths/:id/alternatives?limit=10&cursor=...
 ```
 
-This route lists additional solution variants already attached to the same canonical problem. It
-does not infer cross-record relatedness. `nextCursor` is opaque, integrity-protected, and bound to
-the KnownPath; pass it unchanged as `cursor`. Invalid or modified cursors return `invalid_cursor`.
+This endpoint pages through solution variants on the same canonical KnownPath. Cursors are opaque,
+integrity-protected, and bound to the record.
 
-### Selection usage
+### Record selection
 
-```sh
-curl --request POST \
-  http://127.0.0.1:3001/api/v1/knowledge/searches/SEARCH_UUID/selections \
-  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
-  --header "Content-Type: application/json" \
-  --data '{"knownPathId":"KNOWN_PATH_UUID"}'
+```http
+POST /api/v1/knowledge/searches/:searchId/selections
 ```
 
-The selected KnownPath must have appeared in that exact principal's search results. A selection is
-usage metadata only; it is never interpreted as a successful outcome. The stored event contains a
-keyed query digest and bounded filter/result metadata, not raw query text.
-
-### Privacy-safe contribution
-
-`POST /api/v1/contributions` requires an API key with `knowledge:contribute`, a UUID
-`clientSubmissionId`, public, private, or team visibility, explicit consent policy version 1,
-agent-client metadata, and the structured generalized lesson. It accepts at most 48 KiB. See the
-inspectable OpenAPI example/schema and [`CONTRIBUTIONS.md`](CONTRIBUTIONS.md); avoid placing even
-fake-looking credentials in shell history when manually exercising it.
-
-`GET /api/v1/contributions/:id` returns only the sanitized record to its owning user/key. Browser
-sessions can read or update `ask|disabled` at `/api/v1/account/contribution-settings`; submissions
-themselves require a scoped API key. Team submissions require `workspaceId` and an active API key
-immutably bound to that workspace.
-
-Workspace/session routes under `/api/v1/workspaces` create/list/detail workspaces, manage existing-
-user invitations and memberships, and issue/revoke workspace-bound keys. Invitation acceptance and
-rejection use `/api/v1/workspace-invitations/:id/*`. Public sharing uses
-`POST /api/v1/known-paths/:id/share-public`; it creates a separately sanitized public contribution
-and never flips the source record's visibility.
-
-### Verified outcome
-
-`POST /api/v1/outcomes` requires an API key with both `knowledge:read` and `knowledge:outcome`;
-review targets additionally require the normal explicit admin review authorization. The body is
-strictly versioned and limited to 24 KiB. A typical attempted report is:
-
-```sh
-curl --request POST http://127.0.0.1:3001/api/v1/outcomes \
-  --header "Authorization: Bearer $KNOWNPATH_API_KEY" \
-  --header "Content-Type: application/json" \
-  --data '{
-    "contractVersion": 1,
-    "clientOutcomeId": "CLIENT_OUTCOME_UUID",
-    "clientExecutionId": "CLIENT_EXECUTION_UUID",
-    "knownPathId": "KNOWN_PATH_UUID",
-    "outcome": "solved",
-    "attemptedAt": "2026-08-24T00:00:00.000Z",
-    "agentClient": { "name": "codex" },
-    "environment": {
-      "ecosystem": "expo",
-      "packages": [{ "name": "expo", "version": "55.0.0" }],
-      "platforms": ["android"],
-      "versions": ["expo@55.0.0"],
-      "toolchain": ["pnpm"]
-    },
-    "includeReview": false
-  }'
+```json
+{ "knownPathId": "known-path-uuid" }
 ```
 
-Valid states are `solved`, `partially_helped`, `attempted_failed`, `incompatible_environment`,
-`stale_or_outdated`, `misleading_or_unsafe`, and `not_used`. `not_used` must omit `attemptedAt` and
-has zero evidence weight. See [`OUTCOMES.md`](OUTCOMES.md) for idempotency, privacy, rate limits,
-assessment history, and safety policy.
+The selected record must have appeared in that principal's search. A selection is usage metadata,
+not a successful outcome. Stored search events use a keyed query digest and bounded dimensions
+instead of raw query text.
 
-## Errors and limits
+## Visibility and review access
 
-Production limits are distributed through Valkey. `API_RATE_LIMIT_STORE=memory` is an explicit
-local-development mode and is rejected when `NODE_ENV=production`. Authentication, API-key mutation,
-search/read, contribution, outcome, MCP mutation, and administration use distinct policy classes. A
-production limiter outage returns safe service-unavailable behavior and fails readiness rather than
-falling back to process memory.
+The default is published public knowledge. Supported scopes are:
 
-Errors retain the stable envelope:
+- `public`
+- `personal`
+- `workspace`
+- `workspace_and_public`
+
+Workspace scopes require an exact `workspaceId`, live membership, and a compatible key binding.
+Detail and alternatives apply the same checks as search. Inaccessible tenant records are not
+distinguishable from nonexistent records.
+
+`includeReview: true` is never implied. It requires an active administrator-owned API key with
+`knowledge:read`, and each review search or read creates an audit event. Sessions and ordinary keys
+cannot retrieve review records.
+
+## Contributions
+
+```http
+POST /api/v1/contributions
+GET  /api/v1/contributions/:id
+GET  /api/v1/account/contribution-settings
+PATCH /api/v1/account/contribution-settings
+POST /api/v1/known-paths/:id/share-public
+```
+
+Submission requires `knowledge:contribute`, explicit consent, a UUID `clientSubmissionId`, and a
+structured generalized lesson. The maximum body is 48 KiB. Team submissions also require a
+workspace-bound key and matching `workspaceId`.
+
+The detail endpoint returns only the sanitized record to its owner. Account settings are
+session-only and support `ask` or `disabled`. Public sharing creates a separately sanitized public
+contribution; it never changes the source record's visibility.
+
+See [Contributions](CONTRIBUTIONS.md).
+
+## Outcomes
+
+```http
+POST /api/v1/outcomes
+```
+
+Requires `knowledge:read` and `knowledge:outcome`. The maximum body is 24 KiB. The contract records
+one KnownPath/execution result with bounded environment metadata:
 
 ```json
 {
-  "error": {
-    "code": "knowledge_not_found",
-    "message": "The requested KnownPath was not found"
+  "contractVersion": 1,
+  "clientOutcomeId": "uuid",
+  "clientExecutionId": "uuid",
+  "knownPathId": "uuid",
+  "outcome": "solved",
+  "attemptedAt": "2026-09-03T00:00:00.000Z",
+  "agentClient": { "name": "codex" },
+  "environment": {
+    "ecosystem": "expo",
+    "packages": [{ "name": "expo", "version": "55.0.0" }],
+    "platforms": ["android"],
+    "versions": ["expo@55.0.0"],
+    "toolchain": ["pnpm"]
   },
-  "requestId": "server-generated-uuid"
+  "includeReview": false
 }
 ```
 
-Knowledge-specific codes include `knowledge_not_found`, `knowledge_review_access_forbidden`,
-`invalid_cursor`, `semantic_retrieval_unavailable`, `search_backend_unavailable`,
-`search_event_not_found`, `selection_not_in_results`, `selection_conflict`, and `payload_too_large`.
-Contribution codes include `contribution_disabled`, `contribution_consent_required`,
-`contribution_content_rejected`, `contribution_idempotency_conflict`,
-`team_contributions_not_supported`, and `contribution_owner_forbidden`. Existing
-auth/validation/rate-limit codes remain stable. Outcome codes include
-`outcome_idempotency_conflict`, `outcome_execution_conflict`, `outcome_rate_limited`,
-`outcome_note_rejected`, and `outcome_target_not_accessible`.
+Review targets need the same explicit admin review authorization as reads. See
+[Outcomes](OUTCOMES.md) for states, deduplication, aggregation, and safety handling.
 
-Search has a 32 KiB body limit and a 30-request/minute policy. Detail/alternatives have a
-120-request/minute policy, and selection reporting has a separate 120-request/minute policy.
-Production policies are distributed through Valkey and fail closed if the limiter is unavailable; an
-in-memory policy is accepted only through explicit local-development configuration. Outcome
-submission adds a 10-request/minute route policy plus durable 10-per-key/hour and 20-per-account/day
-checks in MongoDB.
+## Account and API-key routes
 
-## Security notes
+Cookie-session and scoped account routes include:
 
-- Never place API keys in URLs, examples, source files, or committed environment files.
-- Fastify logs method, safe URL, request ID, response status, and latency. Authorization/cookie/key
-  fields are redacted and bodies are not logged.
-- Normal clients cannot use review records even when they know a review UUID.
-- Private/team records require owner/workspace authorization and never use unpaid Gemini extraction
-  or embedding paths.
-- Rotate any credential that has been pasted into chat, logs, shell history, or another untrusted
-  location.
+```text
+GET  /api/v1/account/me
+GET  /api/v1/api-keys
+POST /api/v1/api-keys
+POST /api/v1/api-keys/:id/rotate
+POST /api/v1/api-keys/:id/revoke
+GET  /api/v1/account/dashboard
+GET  /api/v1/account/search-activity
+GET  /api/v1/account/contributions
+GET  /api/v1/account/outcomes
+PATCH /api/v1/account/profile
+GET  /api/v1/account/sessions
+POST /api/v1/account/sessions/:id/revoke
+```
 
-## Official references
+Sign-in and password/session lifecycle are mounted under `/api/v1/auth`. Registration, public
+signup, email verification, password reset, and OAuth are not exposed. Accounts are provisioned by
+an operator using `pnpm auth:user:create`.
 
-- [Fastify validation and serialization](https://fastify.dev/docs/latest/Reference/Validation-and-Serialization/)
-- [Fastify errors](https://fastify.dev/docs/latest/Reference/Errors/)
-- [Fastify logging](https://fastify.dev/docs/latest/Reference/Logging/)
-- [`@fastify/swagger`](https://github.com/fastify/fastify-swagger)
-- [`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit)
+## Workspace routes
+
+Workspace management uses an authenticated browser session:
+
+```text
+GET|POST        /api/v1/workspaces
+GET|PATCH       /api/v1/workspaces/:workspaceId
+POST            /api/v1/workspaces/:workspaceId/invitations
+POST            /api/v1/workspace-invitations/:invitationId/accept
+POST            /api/v1/workspace-invitations/:invitationId/reject
+POST            /api/v1/workspace-invitations/:invitationId/revoke
+PATCH           /api/v1/workspaces/:workspaceId/members/:userId
+POST            /api/v1/workspaces/:workspaceId/members/:userId/remove
+GET|POST        /api/v1/workspaces/:workspaceId/api-keys
+POST            /api/v1/workspaces/:workspaceId/api-keys/:id/revoke
+```
+
+Invitation targets must already be registered KnownPath users. See [Workspaces](WORKSPACES.md).
+
+## Administration
+
+Admin routes live under `/api/v1/admin` and always require a server-verified administrator session.
+High-impact mutations additionally require a session authenticated within 30 minutes, exact target
+confirmation, and a stated reason. Sensitive actions are audited.
+
+The routes cover operational overview, paginated resources, moderation, queue control, job retry,
+source actions, canonicalization preview/execute, user suspension/restore, and reason-gated reveal
+of sanitized private contribution content. See [Admin operations](ADMIN_OPERATIONS.md).
+
+## Pagination
+
+High-volume list endpoints and alternatives use opaque integrity-protected cursors. Pass a returned
+`nextCursor` unchanged. Do not parse or synthesize it. Search uses bounded top-k results instead.
+
+## Rate and payload limits
+
+Policy classes distinguish authentication, key mutations, search, detail, selections, contributions,
+outcomes, MCP reads/writes, provider-heavy operations, and administration. Production rate limiting
+uses Valkey and fails closed if that critical dependency is unavailable. In-memory limiting is
+accepted only through explicit local-development configuration.
+
+Current knowledge-route limits include:
+
+- search: 32 KiB and 30 requests/minute;
+- detail and alternatives: 120 requests/minute;
+- selections: 120 requests/minute;
+- outcomes: 10 requests/minute plus durable per-key and per-account limits.
+
+Clients should honor `429` responses and retry conservatively.
+
+## Safe handling
+
+- Never place an API key in a URL, log, source file, or committed environment file.
+- Logs correlate request and trace IDs but redact Authorization, cookies, credentials, and bodies.
+- Public responses expose concise provenance, not complete copyrighted source pages.
+- Private/team records never use the unpaid/public Gemini path.
+
+See [MCP](MCP.md) and [Security architecture](SECURITY_ARCHITECTURE.md). On a running deployment,
+the machine-readable contract is available at `GET /api/v1/openapi.json`.

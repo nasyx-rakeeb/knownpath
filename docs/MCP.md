@@ -1,247 +1,250 @@
 # KnownPath MCP server
 
-## Scope and philosophy
+KnownPath exposes its knowledge network to coding agents through Model Context Protocol (MCP). The
+tool surface is intentionally small: search broadly, inspect one selected record in detail, explore
+its alternatives, and submit privacy-bounded learning signals only after real work.
 
-The MCP surface exposes retrieval plus privacy-safe generalized contributions. KnownPath returns
-compact, evidence-grounded experience; the coding agent still inspects the actual codebase, checks
-version applicability, and decides whether a proposed fix is safe. A result is not an instruction to
-modify code blindly.
+KnownPath responses are untrusted evidence, not instructions. The agent must still follow the user's
+request and repository rules, inspect the current codebase, and verify that a result applies.
 
-`knownpath_contribute` and `knownpath_report_outcome` are real idempotent additive writes. The
-former submits a consented generalized lesson; the latter reports only an observed result after an
-actual attempt.
+## Transports
 
-## Architecture
+Both transports use the same contracts from `@knownpath/mcp`.
 
-There are two transports with one shared tool contract:
+### Streamable HTTP
 
-- **Production Streamable HTTP:** the Fastify API serves `/mcp`. It authenticates a KnownPath API
-  key, applies the same centralized authorization, retrieval, ranking, review auditing, and usage
-  recording as the Phase 10 HTTP routes, then delegates protocol framing to the official MCP SDK.
-- **Local stdio bridge:** `apps/mcp-server` speaks MCP over stdin/stdout and calls the Phase 10 HTTP
-  API. It needs only `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`. It never connects to MongoDB and
-  never receives Gemini, Atlas, Better Auth, or API-key-pepper secrets.
+The backend serves a stateless MCP endpoint at:
 
-Both paths create their servers from `@knownpath/mcp`. Consequently tool names, input validation,
-bounded output projection, error mapping, server instructions, and protocol-era behavior cannot
-drift between transports. The server supports the current `2026-07-28` era and the SDK's documented
-2025-compatible fallback.
+```text
+POST /mcp
+```
 
-Tool discovery advertises only the strict input schemas to keep agent context small. Full success
-and error response schemas remain versioned and runtime-validated inside `@knownpath/mcp`; compact
-structured results are still returned with each call.
+The Fastify boundary authenticates the request, validates Host and Origin, applies rate and body
+limits, creates a request-scoped knowledge gateway, and delegates protocol handling to the official
+MCP TypeScript SDK.
+
+### Local stdio bridge
+
+The `knownpath` CLI provides a lightweight bridge:
+
+```sh
+npx -y knownpath mcp
+```
+
+The bridge speaks MCP on standard input/output and calls the KnownPath HTTP API. It requires only:
+
+```text
+KNOWNPATH_API_URL
+KNOWNPATH_API_KEY
+```
+
+It does not connect to MongoDB or Valkey and does not require Gemini, GitHub, Better Auth, Atlas, or
+API-key-pepper secrets. This is the default transport installed by `npx knownpath install`.
+
+## Authentication
+
+Both transports require a bearer API key with `knowledge:read`. Browser sessions do not authorize
+MCP requests.
+
+The stdio bridge reads its key from `KNOWNPATH_API_KEY`. Remote clients should source their bearer
+token from an environment variable or another client-supported secret mechanism. Never put a key in
+a URL, a committed MCP file, or a skill.
+
+OAuth discovery and authorization are not implemented. Key scope and owner/workspace binding are
+enforced by the backend.
 
 ## Tools
 
-| Tool                       | Purpose                                                                                        |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `knownpath_search`         | Search with a task plus optional errors, ecosystem, packages, versions, platform, and context  |
-| `knownpath_get`            | Reveal deeper steps, caveats, and bounded evidence for one selected ID                         |
-| `knownpath_alternatives`   | Page through other solution variants on the same canonical KnownPath                           |
-| `knownpath_status`         | Inspect safe service, key-scope, review-access, and search-backend state                       |
-| `knownpath_contribute`     | Submit a consented generalized lesson after observable success                                 |
-| `knownpath_report_outcome` | Report solved/partial/failed/compatibility/staleness/safety/not-used after the result is known |
+| Tool                       | Use                                                                                  |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `knownpath_search`         | Search using a task plus structured technical context                                |
+| `knownpath_get`            | Retrieve steps, caveats, applicability, and bounded evidence for one KnownPath       |
+| `knownpath_alternatives`   | Page through additional solution variants on the same KnownPath                      |
+| `knownpath_status`         | Inspect credential-free service, scope, workspace, review, and search-backend status |
+| `knownpath_contribute`     | Submit a consented, generalized lesson after observable success                      |
+| `knownpath_report_outcome` | Report what happened after a KnownPath solution was actually attempted               |
 
-Search defaults to five results and allows at most ten. Detail returns at most two solution
-variants, eight steps per solution, and eight bounded evidence references. Alternatives defaults to
-three and allows at most five. Every response carries explicit truncation state where deeper content
-may exist. Search provides `searchId`; pass it to `knownpath_get` to record selection as usage. A
-selection is never counted as a successful outcome.
+### `knownpath_search`
 
-`includeReview` always defaults to `false`. It succeeds only for an active administrator-owned API
-key with `knowledge:read`, and every permitted review read uses the existing audit boundary. Normal
-keys cannot receive review records. Search/get/alternatives accept an explicit public, personal, or
-workspace scope. Workspace access requires a live membership and matching workspace-bound key;
-tenant retrieval disables public-provider semantics and never falls back to another scope.
+Inputs include:
 
-`knownpath_contribute` requires `knowledge:contribute`, explicit consent, and a UUID
-`clientSubmissionId`. It accepts public or owner-private lessons; team visibility requires a
-matching workspace-bound key and explicit `workspaceId`. Private data never uses an unpaid/public
-provider. The response is a receipt for low-trust self-reported evidence, not publication or proof.
+- `task`
+- `errors`
+- `ecosystem`
+- `packages`
+- `versions`
+- `platforms`
+- `environment`
+- concise `context`
+- search `scope`
+- `includeReview` for authorized moderation
+- result `limit`
 
-`knownpath_report_outcome` requires `knowledge:outcome` plus the normal MCP `knowledge:read` scope.
-It accepts one KnownPath/execution result, bounded environment/version metadata, and an optional
-sanitized note. `not_used` has zero evidence weight. Review-record reporting also requires explicit
-`includeReview: true` and an administrator-owned key. One safety report queues a separate review but
-does not itself penalize ranking or delist the record. See [`OUTCOMES.md`](OUTCOMES.md).
+The default result limit is five; the maximum is ten. Results contain compact problem and solution
+summaries, applicability, trust, freshness, aggregate outcomes, match reasons, and provenance links.
+Search returns a `searchId` for optional selection tracking.
 
-## Configuration
+### `knownpath_get`
 
-Phase 13's recommended local-client setup is the installer, which configures `npx -y knownpath mcp`
-and environment-variable references without persisting their values:
+Use `knownpath_get` only after choosing a plausible search result. Passing the associated `searchId`
+records that the result was selected; selection is usage metadata, not evidence of success.
+
+The response reveals at most two solution variants, eight steps per solution, and eight evidence
+references. Explicit truncation fields indicate when more data exists.
+
+### `knownpath_alternatives`
+
+This tool returns other solution variants already attached to the same canonical KnownPath. It does
+not perform a new cross-record search. The default page size is three and the maximum is five.
+
+### `knownpath_status`
+
+Status reports safe operational facts: service readiness, key scopes, owner status, personal or
+workspace binding, review-read capability, write capabilities, and the active search backend. It
+does not return credentials, provider secrets, user email, or database configuration.
+
+### `knownpath_contribute`
+
+Contribution requires `knowledge:contribute`, explicit user consent, and a UUID
+`clientSubmissionId`. Public, personal-private, and team submissions are supported according to the
+key binding and request scope.
+
+The submission must contain a generalized problem, environment, solution, caveats, and observable
+success evidence—not repository files, prompts, hidden reasoning, or secrets. The response is an
+ingestion receipt for low-trust self-reported evidence; it is not automatic publication.
+
+See [Contributions](CONTRIBUTIONS.md).
+
+### `knownpath_report_outcome`
+
+Outcome reporting requires `knowledge:outcome` in addition to read access. It records one observed
+result for a KnownPath/execution pair using idempotency identifiers. Supported states are documented
+in [Outcomes](OUTCOMES.md).
+
+`not_used` has zero evidence weight. A single `misleading_or_unsafe` report queues safety review but
+does not itself penalize ranking or automatically delist the record.
+
+## Visibility
+
+Normal keys receive only published records they are allowed to access:
+
+- `public` searches shared public knowledge.
+- `personal` searches the key owner's private knowledge.
+- `workspace` searches one authorized workspace.
+- `workspace_and_public` combines that workspace with public results.
+
+Workspace access requires an active membership and a key bound to that workspace. The backend never
+falls back from a failed tenant scope to public or another tenant.
+
+`includeReview` defaults to `false`. Only an active administrator-owned key can request review
+records, and every review search/read is audited. Ordinary users cannot receive review records.
+
+## Install through the CLI
 
 ```sh
-pnpm knownpath install --dry-run --agent all
-pnpm knownpath install --agent all
+export KNOWNPATH_API_URL="https://your-knownpath.example"
+export KNOWNPATH_API_KEY="..."
+npx knownpath install --dry-run
+npx knownpath install
+npx knownpath doctor
 ```
 
-The published equivalent is `npx knownpath install`. See [the installer guide](INSTALLER.md) for
-required environment setup, supported agents, backups, and uninstall behavior. The manual
-configurations below remain useful for transport development and troubleshooting.
+The installer writes environment-variable references instead of values. See
+[Agent installation](AGENT_INSTALLATION.md).
 
-The root `server.json` is the MCP Registry-compatible distribution manifest for
-`io.github.nasyx-rakeeb/knownpath`. It points to the same `knownpath` npm package and `mcp`
-subcommand, with required environment-variable declarations. Registry publication is an explicit
-maintainer release step; the manifest does not publish or authenticate anything by itself.
+## Manual stdio configuration
 
-Build the workspace, then configure the bridge in the ignored `.env` or the agent's process
-environment:
+For clients that accept a command-based server, configure:
 
-```sh
-pnpm build
-export KNOWNPATH_API_URL=http://127.0.0.1:3001
-export KNOWNPATH_API_KEY='the-key-returned-once-at-creation'
+```json
+{
+  "command": "npx",
+  "args": ["-y", "knownpath", "mcp"],
+  "env": {
+    "KNOWNPATH_API_URL": "${KNOWNPATH_API_URL}",
+    "KNOWNPATH_API_KEY": "${KNOWNPATH_API_KEY}"
+  }
+}
 ```
 
-Optional bridge limits are `KNOWNPATH_MCP_REQUEST_TIMEOUT_MS` (default `30000`) and
-`KNOWNPATH_MCP_MAX_RESPONSE_BYTES` (default `262144`). `KNOWNPATH_API_URL` must be an HTTP(S) origin
-without credentials or a path. Never commit the key or put it in a URL.
+Environment-reference syntax varies by client; use the exact examples in [Installer](INSTALLER.md),
+or let the CLI configure the supported client.
 
-Start the API for either transport:
+## Manual remote configuration
 
-```sh
-pnpm --filter @knownpath/api dev
-```
-
-Run the local stdio bridge directly only for an MCP client; its stdout is protocol traffic:
-
-```sh
-pnpm mcp:stdio
-```
-
-## Current client configurations
-
-All paths below are placeholders. Replace `/absolute/path/to/KnownPath` with the checkout's absolute
-path and export the two environment variables before launching the agent.
-
-### OpenAI Codex
-
-Codex currently supports both stdio and Streamable HTTP, including bearer tokens sourced from an
-environment variable. The remote configuration is the simplest production-style setup:
+For clients that support Streamable HTTP, use the deployment's `/mcp` URL and source the bearer
+token from `KNOWNPATH_API_KEY`. For example, Codex supports:
 
 ```toml
 [mcp_servers.knownpath]
-url = "http://127.0.0.1:3001/mcp"
+url = "https://your-knownpath.example/mcp"
 bearer_token_env_var = "KNOWNPATH_API_KEY"
 ```
 
-For the local bridge:
+The local stdio bridge remains the default installer architecture because it gives all supported
+agents one consistent environment-only setup.
 
-```toml
-[mcp_servers.knownpath]
-command = "node"
-args = ["/absolute/path/to/KnownPath/apps/mcp-server/dist/index.js"]
-env_vars = ["KNOWNPATH_API_URL", "KNOWNPATH_API_KEY"]
-```
+## Limits and errors
 
-Use `codex mcp list` to inspect configuration, then `/mcp` in Codex to inspect connection state.
+The backend caps MCP bodies at 64 KiB and applies separate distributed rate-limit policies to reads
+and writes in production. The stdio bridge defaults to a 30-second request timeout and a 256 KiB
+response limit; operators can tune:
 
-### Claude Code
+- `KNOWNPATH_MCP_REQUEST_TIMEOUT_MS`
+- `KNOWNPATH_MCP_MAX_RESPONSE_BYTES`
 
-Claude Code supports environment expansion in project `.mcp.json` files, including headers:
+Cancellation propagates to the HTTP request. Tool failures return concise codes such as:
 
-```json
-{
-  "mcpServers": {
-    "knownpath": {
-      "type": "http",
-      "url": "http://127.0.0.1:3001/mcp",
-      "headers": {
-        "Authorization": "Bearer ${KNOWNPATH_API_KEY}"
-      }
-    }
-  }
-}
-```
+- `authentication_required`
+- `insufficient_permission`
+- `knowledge_not_found`
+- `validation_failed`
+- `backend_cancelled`
+- `backend_timeout`
+- `backend_unreachable`
+- `backend_response_too_large`
 
-Use `/mcp` to verify that the server is connected. Keep project configuration free of literal
-credentials.
+Errors do not expose response bodies, Authorization headers, provider details, or database errors.
 
-### Cursor
+## Developer inspection
 
-Cursor supports project `.cursor/mcp.json` and user-level MCP configuration with stdio and remote
-HTTP transports. Use its MCP settings UI to add `http://127.0.0.1:3001/mcp` with an Authorization
-header, or configure the stdio bridge command shown above. Store the actual key in an environment
-variable or Cursor's secret-capable settings rather than a tracked project file. Cursor was not
-installed in the Phase 11 development environment, so contributors should confirm connection state
-in Cursor's MCP settings after configuration.
-
-### Gemini CLI
-
-Gemini CLI's `settings.json` supports an `httpUrl` Streamable HTTP endpoint and environment-variable
-expansion in string values:
-
-```json
-{
-  "mcpServers": {
-    "knownpath": {
-      "httpUrl": "http://127.0.0.1:3001/mcp",
-      "headers": {
-        "Authorization": "Bearer ${KNOWNPATH_API_KEY}"
-      },
-      "timeout": 30000,
-      "trust": false
-    }
-  }
-}
-```
-
-Run `/mcp list` in Gemini CLI. Gemini CLI was not installed in the Phase 11 development environment,
-so this remains a client-side connection check for contributors.
-
-## Manual inspection
-
-KnownPath includes a small official-SDK client that negotiates the protocol era, lists exact
-schemas, and can call either transport:
+Run the repository's official-SDK client against either transport:
 
 ```sh
 pnpm mcp:inspect --transport http
 pnpm mcp:inspect --transport stdio
 pnpm mcp:inspect --transport http --tool knownpath_status --input '{}'
-pnpm mcp:inspect --transport http --tool knownpath_search \
-  --input '{"task":"Expo EAS build cannot resolve an imported file","includeReview":true}'
-pnpm mcp:inspect --transport http --tool knownpath_report_outcome \
-  --input '{"contractVersion":1,"clientOutcomeId":"UUID","clientExecutionId":"UUID","knownPathId":"UUID","outcome":"not_used","agentClient":{"name":"manual-inspector"},"environment":{},"includeReview":true}'
 ```
 
-The official MCP Inspector is also suitable:
+Or start the official MCP Inspector against the built stdio server:
 
 ```sh
 npx @modelcontextprotocol/inspector \
   node /absolute/path/to/KnownPath/apps/mcp-server/dist/index.js
 ```
 
-## Security and failure behavior
+The MCP Registry manifest is `server.json`. Publishing that metadata is a separate release action;
+the file alone does not register or deploy the server.
 
-Phase 20 applies a distributed Valkey transport policy and a stricter per-key mutation gate to
-`knownpath_contribute` and `knownpath_report_outcome`. Tool output is labeled untrusted evidence,
-instruction-like markup/control characters are neutralized, and manual OpenTelemetry instrumentation
-records only the fixed tool name, duration, and success/error—not inputs, record IDs, user/workspace
-IDs, or returned content.
+## Security expectations
 
-- MCP accepts bearer API keys only. Browser sessions do not authenticate the MCP endpoint.
-- OAuth discovery/authorization is not implemented. Clients must be configured with a KnownPath key;
-  this is documented rather than pretending OAuth compliance.
-- The backend validates Host and Origin, limits protocol bodies to 64 KiB, applies distributed
-  Valkey-backed production policies (or explicitly configured local memory limits), and sends
-  `Cache-Control: no-store`.
-- The stdio bridge bounds request duration and response bytes, propagates cancellation through
-  `fetch`, and emits only safe diagnostics on stderr. Keys and Authorization headers are never
-  logged.
-- Tool failures use short stable codes such as `authentication_required`, `insufficient_permission`,
-  `knowledge_not_found`, `validation_failed`, `backend_timeout`, and `backend_unreachable`.
-  Provider/database details are not returned.
-- Safe response schemas omit raw source bodies, embeddings, content hashes, hidden reasoning,
-  provider metadata, key hashes, and unrestricted account/private metadata.
+- Source, contribution, and KnownPath text is returned as untrusted evidence.
+- Responses omit raw source dumps, embeddings, hashes, hidden reasoning, provider metadata, and key
+  digests.
+- Host/Origin validation, authentication, authorization, input schemas, payload limits, rate limits,
+  and audit recording are server-side.
+- Logs and telemetry record bounded operation names, latency, status, and request correlation—not
+  queries, content, credentials, or user/workspace identifiers.
+
+See [Security architecture](SECURITY_ARCHITECTURE.md) and [Agent Skill behavior](AGENT_SKILL.md).
 
 ## Official references
 
-- [MCP specification 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
-- [MCP TypeScript SDK v2](https://ts.sdk.modelcontextprotocol.io/v2/)
+- [MCP specification](https://modelcontextprotocol.io/specification/)
 - [MCP transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)
-- [MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
-- [MCP Inspector](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector)
+- [MCP TypeScript SDK](https://ts.sdk.modelcontextprotocol.io/)
 - [OpenAI Codex MCP](https://developers.openai.com/codex/mcp/)
 - [Claude Code MCP](https://code.claude.com/docs/en/mcp)
-- [Cursor MCP](https://cursor.com/docs/mcp)
-- [Gemini CLI MCP servers](https://geminicli.com/docs/tools/mcp-server/)
+- [Cursor MCP](https://docs.cursor.com/context/model-context-protocol)
+- [Gemini CLI MCP](https://geminicli.com/docs/tools/mcp-server/)
+- [OpenCode MCP](https://opencode.ai/docs/mcp-servers/)

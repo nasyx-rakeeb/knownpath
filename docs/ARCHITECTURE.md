@@ -1,562 +1,211 @@
-# KnownPath Architecture
+# Architecture
 
-## Scope
+KnownPath is a hosted shared knowledge network for coding agents, with a complete self-hosting path.
+It turns public technical sources and consented agent experience into provenance-backed canonical
+records that agents can search through HTTP or MCP. MongoDB is the durable system of record.
 
-This document describes the implemented platform after the Phase 22 audit. Historical phase labels
-identify when a boundary was introduced; the current behavior is the combined system described
-below.
+## System overview
 
-KnownPath turns high-signal public technical material into reusable, verified engineering
-experiences that coding agents can retrieve and evaluate. MongoDB is the primary persistent
-database.
+```text
+GitHub / official docs / consented agent contributions
+                         │
+                         ▼
+            normalization and immutable sources
+                         │
+                         ▼
+     Gemini extraction ── public-data provider boundary
+                         │
+                         ▼
+       deterministic evidence verification and scoring
+                         │
+                         ▼
+       canonical KnownPaths + immutable revisions
+                         │
+                         ▼
+ exact + lexical + semantic retrieval and deterministic reranking
+                         │
+              ┌──────────┼──────────┐
+              ▼          ▼          ▼
+           HTTP API   MCP server   dashboard
+                         │
+                         ▼
+              contribution and outcome loop
+```
 
-## System boundaries
+Gemini interprets untrusted public text into a validated candidate schema. It does not determine
+objective source metadata, production trust scores, publication, or automatic semantic-only merges.
 
-### Applications
+## Applications
 
-- `@knownpath/api` owns Fastify HTTP transport, route composition, request validation, OpenAPI,
-  network security policy, and API process lifecycle. It exposes operational health,
-  closed-registration session/account/API-key routes, and Phase 10's safe knowledge routes under
-  `/api/v1`.
-- `@knownpath/worker` owns background-process lifecycle. It runs bounded manual commands and the
-  BullMQ consumers that operationalize ingestion, extraction, scoring, canonicalization, projection,
-  contribution, outcome, and maintenance jobs.
-- `@knownpath/mcp-server` is the thin local stdio-to-HTTP MCP bridge. The production Streamable HTTP
-  transport is hosted by `@knownpath/api`; both use the shared `@knownpath/mcp` contracts.
-- `@knownpath/web` owns the developer dashboard, public product introduction, and server-guarded
-  Phase 18 administration console. Its server-first Next.js routes consume safe API DTOs through a
-  narrow same-origin bridge. It owns no ranking, authorization, contribution, session, moderation,
-  or queue business logic.
-- `knownpath` is the publishable installer CLI. It owns interactive/machine-readable presentation,
-  packages the canonical skill, and exposes the thin `mcp` stdio command; it delegates all
-  client-specific behavior to `@knownpath/agent-adapters`.
+- **`@knownpath/api`** — Fastify HTTP API, session/API-key authentication, remote Streamable HTTP
+  MCP, request validation, authorization, rate policy, OpenAPI, and health/readiness.
+- **`@knownpath/worker`** — source, extraction, verification, canonicalization, embedding,
+  contribution, outcome, and maintenance commands plus BullMQ consumers.
+- **`@knownpath/web`** — Next.js user dashboard and server-guarded admin console. It consumes safe
+  API DTOs and owns no database, ranking, or authorization logic.
+- **`@knownpath/mcp-server`** — thin local stdio bridge to the HTTP API. It requires only
+  `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`.
+- **`knownpath`** — public installer/integration CLI. It configures supported agents and packages
+  the canonical Agent Skill and stdio bridge command.
 
-### Reusable packages
+## Core packages
 
-- `@knownpath/domain` is the framework-independent center. It owns versioned runtime schemas, domain
-  entities, value objects, lifecycle values, and deterministic canonicalization helpers.
-- `@knownpath/config` is the sole environment-to-typed-config translation boundary.
-- `@knownpath/database` owns MongoDB connection lifecycle, collection validators, named indexes,
-  idempotent initialization, and repository implementations. Raw collections do not escape this
-  package.
-- `@knownpath/auth` owns Better Auth composition, API-key cryptography and lifecycle services,
-  principal resolution, authorization policies, audit-event creation, and framework-neutral
-  rate-limit policy contracts. It does not depend on Fastify.
-- `@knownpath/github-ingestion` owns configured GitHub API collection, runtime response validation,
-  provider-neutral normalization, incremental cursors, and ingestion-run orchestration.
-- `@knownpath/source-ingestion` owns the shared source manifest plus safe official documentation and
-  release-feed discovery, conditional fetching, normalization, and synchronization orchestration.
-- `@knownpath/ai` owns provider-neutral extraction contracts, privacy enforcement, context assembly,
-  versioned prompts, structured validation, Gemini integration, processing budgets, and candidate
-  construction.
-- `@knownpath/verification` owns deterministic provenance checks, objective evidence signals,
-  versioned scoring policy, freshness/version-fit calculation, immutable assessment history, and
-  human-readable score explanations.
-- `@knownpath/canonicalization` owns technical normalization, deterministic profiles/blocking, pair
-  decisions, membership operations, audit history, and canonical rebuilds.
-- `@knownpath/contributions` owns pre-persistence sanitization, consent/idempotency processing,
-  private-provider gates, low-trust candidate projection, and safe developer inspection.
-- `@knownpath/privacy` owns reusable boundary text normalization, Secretlint scanning, and narrow
-  PII/path/credential redaction used by contributions and outcome notes.
-- `@knownpath/outcomes` owns authenticated observed-result ingestion, durable abuse controls,
-  immutable reliability assessments, safety events, trend detection, and recomputation commands.
-- `@knownpath/jobs` is the sole BullMQ/Valkey boundary. It owns typed dispatch, queue topology,
-  retries, rate limits, schedules, graceful shutdown, and durable operational status projection.
-- `@knownpath/pipelines` composes existing domain services into idempotent job handlers and bounded
-  downstream chains without importing transport or queue implementation details.
-- `@knownpath/search` owns provider-neutral embeddings, public-only Gemini adaptation, materialized
-  search projections, local/Atlas retrieval adapters, version fit, explainable hybrid reranking, and
-  the transport-independent safe knowledge-access service.
-- `@knownpath/agent-adapters` owns client detection, merge-safe MCP configuration, canonical skill
-  installation, backups, ownership state, status/doctor checks, updates, and uninstall behavior.
-- `@knownpath/workspaces` owns workspace lifecycle, live membership and role authorization,
-  existing-user invitations, and tenant administration services.
-- `@knownpath/typescript-config` publishes reusable strict compiler configurations.
+The framework-independent center is `@knownpath/domain`, which owns versioned runtime schemas,
+identifiers, lifecycle values, and canonicalization helpers. Other important boundaries are:
 
-The Agent Skill distribution is the versioned `skills/knownpath` artifact, not an HTTP/UI concern.
-It follows the open Agent Skills `SKILL.md` format and progressive-disclosure conventions. Phase 13
-packages this one artifact into the installer rather than maintaining client-specific copies.
+| Package                       | Responsibility                                                              |
+| ----------------------------- | --------------------------------------------------------------------------- |
+| `@knownpath/config`           | Environment parsing and production validation                               |
+| `@knownpath/database`         | MongoDB lifecycle, validators, indexes, repositories                        |
+| `@knownpath/auth`             | Better Auth, API keys, principals, policies, audit and rate-limit contracts |
+| `@knownpath/workspaces`       | Workspace lifecycle, roles, membership and invitations                      |
+| `@knownpath/github-ingestion` | GitHub REST/GraphQL collection and normalization                            |
+| `@knownpath/source-ingestion` | Source manifests and SSRF-safe official-source sync                         |
+| `@knownpath/ai`               | Provider-neutral extraction, privacy gate, prompts and Gemini adapter       |
+| `@knownpath/verification`     | Deterministic evidence verification and immutable assessments               |
+| `@knownpath/canonicalization` | Profiles, pair decisions, membership and revision history                   |
+| `@knownpath/search`           | Embeddings, projections, local/Atlas retrieval and reranking                |
+| `@knownpath/privacy`          | Secret/PII/path redaction and boundary normalization                        |
+| `@knownpath/contributions`    | Consent, sanitization and low-trust contribution processing                 |
+| `@knownpath/outcomes`         | Result ingestion, abuse controls and reliability assessment                 |
+| `@knownpath/jobs`             | BullMQ/Valkey queues, schedules, retry and worker lifecycle                 |
+| `@knownpath/pipelines`        | Idempotent job handlers and bounded downstream chaining                     |
+| `@knownpath/mcp`              | Shared MCP tool schemas, server factory and error mapping                   |
+| `@knownpath/agent-adapters`   | Safe client detection/configuration and skill installation                  |
+| `@knownpath/observability`    | Privacy-bounded OpenTelemetry instrumentation                               |
 
 ## Dependency direction
 
 ```text
-apps/api ---------+
-apps/mcp-server --+--> capability packages ---> packages/domain
-apps/cli ---------+              |
-apps/web ---------+              +-------------> packages/config
-                                 +-------------> packages/database
-
-apps/worker --> packages/github-ingestion --> packages/domain
-                       |                    --> packages/config
-                       +---------------------> packages/database
-
-apps/worker --> packages/source-ingestion --> packages/domain
-                       |                    --> packages/config
-                       +---------------------> packages/database
-
-packages/github-ingestion --> packages/source-ingestion (shared manifest contracts only)
-
-apps/worker --> packages/ai --> packages/domain
-                  |          --> packages/database
-                  +-----------> official Gemini SDK
-
-apps/worker --> packages/verification --> packages/domain
-                             +----------> packages/database
-
-apps/worker --> packages/canonicalization --> packages/domain
-                              |          --> packages/database
-                              +----------> packages/search --> official Gemini SDK
-
-apps/worker --> packages/pipelines --> capability packages
-                    +-------------> packages/jobs --> BullMQ --> Valkey
-packages/jobs --> packages/database --> MongoDB
-
-packages/domain ---> no workspace dependencies
-packages/auth ----> packages/domain + packages/database + packages/config
-packages/workspaces --> packages/auth + packages/domain + packages/database
-packages/* -------> never depend on apps/*
+apps and transports
+        │
+        ▼
+capability/application packages
+        │
+        ├── domain contracts
+        ├── repository interfaces/implementations
+        └── external adapters at explicit boundaries
 ```
 
-Transport layers translate requests and responses; they do not own reusable business rules.
-Infrastructure packages implement capabilities defined by inward-facing contracts. The domain layer
-must not import Fastify, Next.js, MongoDB, MCP, or provider SDKs. This direction keeps the system
-replaceable and prevents circular dependencies.
-
-The dashboard never connects to MongoDB and never receives provider credentials. Browser mutations
-use an allowlisted `/api/knownpath/*` bridge that forwards only cookie, content type, user agent,
-and safe response headers to `KNOWNPATH_API_URL`; it refuses arbitrary API paths and never forwards
-an Authorization header. Fastify remains the authority for session validity, owner scoping,
-visibility, rate policies, audit events, and response serialization. See
-[the dashboard guide](DASHBOARD.md).
-
-The `/admin` route group uses the same bridge through an explicit administration allowlist. Fastify
-projects safe operational DTOs and centrally enforces admin capabilities. Sensitive mutations also
-require a session no older than 30 minutes, an exact target confirmation, and a reason. MongoDB
-repositories, BullMQ controls, canonicalization primitives, and audit writes remain behind an
-administration application service; Next.js never invokes them directly. Private contribution
-content is hidden by default and can reveal only the persisted sanitized payload through a distinct
-fresh-admin capability. See [the administration runbook](ADMIN_OPERATIONS.md).
-
-## End-to-end platform data flow
-
-```text
-public technical sources
-          |
-          v
-ingestion workers ---> source normalization
-          |
-          v
-AI extraction boundary ---> deterministic scoring and verification
-          |                              |
-          +------------------------------+
-                         |
-                         v
-                      MongoDB
-                         |
-                         v
-               search and retrieval
-                 /       |       \
-                v        v        v
-              HTTP      MCP    Agent Skill
-                         |
-                         v
-             usefulness/contribution feedback
-```
-
-## Current runtime and persistence flow
-
-1. Docker Compose provides loopback-bound Valkey for queues and an optional loopback MongoDB for
-   contributors not using Atlas.
-2. Applications and database commands parse their environment through `@knownpath/config`.
-3. A process creates one MongoDB client, connects and pings, receives a repository registry, and
-   closes the client during shutdown.
-4. Database initialization creates/reconciles 33 collections, critical validators, and named indexes
-   idempotently, including Better Auth sessions/accounts/verifications and append-only audit events.
-5. Repository implementations parse writes and reads through `@knownpath/domain`; applications do
-   not access raw collections.
-6. The API constructs Better Auth and KnownPath auth services over that same database boundary,
-   resolves either HttpOnly cookie sessions or bearer API keys into reusable principals, and applies
-   route-specific authorization.
-7. The worker composes provider adapters with one source manifest, configuration, and the repository
-   registry. GitHub graphs and curated official documents become immutable source items. Mutable
-   source-item state holds fetch validators and the latest snapshot pointer without rewriting
-   provenance history.
-8. The worker can assemble bounded public-only evidence contexts and invoke the configured Gemini
-   provider. Strict output and provenance validation either create a candidate, record an objective
-   non-solution classification, quarantine invalid output, or block disallowed visibility before any
-   outbound call.
-9. The worker can resolve a candidate back to immutable source snapshots, verify objective metadata,
-   and append an immutable deterministic assessment. The candidate's latest pointer is updated only
-   after the assessment exists; prior assessments remain unchanged.
-10. The worker can create immutable technical-similarity profiles, find plausible pairs through
-    indexed deterministic blocking, optionally embed only public candidates/sources, and persist an
-    explainable pair decision. Strong deterministic gates alone authorize automatic merging.
-11. Canonical membership operations append audit events, rebuild immutable KnownPath revisions, and
-    update a stable current projection. Split/reassign operations never delete candidates or
-    history.
-12. The worker materializes versioned search documents from canonical revisions. Local MongoDB
-    supplies exact/error and weighted-text retrieval; configured Atlas deployments add separately
-    managed lexical/vector channels before deterministic trust/version/freshness reranking.
-13. Fastify validates and authenticates versioned knowledge requests, then delegates to the shared
-    knowledge-access service. Published public records are the default; explicit review reads
-    require an admin-owned scoped API key and append audit events. Responses use safe view contracts
-    rather than persisted schemas.
-14. Search execution/selection metadata is stored separately from outcomes with a keyed query
-    digest. Fastify also exposes health, account/API-key/session routes, OpenAPI JSON, and optional
-    Swagger UI.
-15. MCP exposes the same knowledge service through four bounded read tools plus consented
-    contribution and observed-outcome writes. The portable Agent Skill teaches compatible clients
-    when and how to use them while preserving repository authority, privacy, and local verification.
-16. Outcome submission stores immutable private reports, recomputes immutable time-decayed Wilson
-    assessments, advances only the KnownPath latest pointer, and queues safety review separately.
-    Search projections include privacy-thresholded aggregates and versioned ranking components.
-17. The installer detects supported agents and configures `npx -y knownpath mcp` plus the canonical
-    skill. Config files contain only references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`;
-    retrieval and authorization remain centralized in the API. The dashboard consumes those same
-    safe session APIs and adds no parallel business-logic path.
-18. BullMQ consumers run six workload-isolated queues. MongoDB stores pipeline intent before
-    dispatch; source-specific schedulers, retries with jitter, global provider limits, stalled-job
-    recovery, reconciliation, quarantine, heartbeats, and graceful shutdown are centralized in
-    `@knownpath/jobs` and composed through `@knownpath/pipelines`.
-
-## Configuration and secrets
-
-`.env.example` documents the complete current configuration by subsystem. `.env` and variant files
-are ignored. MongoDB runs without authentication only in the loopback-bound local Compose
-environment. Better Auth and API-key HMAC secrets are required and have no committed default.
-Production startup rejects an HTTP Better Auth base URL. CORS origins, trusted auth origins, proxy
-addresses, docs exposure, cookie security, and rate-limit settings are explicit configuration rather
-than framework defaults.
-
-Invalid configuration fails before an application starts. Database callers supply a validated
-`MongoConfig`; only command entry points read process globals. The reusable database layer receives
-configuration explicitly.
-
-Valkey is auxiliary, not a product datastore. MongoDB records pipeline intent before dispatch and
-retains auditable run/step history. Valkey owns only queue delivery, scheduler state, retries,
-provider and request rate limiting, locks, and ephemeral worker coordination. API product reads
-remain available when job queues are disabled or degraded; production request-rate protection and
-workers require Valkey. See [OPERATIONS.md](OPERATIONS.md).
-
-`GITHUB_TOKEN` has no committed default and is never logged. Public REST collection can operate
-without it at GitHub's lower limit. Discussions require authenticated GraphQL and are reported as a
-skipped capability when the token is absent.
-
-`GEMINI_API_KEY` has no committed default and is never logged. The unpaid provider capability and
-environment policy are both `public_only`; private/team input blocks before provider construction.
-Model, request, retry, spacing, and token/call/target budgets are centralized configuration.
-
-Search defaults to the local non-vector backend. Atlas index names/readiness timeout and the
-embedding model/version/dimensions are explicit environment configuration. A private/team query or
-projection cannot silently use the unpaid public provider.
-
-The installer requires `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` in the launching environment. It
-has no URL default and stores only provider-specific references to these names. Its state file holds
-non-secret ownership/digest/version metadata. Agent configs are backed up before mutation, comments
-and unknown fields are preserved where their documented format permits, and conflicting unmanaged
-entries stop rather than being overwritten. The stdio bridge remains a client of the HTTP API and
-receives no database or AI-provider configuration.
-
-## Phase 2 persistence boundary
-
-MongoDB contains separate collections for users, API keys, source registries, immutable source
-items, ingestion runs, candidate experiences, KnownPaths, agent contributions, and agent outcomes.
-Bounded evidence, solution, ecosystem/environment, score, visibility, moderation, freshness, and
-search metadata are embedded for locality. Entities with independent growth or lifecycle remain
-referenced.
-
-Zod schemas are the full runtime authority. MongoDB validators enforce critical stored envelopes as
-defense in depth. Provider-neutral embedding state, rebuildable search projections, and Atlas-only
-search index definitions exist in the domain/search layers. See
-[`docs/DATA_MODEL.md`](DATA_MODEL.md).
-
-## Phase 3 authentication and HTTP boundary
-
-Human identity uses Better Auth with its official MongoDB adapter and database-backed cookie
-sessions. Public registration is disabled. The only user provisioning path is the masked
-`pnpm auth:user:create` CLI, which calls Better Auth's server-side creation service so password
-hashing and persistence hooks are identical to future framework-managed flows. Public signup,
-verification, reset, OAuth, and administrative user-management routes are not mounted.
-
-KnownPath owns agent/MCP API keys because their capability vocabulary and lifecycle belong to the
-product domain. Keys have a public `kp_...` identifier plus 32 random secret bytes. The full value
-is returned once; MongoDB stores only the identifier and an HMAC-SHA-256 digest protected by a
-required pepper. Key management requires a human session. Bearer keys can authenticate allowed
-machine routes only when their owner is active and the required scope is present.
-
-Authentication produces an anonymous, session, or API-key principal. Framework-neutral policy
-functions implement authenticated, session-only, scoped, administrator, and workspace-role checks
-shared by HTTP, MCP, dashboard, and CLI clients.
-
-Fastify supplies server-generated request IDs, Zod request/response schemas, a stable error
-envelope, credential-safe structured logs, CORS allowlists, explicit proxy trust, security headers,
-and route-class policies backed by Valkey in production. Explicit local development may use the
-in-memory limiter; production fails fast instead of silently degrading. Sensitive actions append
-bounded `audit_events` without credentials. OpenAPI 3.1 is generated from route schemas at
-`/api/v1/openapi.json`; Swagger UI is configuration-controlled at `/docs`.
-
-## Phase 4 GitHub ingestion boundary
-
-The versioned manifest at `config/sources/registry.json` identifies the initial Expo and React
-Native repositories and supported source types. The worker verifies repository identity/capabilities
-and uses Octokit against GitHub's official REST and GraphQL APIs. Requests are serial, paginated,
-time bounded, retried with bounded backoff, and expose only safe rate telemetry to logs.
-
-Issue threads use REST for issues, comments, labels, and reactions, with GraphQL enrichment for
-closing pull requests when authenticated. Discussions use authenticated GraphQL for discussions,
-answer state, comments/replies, and reactions. All response shapes are runtime validated and all
-source text remains explicitly untrusted data.
-
-Each issue, discussion, comment, and reply becomes its own immutable source snapshot. Parent/root
-identities retain thread structure; provider metadata retains GitHub IDs, node IDs, association,
-labels, reactions, state, and timestamps. Content hashes and unique deduplication keys make overlap
-and reruns safe. Source-registry cursors track each source type independently; a default overlap
-window catches late edits. Cursors advance only after all discovered objects persist successfully.
-See [`docs/GITHUB_INGESTION.md`](GITHUB_INGESTION.md).
-
-## Phase 5 official source ingestion boundary
-
-The same versioned registry now uses discriminated `github_repository`, `documentation_site`, and
-`release_feed` definitions. Expo and React Native documentation adapters discover their complete
-official `llms.txt` indexes, enrich canonical URLs from sitemaps where available, and normally fetch
-only configurable high-signal upgrade, migration, troubleshooting, compatibility, deprecation, and
-breaking-change pages. Any indexed page remains available through an explicit targeted command;
-bounded full-catalog synchronization is opt-in.
-
-Official release material comes from Expo and React Native RSS feeds. Expo stores only metadata and
-the summary supplied by its feed; React Native stores feed-supplied article content normalized to
-plain text. General website HTML crawling is absent. Every request is HTTPS/origin allowlisted,
-robots-aware, redirect validated, size/time bounded, serial, and conditionally fetched where the
-source supplies ETag or Last-Modified.
-
-`source_items` remains immutable. `source_item_states` is the mutable synchronization projection for
-latest snapshot pointers, lifecycle, content hashes, validators, and fetch/change timestamps. A
-`304` or stable normalized digest updates fetch state without creating a new snapshot. Deterministic
-registry metadata classifies official documents as first-party evidence; GitHub author association
-classifies maintainer versus community evidence without LLM inference. See
-[`docs/OFFICIAL_SOURCE_INGESTION.md`](OFFICIAL_SOURCE_INGESTION.md).
-
-## Phase 6 AI extraction boundary
-
-Extraction starts from immutable source snapshots, never directly from network responses. GitHub
-comments are reassembled around their latest thread root while official documents retain normalized
-block structure. Complete evidence items are selected deterministically within a configured context
-budget; roots and high-signal confirmations are never silently truncated. Context, prompt, schema,
-provider, model, and generation settings are all versioned or digested for reproducible idempotency.
-
-The real provider is Gemini through Google's official SDK and Interactions API. Requests disable
-server-side interaction storage, tools, and thinking summaries. All source text is labeled untrusted
-quoted evidence. The free/public provider path rejects a private/team registry, requested item, or
-selected context item before provider creation, with no fallback.
-
-Gemini returns a strict structured classification and candidate interpretation. Zod validation,
-known-ID checks, exact-excerpt matching, and deterministic canonicalization run before persistence.
-Only a grounded `reusable` result creates a candidate. Confidence/freshness scoring and verification
-labels remain uncalculated/unverified for Phase 7. Operational history lives in the independent
-`extraction_attempts` collection. See [`docs/AI_EXTRACTION.md`](AI_EXTRACTION.md).
-
-## Phase 7 deterministic verification boundary
-
-Verification starts from a persisted candidate and resolves all evidence references through the
-repository layer. Missing sources or mismatched digests, URLs, excerpts, or visibility produce an
-immutable ineligible assessment at score 0. GitHub authority, selected-answer state, closure, merged
-closing pull requests, and reactions come only from captured provider metadata. First-party status
-comes only from deterministic source classification. Model labels are suggestions until
-independently verified.
-
-`@knownpath/verification` computes source evidence, freshness, and version fit independently. The
-0–100 result is a ranking score, not probability. Weak temporal/popularity signals are capped;
-conflicts, unsupported claims, weak confirmation, and staleness are explicit penalties/caps. Agent
-outcomes remain an unobserved, separate component so a future statistically conservative outcome
-model can overtake seed evidence without rewriting it.
-
-Assessments are append-only and include exact inputs, signals, versions, policy digest, score
-breakdown, reason codes, and explanations. A candidate's `latestAssessmentId` is only a fast
-pointer. See [`docs/SCORING.md`](SCORING.md).
-
-## Phase 8 canonicalization boundary
-
-Canonicalization starts only from candidates with immutable Phase 7 assessments. A versioned
-normalizer preserves technical identifiers while replacing recognized transient paths, UUIDs,
-timestamps, stack locations, and build IDs. Immutable profiles expose multiple indexed blocking
-keys; ordinary processing never compares the full Cartesian product.
-
-Blocked pairs receive deterministic ecosystem/package/platform/version/error/root-cause checks and
-separate lexical problem/solution similarities. Hard incompatibilities remain separate. Ambiguous
-pairs enter review. The public Gemini embedding provider is constructed only after candidate and
-every referenced source are verified public; semantic similarity can strengthen or prioritize but
-cannot authorize an automatic merge. Candidate vectors remain ordinary pair-comparison records; they
-are separate from the KnownPath retrieval projection and Atlas vector index.
-
-Current candidate relationships live in `canonical_memberships`. Append-only events make create,
-merge, split, reassign, and rebuild operations resumable on standalone local MongoDB. Every rebuild
-first creates/reuses an immutable `known_path_revisions` snapshot and then updates the stable
-`known_paths` projection. Multiple solution variants, all evidence excerpts, contributing assessment
-IDs, and conflicts remain inspectable. See [`docs/CANONICALIZATION.md`](CANONICALIZATION.md).
-
-## Phase 9 retrieval boundary
-
-Search reads a rebuildable `known_path_search_documents` projection rather than joining canonical
-history during every query. Deterministic error and metadata blocking runs first. Local MongoDB adds
-a weighted text channel; Atlas configuration adds MongoDB Search lexical and Vector Search channels.
-Application-side reranking then combines relevance with version compatibility, immutable trust
-assessments, freshness, outcomes, conflict, moderation, and lifecycle signals.
-
-The retrieval policy is versioned and digest-addressed. Results expose component scores, penalties,
-caps, reason codes, and capability state. Vector similarity is never the sole rank and cannot erase
-an explicit incompatibility. Published records are the default query scope; review records require
-an explicit developer option.
-
-The unpaid Gemini provider remains public-only for both document and query embeddings. Local
-contributors retain useful non-vector retrieval without Atlas or paid infrastructure. Search is
-available through the worker/developer CLI, authorization-aware HTTP service, MCP, and dashboard.
-See [`docs/RETRIEVAL.md`](RETRIEVAL.md), [`docs/API.md`](API.md), and [`docs/MCP.md`](MCP.md).
-
-## Phase 10 knowledge API boundary
-
-Fastify exposes search, canonical detail, solution alternatives, and result-selection reporting
-under `/api/v1`. Shared versioned Zod contracts describe client concepts rather than MongoDB fields.
-Response schemas are allowlists: raw source bodies, embeddings, provider/model internals, hashes,
-assessment/candidate IDs, audit metadata, and private/team fields never leave the API.
-
-`@knownpath/auth` centrally derives a knowledge-access authorization from a session or API-key
-principal. Normal clients receive only public `published` records. Review access is explicit and
-requires an admin-owned API key with `knowledge:read`; admin sessions are insufficient. Inaccessible
-review details are indistinguishable from nonexistent IDs. Every allowed review query/read is
-audited with its user/key/request identity.
-
-`@knownpath/search` translates the safe request to the retrieval query, enforces the authorized
-lifecycle set again, builds safe applicability/trust/freshness/provenance views, signs alternative
-cursors, and records bounded usage. `knowledge_search_events` stores a keyed query digest and the
-returned/selected IDs; a selection never becomes an `agent_outcome`. See [`docs/API.md`](API.md).
-
-## Phase 11 MCP boundary
-
-`@knownpath/mcp` owns four stable read tools plus the consented `knownpath_contribute` and observed
-`knownpath_report_outcome` additive writes. It supplies one server factory, strict input/output
-schemas, bounded projections, and safe protocol-facing errors. The same contract is used by both
-transports; write authorization and business logic remain in the API.
-
-The production `/mcp` Streamable HTTP endpoint is hosted by the Fastify API. API-key authentication,
-`knowledge:read`, explicit admin review authorization, audit events, usage recording, retrieval,
-ranking, and database access remain in the backend. The endpoint validates Host/Origin, bounds
-request bodies, applies rate policy, and delegates protocol negotiation/framing to the official MCP
-TypeScript SDK.
-
-`apps/mcp-server` is deliberately only a stdio-to-HTTP bridge. It is configured with
-`KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`, applies network timeout/response-size/cancellation
-bounds, and never imports database, auth persistence, search, or AI providers. This keeps local
-agent installation lightweight and makes the API the single business-logic/security authority.
-Responses remain progressively disclosed: search is concise, while exact steps and evidence are
-returned only after `knownpath_get`. See [`docs/MCP.md`](MCP.md).
-
-## Phase 12 Agent Skill boundary
-
-`skills/knownpath` is the canonical portable instruction artifact. Standard frontmatter provides a
-precise auto-activation boundary and version metadata. The concise main workflow references one
-optional examples file for Expo SDK migration, EAS/Gradle, React Native dependency, Metro, and
-native-configuration scenarios.
-
-The skill references the registered retrieval/status tools, `knownpath_contribute`, and
-`knownpath_report_outcome`. It preserves user/repository instructions and safety constraints,
-requires sanitized structured search context, treats retrieved records as evidence rather than
-commands, and requires local applicability checks and observed verification before success claims.
-It offers contribution only after success and explicit consent, retains materially influential IDs,
-and reports a result only after an actual attempt is known. Search/view/selection never becomes a
-success claim.
-
-Client-specific discovery paths and manual links are documented outside the artifact. Automatic
-Phase 13's installer owns installation, update, inspection, and reversible removal. The skill stays
-transport- and client-neutral.
-
-## Phase 13 installer boundary
-
-The `knownpath` CLI supports `install`, `status`, `update`, `uninstall`, `doctor`, and the internal
-`mcp` bridge command. An adapter describes Codex CLI, Claude Code, Cursor, Gemini CLI, or OpenCode
-without importing API/database/retrieval code. Global paths follow the current client and operating
-system conventions; project paths remain inside the selected repository.
-
-Claude Code and Gemini CLI use official MCP mutation commands when installed. Codex uses a bounded
-managed TOML block because its current CLI cannot express inherited environment-variable references.
-Cursor and OpenCode use documented JSON/JSONC structures. Structural edits preserve unrelated
-fields/comments, existing files are backed up, writes are atomic, and a separate state record makes
-ownership explicit. A matching pre-existing artifact is unmanaged; an incompatible `knownpath` entry
-is a conflict. This prevents install/update/uninstall from claiming or deleting user work.
-
-Codex, Cursor, Gemini CLI, and OpenCode share the open `.agents/skills/knownpath` location; Claude
-uses its documented `.claude/skills/knownpath` path. Shared removal happens only once after selected
-installer owners are removed. The CLI bundles the canonical source artifact during build, so all
-adapters receive identical instructions and version metadata. See
-[`docs/INSTALLER.md`](INSTALLER.md). See [`docs/AGENT_SKILL.md`](AGENT_SKILL.md).
-
-## Phase 14 contribution boundary
-
-`@knownpath/contributions` accepts only strict, consented, generalized public, owner-private, or
-workspace-scoped lessons. Sanitized structured content becomes immutable source/candidate/assessment
-provenance at a low self-report trust cap; it never publishes canonical truth directly. Private and
-workspace records cannot cross a public/unpaid provider boundary. See
-[`docs/CONTRIBUTIONS.md`](CONTRIBUTIONS.md).
-
-## Phase 15 outcome boundary
-
-`@knownpath/outcomes` accepts one observed state per account/execution, stores every report
-privately and immutably, and caps influence per account/KnownPath/version/30-day window. Durable
-per-key and per-account limits complement the HTTP policy. Optional notes pass through the shared
-privacy sanitizer; raw code, prompts, and chain-of-thought are outside the contract.
-
-Each deterministic recomputation appends an immutable `known_path_outcome_assessments` record with
-input IDs, algorithm/policy versions, time-decayed effective sample size, Wilson lower bounds,
-version distribution, trend, penalties, and explanations. `known_paths.latestOutcomeAssessmentId` is
-only a fast pointer. Search ranking policy version 2 gives this conservative component up to 15
-points without erasing source trust, freshness, or version fit.
-
-Safety state is independent. One `misleading_or_unsafe` outcome appends a safety event and queues
-review but does not itself penalize ranking, change lifecycle/moderation, or delist a public record.
-Only corroborated independent reports, verified moderation, or measurable degradation can affect
-ranking/restriction under explicit policy. Safe API/MCP views disclose detailed aggregate outcomes
-only after three independent accounts. See [`docs/OUTCOMES.md`](OUTCOMES.md).
-
-## Phase 20 security and observability boundary
-
-`@knownpath/observability` contains the only OpenTelemetry SDK/exporter integration and a small
-fixed-vocabulary instrumentation API. Fastify request spans contain MCP tool and MongoDB retrieval
-spans; metrics cover HTTP/MCP, retrieval results, ingestion, queues, providers, contributions,
-outcomes, and dependency state. Pino remains the structured log implementation and adds request and
-trace correlation without logging content-bearing error messages.
-
-Valkey now serves both BullMQ coordination and distributed Fastify/MCP abuse controls. These uses
-remain ephemeral and namespaced. MongoDB remains authoritative. Production startup and readiness
-fail closed if distributed request protection is absent; queue dispatch is optional/degraded because
-durable product intent already exists in MongoDB.
-
-The source-ingestion network boundary resolves every allowed host, rejects any non-global A/AAAA
-answer, pins the validated lookup into the HTTP connection, and repeats URL policy checks on every
-manual redirect. See [`SECURITY_ARCHITECTURE.md`](SECURITY_ARCHITECTURE.md) and
-[`OBSERVABILITY.md`](OBSERVABILITY.md).
-
-## Phase 21 distribution boundary
-
-Only the `knownpath` installer/stdio package is public on npm. Internal `@knownpath/*` workspaces
-remain private and are deployed together from the monorepo. The canonical Agent Skill is copied into
-the CLI archive during build; `server.json` describes the same npm-backed stdio MCP distribution
-without creating a second server implementation.
-
-One multi-target root Dockerfile produces non-root API, worker, and web images. MongoDB and Valkey
-remain external production dependencies; Compose supplies a local development topology. Changesets
-records public SemVer intent, while npm, GitHub, container, deployment, and MCP Registry publication
-remain explicit independent maintainer actions.
-
-## Technology fit
-
-- Node.js 24 is the current Active LTS production line and supports the modern ESM baseline.
-- pnpm workspaces provide strict, efficient dependency management; Turborepo adds a small,
-  framework-neutral task graph.
-- Strict TypeScript makes contracts explicit across process and package boundaries.
-- Fastify provides maintained TypeScript-first HTTP infrastructure with a focused plugin model.
-- Next.js supplies a mature React application framework for the later user/admin interface.
-- The official MongoDB driver keeps persistence close to MongoDB capabilities without introducing an
-  unneeded object mapper.
-- The official MCP SDK tracks protocol evolution without putting domain logic in the transport.
-
-Significant selections and rejected alternatives are recorded in
-[`docs/DECISIONS.md`](DECISIONS.md).
+Packages never depend on applications. The domain package imports no Fastify, Next.js, MongoDB, MCP,
+queue, or provider SDK. Raw MongoDB collections do not escape `@knownpath/database`. Transport
+handlers validate and translate; reusable business rules remain in services shared by HTTP, MCP,
+workers, and dashboards.
+
+The dashboard uses a bounded same-origin server bridge to the API. It never connects to MongoDB or
+receives provider credentials. The stdio MCP bridge similarly delegates authentication,
+authorization, ranking, contributions, outcomes, and tenant checks to the API.
+
+## Durable data flow
+
+1. A versioned source registry identifies GitHub repositories, documentation sites, and release
+   feeds.
+2. Collectors normalize each observed object into an immutable `source_item`; mutable
+   `source_item_states` retain latest pointers, hashes, ETags, and refresh lifecycle.
+3. Public source snapshots are assembled into bounded evidence contexts and classified by Gemini
+   through strict structured output. Invalid output is quarantined.
+4. Verification resolves references to immutable snapshots and writes an immutable assessment using
+   deterministic source metadata. The candidate stores only a latest pointer.
+5. Canonicalization creates versioned technical profiles and compares plausible blocked pairs.
+   Deterministic gates authorize safe merges; semantic similarity only strengthens or flags a pair.
+6. Membership changes append events and produce immutable KnownPath revisions plus a stable current
+   projection. Candidates and provenance remain intact.
+7. Search projections support exact error/metadata matching and local weighted text retrieval. Atlas
+   deployments add lexical and vector channels. Application reranking combines relevance, version
+   fit, trust, freshness, outcomes, conflicts, moderation, and lifecycle.
+8. Contributions and outcomes write durable MongoDB records before asynchronous dispatch. Their
+   processing updates candidates, assessments, canonical projections, and ranking through the same
+   boundaries as seeded public knowledge.
+
+## Authentication and API boundary
+
+Better Auth supplies database-backed human sessions while registration remains closed. KnownPath
+issues scoped machine keys whose plaintext is shown once; MongoDB stores only identification
+metadata and an HMAC digest. Principals and policy functions are shared across HTTP, MCP,
+workspaces, and administration.
+
+The API exposes versioned Zod contracts under `/api/v1`. Response schemas are allowlists: raw source
+bodies, embeddings, credentials, provider internals, and hidden tenant fields never leave the
+boundary. Public published knowledge is the default. Review access is explicit, admin-key-only, and
+audited. Private/team access is derived from ownership or live workspace membership.
+
+See [API](API.md), [MCP](MCP.md), and [Workspaces](WORKSPACES.md).
+
+## MongoDB and Valkey
+
+MongoDB stores product entities, immutable histories, audit records, pipeline intent, and derived
+search projections. Initialization creates/reconciles 33 collections, critical validators, and named
+indexes idempotently. See [Data model](DATA_MODEL.md).
+
+Valkey is auxiliary and ephemeral. BullMQ uses it for delivery, schedules, retries, leases, and
+coordination; the API uses it for distributed production rate limits. Product intent is stored in
+MongoDB before dispatch, so queue loss cannot become product-data loss. Production fails closed if
+the distributed limiter is unavailable; queue-only failures can report a degraded state while
+durable writes remain available for reconciliation.
+
+## Search and AI provider boundaries
+
+The embedding and extraction interfaces are provider-neutral, but the configured implementation is
+Gemini. Model names, versions, dimensions, prompt/schema versions, token budgets, and content hashes
+are persisted or configured so work can be reproduced and regenerated.
+
+The unpaid/public Gemini capability is hard-blocked for private and team content—including queries
+and embeddings—with no downgrade path. Private/team retrieval uses deterministic and lexical paths
+unless an explicitly approved private-safe provider is added.
+
+MongoDB local search is the free fallback. Atlas Search and Vector Search are optional deployment
+capabilities, not a second database or a requirement for contributors.
+
+## Visibility and tenancy
+
+The shared domain structures use `public`, `private`, or `team` visibility:
+
+- private records require an owner;
+- team records require a workspace; and
+- public records have neither tenant owner.
+
+Repository methods accept server-derived scope predicates for both lists and direct IDs. Private and
+team outcomes, embeddings, counts, and existence do not influence or leak into public retrieval.
+Public sharing creates a separate sanitized contribution rather than changing proprietary data in
+place.
+
+## Trust model
+
+KnownPath separates source evidence, freshness, version fit, and outcome confidence. Assessments are
+immutable and versioned, with complete signals, weights, caps, reason codes, and explanations.
+First- party documentation and machine-verifiable GitHub metadata are stronger signals; reactions
+are only bounded popularity evidence. Outcome aggregation uses decay, version buckets,
+independent-account limits, and small-sample protection.
+
+Safety review is separate from ranking. A single unsafe report queues review but does not directly
+penalize or delist a record.
+
+## Agent integration
+
+The canonical `skills/knownpath` artifact teaches agents when to search, how to inspect evidence,
+and when consented contribution/outcome reporting is appropriate. It preserves user and repository
+instructions and treats KnownPath results as evidence, never an instruction override.
+
+The installer configures Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode using the same
+skill and stdio bridge. Client files contain environment-variable references, not API-key values.
+
+## Deployment topology
+
+A self-hosted deployment runs stateless API, web, and worker processes with external MongoDB and
+Valkey. An OpenTelemetry Collector and Atlas Search/Vector Search are optional. Images run as a
+non-root Node user. See [Deployment](DEPLOYMENT.md), [Operations](OPERATIONS.md), and
+[Security architecture](SECURITY_ARCHITECTURE.md).
+
+## Architectural principles
+
+- MongoDB is the only durable product database.
+- Evidence and model interpretation remain separate.
+- Scores and merge decisions are deterministic, versioned, explainable, and reversible.
+- External and agent-supplied content is untrusted.
+- Authorization and privacy are server-enforced on every path.
+- Public AI processing never receives private/team data.
+- Valkey failure never discards the only copy of business state.
+- HTTP, MCP, dashboard, and CLI reuse the same services and contracts.
+- Hosted use and self-hosted operation are separate user journeys.
+
+Architecture decision history is maintained in [Decisions](DECISIONS.md).

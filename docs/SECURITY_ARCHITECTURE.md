@@ -1,116 +1,124 @@
 # Security architecture
 
-KnownPath treats authentication data, tenant knowledge, private contributions, source evidence,
-provider credentials, and integrity signals as protected assets. Security enforcement lives in the
-API/domain boundaries, not in dashboard navigation or agent instructions.
+KnownPath protects account credentials, tenant knowledge, provider secrets, source evidence, and
+ranking integrity at API and domain boundaries. Dashboard navigation and Agent Skill instructions
+are usability controls, not authorization controls.
 
 ## Trust boundaries
 
-1. Browsers, CLI clients, and MCP hosts are untrusted callers. Fastify validates input,
-   authenticates credentials, derives authorization from live database state, applies resource
-   limits, and returns allowlisted DTOs.
-2. The stdio MCP process is an unprivileged HTTP bridge. It receives environment references and has
-   no MongoDB, Valkey, GitHub, or Gemini access.
-3. MongoDB is the product source of truth. Every private/team read receives a server-derived owner
-   or workspace predicate. Direct-ID access uses the same predicate as search.
-4. Valkey contains only distributed limits, queues, leases, schedules, and ephemeral coordination.
-   It is security-critical for production request limiting but never the only copy of product data.
-5. GitHub, official documentation sites, and contributions are untrusted evidence. Their text is
-   data, never prompt instructions. Deterministic metadata remains separate from model output.
-6. Gemini and any future model provider are external processors. The configured unpaid path accepts
-   public records only; private/team records fail closed before provider invocation.
-7. Operators and administrators are privileged but not implicitly trusted. Capabilities, recent
-   authentication, exact confirmation, stated reasons, and immutable audit events protect sensitive
-   actions.
-8. OpenTelemetry collectors/exporters are operator-controlled optional dependencies. Telemetry uses
-   an allowlist of low-cardinality attributes and contains no request text or tenant identifiers.
+```text
+browser / CLI / MCP host
+           │ untrusted input
+           ▼
+Fastify API ── authorization, validation, limits, safe DTOs
+   │       │
+   │       └── Valkey: queues, leases, schedules, distributed limits
+   ▼
+MongoDB: durable product state and tenant-scoped records
+   │
+   ├── workers ── allowlisted GitHub/docs fetches
+   └── public-only provider gate ── Gemini
+```
 
-## Attacker goals and controls
+- Browsers, API clients, and MCP hosts are untrusted callers.
+- The local stdio MCP server is a thin HTTP bridge. It has no MongoDB, Valkey, GitHub, or Gemini
+  credentials.
+- MongoDB is the durable source of truth. Private and team reads require an owner/workspace
+  predicate derived from authenticated server state, including direct-ID lookups.
+- Valkey stores ephemeral queue, coordination, and rate-limit state only.
+- GitHub, documentation pages, agent contributions, and model output are untrusted evidence.
+- Gemini is an external processor. The unpaid configuration is public-only and fails closed for
+  private or team data.
+- Administrative authority is constrained by capabilities, recent authentication, confirmation,
+  reasons, reversible actions, and audit events.
 
-| Goal                                      | Primary controls                                                                                                                                                                       |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Steal sessions or API keys                | Secure HttpOnly production cookies, one-time API-key reveal, HMAC digests, distinct secrets, redacted logs, no credentials in MCP/installer config                                     |
-| Cross tenant boundaries                   | Live workspace membership, scoped keys, mandatory repository predicates, inaccessible-ID indistinguishability, separated aggregates                                                    |
-| Exhaust API/provider capacity             | Valkey-backed distributed policies, per-route cost classes, MCP mutation gate, durable outcome limits, BullMQ provider concurrency/limiters, payload/time bounds                       |
-| Reach internal networks through ingestion | Exact HTTPS origin and path allowlists, standard port enforcement, DNS A/AAAA validation, globally routable IP requirement, DNS-pinned Undici connection, manual redirect revalidation |
-| Poison extraction or retrieval            | Source provenance, prompt/data separation, structured output validation, quarantine, deterministic evidence scoring, conservative canonicalization, untrusted MCP result marking       |
-| Manipulate reputation                     | Idempotency, account/execution caps, time/version-aware aggregation, small-sample priors, separate safety review and ranking state                                                     |
-| Abuse administration                      | Server-side capabilities, fresh-session step-up, exact confirmation, reason capture, reversible operations, audit events                                                               |
-| Leak data through telemetry               | Fixed metric/span vocabulary, no queries/content/IDs as attributes, error-class-only tracing, Pino request/trace correlation and credential-path redaction                             |
-| Modify arbitrary installer paths          | Platform-derived absolute paths, symlink rejection, regular-file/directory checks, exclusive temporary files, restrictive modes, backups, owned-only uninstall                         |
-| Introduce vulnerable dependencies         | Frozen pnpm lockfile, minimum release-age policy, `pnpm audit`, Dependabot, dependency review, CodeQL, SHA-pinned workflow actions                                                     |
+## Authentication and authorization
 
-## HTTP, session, and MCP defenses
+Web sessions use secure, HttpOnly cookies in production. Cookie-authenticated mutations require an
+exact trusted `Origin`; CORS uses an explicit origin allowlist. API keys are shown once, stored as a
+keyed digest plus non-secret identification metadata, and authorized by scopes. Authorization,
+cookies, keys, tokens, and response cookies are centrally redacted from logs.
 
-- Production starts only with `API_RATE_LIMIT_STORE=valkey`, a reachable `QUEUE_REDIS_URL`, HTTPS
-  authentication/trusted origins, production Swagger UI disabled, and distinct auth/key secrets.
-- `memory` is an explicit development-only rate-store choice. It is never an automatic fallback.
-- Bearer-key limits use a keyed digest as the Valkey subject; plaintext credentials are never stored
-  in rate-limit keys. Anonymous/session traffic uses the resolved client IP and explicit proxy
-  trust.
-- Cookie-authenticated mutations require an exact trusted `Origin`. API-key calls do not use cookie
-  CSRF semantics. CORS remains an exact origin allowlist.
-- Fastify sets request, connection, keep-alive, parameter, and body limits. Routes lower body limits
-  for search, contributions, outcomes, workspaces, and administration.
-- Remote MCP requires a scoped API key, validates Host and Origin, limits JSON-RPC bodies, applies a
-  transport policy, and separately limits contribution/outcome mutations by key.
-- MCP output is bounded and progressively disclosed. Instruction-like markup and invisible control
-  characters are neutralized, and returned knowledge is labeled untrusted evidence.
+Workspace access is resolved from current membership and role state. Workspace-bound keys cannot
+escape their workspace. Inaccessible private identifiers are handled like nonexistent records to
+avoid revealing their existence.
 
-## Rate-policy classes
+## Request and MCP controls
 
-Policies are deliberately understandable rather than adaptive fingerprints:
+Fastify applies bounded body, parameter, request, connection, and keep-alive limits. Routes tighten
+limits for search, contributions, outcomes, workspaces, and administration. The remote MCP endpoint
+validates authentication, `Host`, `Origin`, JSON-RPC size, tool input, and transport policy. MCP
+mutations have stricter per-key limits, and results are compact, sanitized, and labeled as untrusted
+evidence.
 
-- sign-in: 10/minute;
-- MCP mutations: 8/minute per API key;
-- semantic/provider-backed retrieval: 10/minute per user or API key;
-- outcomes: 10/minute plus durable per-key/account protections;
-- contributions: 12/minute;
-- admin sensitive mutations: 10/minute;
-- search: 30/minute;
-- admin reads: 60/minute;
-- knowledge reads/usage: 120/minute;
-- global default: operator configured.
+Production requires a reachable Valkey-backed distributed limiter. In-memory limiting is available
+only through explicit local-development configuration; there is no automatic fallback. Policies
+distinguish sign-in, MCP mutations, provider-backed retrieval, contributions, outcomes, admin
+mutations, search, and reads. BullMQ separately controls provider/source concurrency.
 
-BullMQ separately limits GitHub, official-source, and Gemini workloads. A limit denial never changes
-product data. If the production rate store is unavailable, protected requests fail safely and
-readiness returns `503`; the process does not silently switch to memory.
+## Source ingestion and SSRF
+
+Official-source requests require an exact HTTPS origin and allowed path, a standard port, and a
+globally routable DNS result. The fetcher validates A and AAAA records, pins the resolved
+connection, disables automatic redirects, and repeats URL and DNS validation at every redirect. New
+source origins require an explicit registry change and operator review.
 
 ## Prompt injection and data poisoning
 
-Extraction prompts delimit source content as quoted untrusted evidence, request no chain of thought,
-and accept only versioned structured output. Runtime schemas reject malformed output. Candidate
-claims cannot create deterministic GitHub/authority signals. Contributions are sanitized and may be
-quarantined; they begin self-reported and unverified. Retrieval preserves provenance and trust
-components. MCP consumers are reminded to apply repository/user rules and verify applicability.
+Source and contributed text is delimited as quoted, untrusted evidence. Extraction asks for
+versioned structured output, never hidden reasoning. Runtime schemas reject or quarantine malformed
+output. Model claims cannot create deterministic source-authority signals or a production trust
+score. Contributions are sanitized, begin as self-reported evidence, and pass through candidate,
+verification, and conservative canonicalization workflows before publication.
 
-## Logging and telemetry privacy
+Outcome manipulation is constrained through idempotency keys, account/installation throttles,
+effective sample limits, version/time weighting, and independent-account aggregation. A single
+`misleading_or_unsafe` report queues review but does not directly penalize ranking or automatically
+delist a record.
 
-Pino remains the structured application log. Request IDs plus OpenTelemetry trace/span IDs provide
-correlation. Authorization, cookies, API keys, passwords, tokens, secrets, plaintext one-time keys,
-and response cookies use centralized redaction paths. Unexpected exception messages/stacks are not
-logged because arbitrary upstream messages can contain credentials or source text.
+## Administration
 
-Allowed telemetry dimensions are bounded enums: HTTP method/route/status class, MCP tool, search
-backend/scope/result class, queue/state, provider/event class, contribution state/visibility,
-outcome class, and dependency state. Never add query text, source content, prompts, code, email, IP
-address, user ID, workspace ID, API-key ID, KnownPath ID, source ID, URL, error message, or an
-unbounded provider response as a label or span attribute.
+Admin authorization is enforced by the backend. High-impact operations—including merge/split,
+quarantine/reject, queue pause/retry, user suspension, and sanitized private-content reveal—require
+a session authenticated within 30 minutes plus exact confirmation. Sensitive actions record actor,
+reason, target, request context, and result in the audit log. Lifecycle states are preferred over
+hard deletion.
 
-Automatic Node resource detection is disabled. Exported resource attributes are limited to the
-configured service name/version and deployment environment, avoiding host IDs, process arguments,
-filesystem paths, and operating-system account names.
+## Logging and observability
+
+Pino logs carry request IDs and active trace/span IDs. OpenTelemetry uses manual instrumentation and
+a fixed low-cardinality vocabulary. Neither path records queries, source bodies, prompts, code,
+notes, credentials, IP addresses, emails, tenant/account IDs, URLs, database statements, or raw
+provider errors. Automatic resource detection and broad automatic instrumentation are disabled.
+
+## Installer and supply chain
+
+The installer derives supported locations through platform APIs, rejects symlinks and unsafe paths,
+uses exclusive temporary files and restrictive permissions, backs up user-owned files, preserves
+unknown config, and removes only KnownPath-owned entries. It writes environment-variable references,
+never API-key values.
+
+The repository uses a frozen lockfile, a minimum dependency-release age, `pnpm audit`, Dependabot,
+dependency review, CodeQL, and commit-SHA-pinned GitHub Actions. Operators must still review
+advisories and update dependencies deliberately.
 
 ## Dependency failure behavior
 
-- MongoDB unavailable: readiness `503`; product operations cannot safely continue.
-- Production Valkey/rate limiter unavailable: startup fails or readiness `503`; no memory fallback.
-- Queue unavailable while the limiter remains reachable: readiness is `degraded`; durable MongoDB
-  writes remain authoritative and reconciliation can enqueue later.
-- OTLP collector unavailable: API/product data is unaffected; exporter retries/drops telemetry under
-  OpenTelemetry SDK policy. The collector is never a product-data dependency.
-- Gemini unavailable: public semantic/extraction work fails explicitly or retries through BullMQ;
-  deterministic/local retrieval remains available where requested.
+| Dependency                        | Behavior                                                                                                    |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| MongoDB                           | Readiness fails; product operations cannot continue safely.                                                 |
+| Production Valkey limiter         | Startup or readiness fails; no memory fallback.                                                             |
+| Queue path with a healthy limiter | Readiness reports degradation; MongoDB writes remain authoritative and reconciliation can enqueue later.    |
+| Gemini                            | Public AI work fails explicitly or retries; deterministic local retrieval remains available where selected. |
+| OTLP collector                    | Product traffic continues; telemetry follows exporter retry/drop behavior.                                  |
+
+## Residual risks
+
+Sanitizers and content classifiers cannot recognize every secret or poisoning attempt. Public source
+metadata can be misleading, maintainer status can change, semantic models can drift, and self-hosted
+operators control deployment and retention choices. KnownPath mitigates these risks with minimum
+data contracts, provenance, conservative ranking, review queues, reprocessing, audit trails, and
+explicit provider/tenant boundaries rather than treating any single signal as truth.
 
 ## References
 
@@ -119,6 +127,5 @@ filesystem paths, and operating-system account names.
 - [OWASP RAG Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/RAG_Security_Cheat_Sheet.html)
 - [OWASP prompt injection prevention](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html)
 - [OWASP SSRF prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
-- [OWASP secrets management](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)
-- [OpenTelemetry handling sensitive data](https://opentelemetry.io/docs/security/handling-sensitive-data/)
+- [OpenTelemetry guidance for sensitive data](https://opentelemetry.io/docs/security/handling-sensitive-data/)
 - [MCP security best practices](https://modelcontextprotocol.io/specification/2026-07-28/basic/security_best_practices)

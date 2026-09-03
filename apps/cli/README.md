@@ -1,57 +1,53 @@
-# KnownPath
+# knownpath
 
-KnownPath is an open-source shared knowledge network for AI coding agents. This package installs
-KnownPath MCP access and the portable KnownPath Agent Skill for supported coding clients.
+The `knownpath` package installs KnownPath MCP access and the portable KnownPath Agent Skill in
+supported coding agents. It is an integration installer and local stdio bridge—not a packaged
+KnownPath backend.
 
-> KnownPath is under active phased development. MCP supports evidence-grounded reads, explicit
-> privacy-minimized contributions, and observed outcome reports after a solution is actually tried.
+## Install
 
-## Quick start
-
-KnownPath requires an operator-selected backend origin and an active API key with `knowledge:read`.
-Contribution additionally requires a deliberately issued `knowledge:contribute` scope. Outcome
-reporting requires `knowledge:outcome`; neither capability enables silent sharing. Set both
-variables in the environment that launches the installer and your coding agent:
+Obtain an API origin and scoped key from the hosted KnownPath operator or your self-hosted
+deployment. Export both values in the environment that will launch the installer and coding agent:
 
 ```sh
-export KNOWNPATH_API_URL='https://your-knownpath-origin.example'
+export KNOWNPATH_API_URL="https://your-knownpath.example"
 read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
+
+npx knownpath install --dry-run
 npx knownpath install
+npx knownpath doctor
 ```
 
-The installer has no URL fallback and never stores or prints either value. Agent configuration
-contains references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`, not their contents.
+There is no implicit URL. The installer stores references to `KNOWNPATH_API_URL` and
+`KNOWNPATH_API_KEY`, never their values, and never prints the key.
 
 ## Commands
 
 ```text
 knownpath install
 knownpath status
+knownpath doctor
 knownpath update
 knownpath uninstall
-knownpath doctor
 ```
 
-Use `--agent codex|claude|cursor|gemini|opencode|all`, `--scope global|project`, `--dry-run`,
-`--yes`, or `--json` as needed. Run `npx knownpath --help` for the complete command reference.
+Supported adapters are OpenAI Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. Use
+`--agent codex|claude|cursor|gemini|opencode|all`, `--scope global|project`, `--dry-run`, `--yes`,
+or `--json` as needed. Run `npx knownpath --help` for the current command reference.
 
-Install is merge-safe and idempotent. Existing configuration is backed up before mutation, unknown
-fields are preserved, conflicting unmanaged entries are not overwritten, and uninstall removes only
+Installation is merge-safe and idempotent. Existing files are backed up before mutation, unknown
+configuration is preserved, unmanaged conflicts stop safely, and uninstall removes only
 KnownPath-owned entries and skill files.
 
-## Supported clients
-
-- OpenAI Codex CLI
-- Claude Code
-- Cursor
-- Gemini CLI
-- OpenCode
+The Agent Skill teaches agents to consult KnownPath for non-trivial reusable technical problems,
+inspect evidence before applying a solution, contribute only with explicit consent after observed
+success, and report outcomes only after a real attempt.
 
 ## Documentation
 
-- [Project repository](https://github.com/nasyx-rakeeb/knownpath)
-- [Installer guide](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/INSTALLER.md)
-- [MCP guide](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/MCP.md)
-- [Agent Skill guide](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/AGENT_SKILL.md)
+- [Agent installation](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/AGENT_INSTALLATION.md)
+- [Installer behavior](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/INSTALLER.md)
+- [MCP tools and transports](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/MCP.md)
+- [Agent Skill behavior](https://github.com/nasyx-rakeeb/knownpath/blob/main/docs/AGENT_SKILL.md)
 
 KnownPath is licensed under Apache-2.0.

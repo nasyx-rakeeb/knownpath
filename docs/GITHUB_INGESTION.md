@@ -1,15 +1,16 @@
 # GitHub ingestion
 
-Phase 4 collects objective public GitHub source material for later processing. It does not infer a
-problem, solution, confidence score, or KnownPath. GitHub-authored text is untrusted Markdown and is
-stored as source evidence, never executed or treated as an instruction.
+KnownPath collects objective public GitHub material through official APIs. It does not scrape GitHub
+HTML and does not infer a fix during collection.
 
-## Initial source registry
+Issue and discussion text is untrusted evidence. It may contain prompt-injection-like instructions,
+malicious markup, or incorrect technical claims.
 
-The versioned manifest at `config/sources/registry.json` is the configuration source of truth. It
-currently enables:
+## Configured repositories
 
-| Key                             | Repository                                         | Types               |
+The source of truth is `config/sources/registry.json`.
+
+| Source key                      | Repository                                         | Content             |
 | ------------------------------- | -------------------------------------------------- | ------------------- |
 | `expo-core`                     | `expo/expo`                                        | issues, discussions |
 | `react-native-core`             | `react/react-native`                               | issues              |
@@ -17,34 +18,29 @@ currently enables:
 | `react-native-new-architecture` | `reactwg/react-native-new-architecture`            | discussions         |
 | `react-native-upgrade-support`  | `react-native-community/upgrade-support`           | issues              |
 
-The worker validates the manifest at startup and verifies each repository's canonical API identity
-and enabled capabilities before collecting it. Adding an ecosystem source is a data change when the
-existing GitHub object types are sufficient.
+The manifest records canonical repository identity, allowed source types, ecosystem hints, refresh
+cadence, publisher, attribution, and source-quality classification.
 
-The manifest is shared with Phase 5 documentation/feed adapters. GitHub entries use the
-`github_repository` discriminator; other adapter kinds are ignored by the GitHub selector.
+## API clients
 
-## API and authentication
+The collector uses Octokit with:
 
-The collector uses GitHub's official APIs through Octokit:
+- GitHub REST API version `2026-03-10` for repositories, issues, issue comments, labels, and
+  reactions;
+- GitHub GraphQL for Discussions, selected answers, nested comments/replies/reactions, and
+  closing-pull-request metadata.
 
-- REST API version `2026-03-10` supplies repositories, issues, issue comments, labels, and
-  reactions. Pull requests returned by the issues endpoint are filtered out.
-- GraphQL supplies Discussions, answer state, discussion comments/replies/reactions, and issue
-  closing-pull-request references.
+Pull requests returned from the REST issues endpoint are filtered out.
 
-Set `GITHUB_TOKEN` to a token permitted to read the selected public repositories. Use the minimum
-permissions GitHub's current token documentation requires; KnownPath needs read-only access and
-never performs GitHub writes. A token must not be passed as a command argument. It is omitted from
-structured logs and stored nowhere in MongoDB.
+## Authentication
 
-Public REST requests can run without a token if GitHub still permits them. They currently receive a
-much lower primary limit (normally 60 requests/hour rather than 5,000 authenticated requests/hour).
-GitHub GraphQL requires authentication, so discussion collection is explicitly counted and logged as
-`capabilitySkipped` without a token.
+`GITHUB_TOKEN` is optional for public REST collection but strongly recommended for practical rate
+limits. GraphQL Discussions require authentication.
 
-For a one-off local run, an existing authenticated GitHub CLI session can supply the token without
-copying it into `.env` or a shell-history argument:
+Use a fine-grained read-only token with access only to the selected public repositories. KnownPath
+does not perform GitHub writes, store the token in MongoDB, or include it in logs.
+
+An existing GitHub CLI session can supply a token for a bounded local run:
 
 ```sh
 export GITHUB_TOKEN="$(gh auth token)"
@@ -52,73 +48,71 @@ pnpm ingest:github --source react-native-discussions --types discussions --limit
 unset GITHUB_TOKEN
 ```
 
-The token still exists in that shell process environment while the command runs. Use a dedicated
-short-lived shell where practical, never enable shell tracing, and keep persistent worker/deployment
-credentials in the platform's secret store rather than deriving them from a developer login.
+Use a dedicated shell, keep shell tracing disabled, and prefer the deployment secret manager for
+long-running workers.
 
-The client processes requests serially, follows explicit cursor/page pagination, observes primary
-and secondary rate-limit responses, honors `Retry-After`/reset information through Octokit's
-throttling support, and uses bounded retry/backoff for transient failures. Waits longer than
-`GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS` fail the run for a later retry. Safe response telemetry
-includes status, rate resource, remaining requests, reset time, and GitHub request ID—not headers or
-tokens.
+Without a token, unsupported GraphQL capability is reported as skipped rather than faked.
 
-## What is stored
+## Collected objects
 
-Each GitHub issue, discussion, comment, and reply becomes its own immutable `source_items` snapshot.
-The normalized envelope contains:
+Issues, discussions, comments, and replies become separate immutable source-item revisions. Stored
+metadata includes, when exposed:
 
-- repository, canonical URL, GitHub database ID/node ID, source identity, and observed revision;
-- title/body, state, created/updated/closed timestamps, author, author association, and site-admin
-  status where exposed;
-- labels, reactions and reaction actors, discussion category/answer state, and reliably exposed
-  closing pull requests;
-- root and parent identities for thread reconstruction;
-- deterministic maintainer/community source quality derived from GitHub author association;
-- a content digest, captured timestamp, provider metadata format version, and deterministic snapshot
-  deduplication key.
+- repository identity;
+- immutable GitHub database and node IDs;
+- canonical URL and parent/root identities;
+- title and body;
+- open/closed state;
+- created, updated, edited, answered, and closed timestamps;
+- author, site-admin flag, and author association;
+- labels;
+- reaction summaries and identifiable actors;
+- discussion category and accepted-answer identity;
+- linked closing pull requests and merge state;
+- content hash, observed revision, and capture time.
 
-The provider payload is objective source metadata, not a stable public API contract. Its
-`formatVersion` must change before an incompatible representation change. Source registries hold
-mutable synchronization cursors; ingestion runs hold status and discovered/created/updated/
-unchanged/failed/rate-limited counts.
+KnownPath preserves `OWNER`, `MEMBER`, and `COLLABORATOR` associations as objective metadata for
+later verification. It does not treat them—or reactions—as truth during ingestion.
 
-## Running collection
+## Run commands
 
-Start MongoDB and reconcile indexes first:
+Initialize MongoDB first:
 
 ```sh
 pnpm dev:infra
 pnpm db:init
 ```
 
-Select exactly one scope. `--limit` bounds top-level threads per enabled source type; related
-comments, replies, and reactions are still collected so a thread remains useful.
+Preview one source:
 
 ```sh
-# Inspect one configured source without writes.
 pnpm ingest:github --source expo-core --types issues --limit 5 --dry-run
+```
 
-# Collect one configured repository.
+Collect by repository or every enabled source:
+
+```sh
 pnpm ingest:github --repository react/react-native --types issues --limit 20
-
-# Collect every enabled source with each source's normal incremental cursor.
 pnpm ingest:github --all --limit 20
 ```
 
-`--types` accepts `issues`, `discussions`, or both as a comma-separated value and must be supported
-by every selected source. `--since` and `--until` require ISO 8601 timestamps with offsets.
+`--types` accepts `issues`, `discussions`, or a comma-separated combination supported by every
+selected registry entry. `--limit` bounds root threads per type; their comments, replies, and
+reactions are still collected to preserve usable context.
 
-## Incremental and backfill behavior
+`--since` and `--until` require ISO 8601 timestamps with offsets.
 
-Normal collection starts from a source's last successful updated-time cursor minus
-`GITHUB_INCREMENTAL_OVERLAP_HOURS` (24 hours by default). A new source uses its configured lookback.
-The overlap captures late edits and timestamp-boundary races; immutable hashes make repeats safe.
-REST issue discovery also retains ETags and uses conditional requests when the same lower bound is
-reused. Cursors move only after every collected object succeeds.
+## Incremental synchronization
 
-Use small incremental limits initially. Historical collection must be deliberate and requires an
-explicit lower bound:
+Normal synchronization starts from the last successful updated-time cursor minus
+`GITHUB_INCREMENTAL_OVERLAP_HOURS` (24 hours by default). The overlap protects against late edits
+and boundary races; content hashes make replay safe.
+
+REST discovery retains ETags and uses conditional requests when the same lower bound is reused.
+Cursors advance only after every selected object completes. Runs record discovered, created,
+updated, unchanged, failed, rate-limited, and capability-skipped counts.
+
+For historical data, provide an explicit bounded window:
 
 ```sh
 pnpm ingest:github \
@@ -130,19 +124,34 @@ pnpm ingest:github \
   --backfill
 ```
 
-Advance backfill windows manually after inspecting rate usage and run counters. Operational syncs
-may also be scheduled through the Phase 16 BullMQ/Valkey pipeline; failed or rate-limited durable
-runs remain available for operators to inspect and retry.
+Advance windows only after inspecting run counts and remaining quota.
+
+## Pagination, rate limits, and retries
+
+REST pages and GraphQL cursors are followed explicitly. Requests are serialized. Octokit's
+throttling support honors primary/secondary rate limits, `Retry-After`, and reset information.
+Transient failures use bounded exponential backoff with jitter.
+
+If the requested wait exceeds `GITHUB_MAX_RATE_LIMIT_WAIT_SECONDS`, the run fails for later queue
+retry instead of sleeping indefinitely. Logs include safe request/rate metadata, never credentials
+or response bodies.
+
+## Idempotency and provenance
+
+Stable GitHub identities plus versioned normalized content hashes prevent duplicates. A new edit
+creates a new immutable source revision; an unchanged replay increments `unchanged`.
+
+Source registries keep mutable sync cursors. Ingestion runs keep operational state and counts.
+Downstream extraction cites exact source-item IDs and excerpts, so later scoring can resolve claims
+back to the immutable GitHub snapshot.
 
 ## Official references
 
 - [GitHub REST API versions](https://docs.github.com/en/rest/about-the-rest-api/api-versions)
 - [REST pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api)
 - [REST rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
-- [REST best practices and conditional requests](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
-- [Issues API](https://docs.github.com/en/rest/issues/issues),
-  [comments](https://docs.github.com/en/rest/issues/comments), and
-  [reactions](https://docs.github.com/en/rest/reactions/reactions)
-- [GraphQL Discussions guide](https://docs.github.com/en/graphql/guides/using-the-graphql-api-for-discussions)
-- [GitHub credential guidance](https://docs.github.com/en/rest/authentication/keeping-your-api-credentials-secure)
-- [Octokit](https://github.com/octokit/octokit.js)
+- [REST API best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api)
+- [Issues API](https://docs.github.com/en/rest/issues/issues)
+- [Reactions API](https://docs.github.com/en/rest/reactions/reactions)
+- [GraphQL Discussions](https://docs.github.com/en/graphql/guides/using-the-graphql-api-for-discussions)
+- [GitHub credential security](https://docs.github.com/en/rest/authentication/keeping-your-api-credentials-secure)

@@ -1,10 +1,90 @@
-# Initial Expo and React Native seed
+# Knowledge ingestion
 
-This runbook takes an empty KnownPath database to a small, real, reviewable seed. It deliberately
-starts bounded. Do not enable every schedule or ingest complete documentation catalogs merely to
-fill the database.
+KnownPath turns high-signal public sources and consented agent experiences into normalized evidence
+for later knowledge processing. Ingestion preserves provenance; it does not decide that a statement
+is true or publish a KnownPath.
 
-## 1. Prepare infrastructure and secrets
+## Pipeline
+
+```text
+source registry
+      ↓
+discovery and incremental synchronization
+      ↓
+immutable normalized source items
+      ↓
+AI-assisted candidate extraction
+      ↓
+deterministic evidence assessment
+      ↓
+conservative canonicalization
+      ↓
+search projection and retrieval
+```
+
+MongoDB is the source of truth at every durable step. Valkey carries only jobs, schedules, retries,
+locks, rate limits, and other ephemeral coordination.
+
+## Source registry
+
+`config/sources/registry.json` declares:
+
+- adapter type;
+- canonical source identity;
+- enabled content types;
+- allowlisted origins and paths;
+- ecosystem/framework hints;
+- authority and attribution;
+- curated discovery rules;
+- version patterns;
+- refresh interval.
+
+Current adapter types are:
+
+- `github_repository`
+- `documentation_site`
+- `release_feed`
+
+Adding a source that fits an existing adapter should usually be a reviewed registry change rather
+than new collector code.
+
+## Current public seed
+
+The initial registry covers:
+
+- Expo and React Native issues/discussions from selected GitHub repositories;
+- Expo documentation and changelog;
+- React Native documentation and release feed.
+
+Normal official-document sync is curated for upgrades, migrations, compatibility, troubleshooting,
+deprecations, breaking changes, and release guidance. Complete `llms.txt` catalogs remain
+discoverable for targeted or bounded full-catalog work.
+
+See [GitHub ingestion](GITHUB_INGESTION.md) and
+[Official-source ingestion](OFFICIAL_SOURCE_INGESTION.md).
+
+## Immutable source items
+
+Each accepted revision creates an immutable `source_items` record with:
+
+- stable provider/source identity;
+- canonical URL;
+- normalized text or structured blocks;
+- content hash and snapshot key;
+- observed/published/captured timestamps;
+- ecosystem, framework, version, document type, and source quality;
+- attribution and license metadata where known;
+- adapter-specific objective metadata.
+
+Mutable synchronization state—cursor, ETag, Last-Modified, fetch time, and current lifecycle—lives
+separately. This keeps source history reproducible while allowing efficient refresh.
+
+All remote content is untrusted. It is stored as evidence text and is never interpreted as an
+instruction.
+
+## Initial seed from an empty database
+
+Operators can create a small reviewable Expo/React Native seed:
 
 ```sh
 corepack enable
@@ -12,100 +92,61 @@ pnpm install --frozen-lockfile
 cp .env.example .env
 pnpm dev:infra:all
 pnpm db:init
-```
 
-Set unique auth secrets. A GitHub token is optional for public REST but enables higher limits and is
-required for Discussions/GraphQL. Use a fine-grained token without write permissions. Set
-`GEMINI_API_KEY` only for the approved public-data account; `AI_DATA_HANDLING=public_only` is a hard
-boundary.
-
-## 2. Inspect the registry and discover
-
-The data-driven registry in `config/sources/registry.json` identifies canonical Expo and React
-Native repositories, curated official pages, full `llms.txt` discovery indexes, authority class, and
-refresh cadence.
-
-```sh
 pnpm ingest:github --source expo-core --types issues --limit 5 --dry-run
 pnpm ingest:sources discover --source expo-documentation --limit 20
-pnpm ingest:sources sync --source expo-documentation --limit 5 --dry-run
-```
 
-Review URLs and expected counts before writes. Normal documentation sync uses curated high-signal
-upgrade, troubleshooting, compatibility, deprecation, migration, and release material. Full indexes
-remain available only for bounded on-demand page/catalog work.
-
-## 3. Ingest bounded real sources
-
-```sh
 pnpm ingest:github --source expo-core --types issues --limit 5
 pnpm ingest:sources sync --source expo-documentation --limit 5
 ```
 
-Inspect MongoDB provenance, normalized text, content hashes, ETags/last-modified metadata, and the
-ingestion run. Rerun the same commands and confirm unchanged items remain unchanged. Expand by
-source/time window only after checking provider limits. See [GitHub ingestion](GITHUB_INGESTION.md)
-and [official sources](OFFICIAL_SOURCE_INGESTION.md).
+Repeat the same commands and confirm unchanged records are reused rather than duplicated.
 
-## 4. Extract public candidates
+Continue the bounded pipeline:
 
 ```sh
 pnpm extract pending --limit 5
-pnpm extract inspect --candidate <candidate-uuid>
-```
-
-Inspect both useful and irrelevant/noisy classifications, evidence references, prompt/schema/model
-versions, and source hashes. Malformed output belongs in quarantine. Never route private or
-workspace data through this public provider path. See [AI extraction](AI_EXTRACTION.md).
-
-## 5. Verify and score
-
-```sh
 pnpm score pending --limit 10
-pnpm score history --candidate <candidate-uuid>
-```
-
-Scoring reads deterministic source metadata and appends immutable assessments. Reactions are
-supporting popularity signals, not truth. Review the complete component/reason breakdown before
-canonicalization. See [Scoring](SCORING.md).
-
-## 6. Canonicalize conservatively
-
-```sh
 pnpm canonicalize profile --limit 10
 pnpm canonicalize discover --limit 10
 pnpm canonicalize review --limit 20
-pnpm canonicalize auto-merge --limit 10
-```
-
-The final command is dry-run unless `--apply` is explicit. Deterministic fingerprints/blocking come
-first; semantic similarity can strengthen or flag a pair but cannot authorize a semantic-only merge.
-Keep ambiguous candidates separate/reviewable and preserve every source relationship.
-
-## 7. Build retrieval projections and embeddings
-
-```sh
 pnpm run search project --pending --limit 10
-pnpm run search indexes print
-pnpm run search query --text "EAS build cannot resolve module" --ecosystem expo --include-review
 ```
 
-Local retrieval remains useful without vector search. Atlas deployments create/search current
-indexes through the documented search commands. Public-only embedding generation records model,
-version, dimensions, timestamp, and content hash. See [Retrieval](RETRIEVAL.md).
+`canonicalize auto-merge` is a preview unless `--apply` is supplied. Do not publish records merely
+to populate a demo. Inspect source provenance, candidate output, score explanations, merge
+decisions, caveats, and applicability before moderation.
 
-## 8. Review and publish
+## Incremental behavior
 
-Use the authenticated admin console to inspect source provenance, extraction, immutable scores,
-canonical memberships, conflicts, and caveats. Review state is the correct seed state until an
-operator has evidence to publish. Do not mark records verified/published merely to make search
-demonstrations easier.
+Stable provider IDs and versioned content hashes make synchronization idempotent:
 
-Once the bounded chain is understood, enable schedules deliberately:
+- unchanged content updates mutable observation state only;
+- changed content creates a new immutable snapshot;
+- cursors advance only after successful bounded collection;
+- failed items do not block unrelated source records;
+- downstream idempotency keys incorporate source hashes and processing versions.
 
-```sh
-QUEUE_SCHEDULES_ENABLED=true pnpm jobs schedules apply
-pnpm jobs schedules status
-```
+Scheduled pipelines dispatch changed source items into extraction, scoring, canonicalization, and
+projection without relying on Valkey as business storage. See [Operations](OPERATIONS.md).
 
-Provider quotas, retries, quarantine, and recovery are documented in [Operations](OPERATIONS.md).
+## Privacy boundary
+
+Public source records may use the configured public Gemini extraction and embedding provider.
+Personal-private and workspace/team records are blocked before unpaid/public provider calls.
+
+Agent contributions enter through the same source/candidate/assessment architecture only after
+consent and sanitization. See [Contributions](CONTRIBUTIONS.md).
+
+## Operating safely
+
+- Start with `--dry-run` and a small `--limit`.
+- Expand time windows gradually.
+- Use a read-only GitHub token for authenticated collection.
+- Respect source refresh intervals, robots policies, rate limits, and `Retry-After`.
+- Keep source allowlists minimal.
+- Review quarantined records instead of retrying malformed content indefinitely.
+- Preserve attribution and provenance when changing normalization.
+
+Deployment prerequisites and scheduled worker operation are documented in
+[Deployment](DEPLOYMENT.md) and [Operations](OPERATIONS.md).

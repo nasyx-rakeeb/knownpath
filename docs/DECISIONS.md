@@ -1,7 +1,8 @@
 # Architecture Decision Log
 
 Architecture-level decisions are appended to this file. Existing entries should not be silently
-rewritten when circumstances change; add a superseding entry instead.
+rewritten when circumstances change; add a superseding entry instead. Decisions are accepted unless
+an entry is explicitly marked superseded.
 
 ## 2026-08-22 — Use Node.js 24 LTS
 
@@ -29,9 +30,11 @@ new foundation needs. Package-manager-only scripts lack a dependency-aware build
 **References:** [pnpm workspaces](https://pnpm.io/workspaces),
 [Turborepo TypeScript guide](https://turborepo.com/docs/guides/tools/typescript)
 
-## 2026-08-22 — Use strict ESM TypeScript 6 temporarily
+## 2026-08-22 — Use strict ESM TypeScript 6
 
-**Decision:** Author all code in strict ESM TypeScript and use TypeScript 6.0.3 for Phase 1.
+**Status:** Accepted; revisit when the lint and framework toolchain supports TypeScript 7 directly.
+
+**Decision:** Author all code in strict ESM TypeScript and use TypeScript 6.0.3.
 
 **Why:** TypeScript 7.0 is stable and substantially faster, but it does not yet expose the compiler
 API. The current `typescript-eslint` release declares TypeScript support below 6.1. A dual
@@ -75,8 +78,8 @@ Next.js route handlers would couple the backend API to the dashboard deployment.
 
 **Decision:** Use Next.js 16 with React 19 and the App Router.
 
-**Why:** It is a maintained TypeScript/React framework that can grow into both public and
-administrative server-rendered interfaces. Phase 1 contains only a static status shell.
+**Why:** It is a maintained TypeScript/React framework for both public and administrative
+server-rendered interfaces without coupling the API to the web deployment.
 
 **Reference:** [Next.js installation](https://nextjs.org/docs/app/getting-started/installation)
 
@@ -86,10 +89,11 @@ administrative server-rendered interfaces. Phase 1 contains only a static status
 run MongoDB 8.0 locally through Docker Compose.
 
 **Why:** MongoDB is a product constraint and fits evolving document-shaped knowledge records. The
-official driver exposes MongoDB capabilities directly while persistence schemas are still undefined.
+official driver exposes MongoDB capabilities directly without a competing object-mapping layer.
 
-**Rejected:** Mongoose would introduce a second schema abstraction before domain invariants exist.
-Redis, Valkey, PostgreSQL, and dedicated vector databases have no Phase 1 requirement.
+**Rejected:** Mongoose would introduce a second schema abstraction. PostgreSQL and dedicated vector
+databases would add another durable store without a product requirement. Valkey was subsequently
+added only for ephemeral orchestration and distributed limits.
 
 **References:**
 [MongoDB Node.js connection guide](https://www.mongodb.com/docs/drivers/node/current/connect/),
@@ -97,9 +101,9 @@ Redis, Valkey, PostgreSQL, and dedicated vector databases have no Phase 1 requir
 
 ## 2026-08-22 — Isolate MCP and Agent Skill distribution
 
-**Decision:** Keep MCP transport in `apps/mcp-server`, future per-agent installation logic in
-`packages/agent-adapters`, and the future Agent Skill as a separate distribution artifact. Use the
-official MCP TypeScript SDK v2. Phase 1 registers no MCP capabilities and ships no Agent Skill.
+**Decision:** Keep MCP transport in `apps/mcp-server`, per-agent installation logic in
+`packages/agent-adapters`, and the Agent Skill as a separate distribution artifact. Use the official
+MCP TypeScript SDK v2.
 
 **Why:** MCP is a protocol adapter; an Agent Skill is a portable instruction/resource artifact.
 Neither should own domain or retrieval behavior. The open Agent Skills convention requires a
@@ -157,7 +161,7 @@ make normalization changes migratable and avoid claiming semantic equivalence pr
 
 **Rejected:** `ObjectId` would couple core contracts to MongoDB. Time-ordered IDs are unnecessary
 because chronological queries already require explicit indexed timestamps. Aggressive error/version
-rewriting is semantic deduplication and belongs to a later phase.
+rewriting is semantic deduplication and belongs to the canonicalization boundary.
 
 ## 2026-08-22 — Keep MongoDB access behind named repositories
 
@@ -181,24 +185,21 @@ destructive for an initialization command.
 
 ## 2026-08-22 — Defer vector and automatic retention indexes
 
+**Status:** Superseded in part.
+
+**Superseded by:** “Materialize versioned search projections and fuse channels in application code”
+for optional Atlas Vector Search, and “Use BullMQ with Valkey for ephemeral orchestration and
+MongoDB for durable intent” for the worker-heartbeat TTL index. Product-data TTL deletion remains
+deferred.
+
 **Decision:** Store provider-neutral search/embedding state but no vector values or vector indexes.
 Create no TTL index until retention requirements are known.
 
-**Why:** Phase 2 must preserve future provider flexibility without selecting retrieval
-infrastructure or deleting operational history before real retention needs exist.
+**Why:** The initial persistence boundary needed provider flexibility without selecting retrieval
+infrastructure or deleting operational history before real retention needs existed.
 
-**Rejected:** Adding a vector index now would prematurely design a later search phase. Adding Redis,
-Valkey, a vector database, or TTL policy has no Phase 2 requirement.
-
-## 2026-08-22 — Resequence authentication as Phase 3
-
-**Decision:** Treat the current approved phase instruction as authoritative and implement the secure
-authentication/API-key foundation in Phase 3. The source ingestion work named as Phase 2's exact
-next phase becomes Phase 4.
-
-**Why:** `progress.md` truthfully preserves what Phase 2 expected at completion, while the later
-explicit user instruction intentionally changes sequencing. Appending this decision avoids silently
-rewriting historical phase records.
+**Rejected:** Adding a vector index before retrieval requirements were defined would have selected
+infrastructure prematurely. A dedicated vector database remains rejected.
 
 ## 2026-08-22 — Use Better Auth with one closed-registration user identity
 
@@ -212,7 +213,7 @@ are provisioned only through the masked repository CLI.
 uses memory-hard scrypt hashing, performs origin/CSRF checks, and supplies revocable sessions. A
 single identity avoids synchronization and authorization drift. Better Auth's Mongo adapter treats
 its `"uuid"` mode as BSON UUID storage, so KnownPath supplies a UUID-generating function to preserve
-Phase 2's stable string-ID contract.
+the stable string-ID contract.
 
 **Rejected:** Separate auth/domain users duplicate identity and failure states. A custom password or
 session framework creates an unnecessary security-critical surface. JWT browser sessions weaken
@@ -226,7 +227,7 @@ simple revocation. A paid hosted identity provider conflicts with the open-sourc
 
 ## 2026-08-22 — Keep agent API keys in the KnownPath domain
 
-**Decision:** Retain the Phase 2 `api_keys` aggregate rather than adopt Better Auth's separate
+**Decision:** Retain the KnownPath `api_keys` aggregate rather than adopt Better Auth's separate
 API-key plugin model. Keys contain a public prefix plus 32 random secret bytes. Only an HMAC-SHA-256
 digest protected by a required, independently managed pepper is persisted. Key management is
 session-only; bearer use is constrained by owner status and a closed scope enum.
@@ -244,21 +245,26 @@ a leaked agent credential. The Better Auth plugin would create a second key sour
 [OWASP REST Security](https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html),
 [Better Auth API-key reference](https://better-auth.com/docs/plugins/api-key/reference)
 
-## 2026-08-22 — Make HTTP security explicit and keep rate limiting process-local
+## 2026-08-22 — Make HTTP security explicit and initially keep rate limiting process-local
+
+**Status:** Superseded in part.
+
+**Superseded by:** “Fail closed with Valkey limits and use explicit OpenTelemetry instrumentation”
+for production rate limiting. The HTTP security and OpenAPI choices remain current.
 
 **Decision:** Generate an OpenAPI 3.1 contract from Zod route schemas with Fastify's maintained
 plugins. Use server-generated request IDs, one error envelope, credential-redacted Pino logging,
 explicit CORS origins, explicit proxy addresses, environment-aware secure cookies/HSTS, and
-`@fastify/rate-limit` 11.2 or newer. Phase 3 uses its in-memory per-process store behind reusable
-policy contracts and adds no auxiliary service.
+`@fastify/rate-limit` 11.2 or newer. The initial deployment used its in-memory per-process store
+behind reusable policy contracts.
 
 **Why:** These controls make the API inspectable and safe by default while the project still runs as
 a single local process. The selected rate-limit release contains the official IPv6 normalization
 security fix. A separate distributed store is unjustified until deployment topology requires one.
 
 **Rejected:** Wildcard credentialed CORS, blindly trusting all forwarded headers, request-body
-logging, and caller-controlled request IDs create avoidable security ambiguity. Redis/Valkey would
-violate the phase's infrastructure restraint.
+logging, and caller-controlled request IDs create avoidable security ambiguity. Redis/Valkey was
+deferred until distributed deployment made it necessary.
 
 **References:** [Fastify logging](https://fastify.dev/docs/latest/Reference/Logging/),
 [Fastify server options](https://fastify.dev/docs/latest/Reference/Server/),
@@ -304,17 +310,7 @@ move the source cursor past work that needs retrying.
 
 **Rejected:** Overwriting one mutable document loses edit history. Embedding whole threads creates
 large, frequently rewritten documents. Cursor-only collection without overlap risks boundary misses.
-Semantic deduplication and inferred fixes belong to later processing phases.
-
-## 2026-08-22 — Resequence authoritative source ingestion as Phase 5
-
-**Decision:** Treat the explicit Phase 5 instruction as authoritative and ingest first-party Expo
-and React Native documentation/release material before AI extraction. The AI-extraction phase named
-at Phase 4 completion moves to the exact next phase.
-
-**Why:** Official guidance can strengthen or contradict community evidence and should exist before
-the extractor and scoring design are fixed. `progress.md` preserves Phase 4's historical expectation
-and appends this deliberate sequencing change rather than rewriting history.
+Semantic deduplication and inferred fixes belong to downstream processing.
 
 ## 2026-08-22 — Prefer official structured catalogs with configurable curated synchronization
 
@@ -379,9 +375,9 @@ and broaden the allowed source surface.
 
 ## 2026-08-22 — Use Gemini Interactions with stable 3.5 Flash-Lite by default
 
-**Decision:** Implement the real Phase 6 provider with Google's official `@google/genai` 2.18 SDK
-and Interactions API. Default to configurable stable `gemini-3.5-flash-lite`, `store: false`, no
-tools, minimal thinking, no thinking summaries, and strict JSON-schema output. Pin the SDK below its
+**Decision:** Implement the extraction provider with Google's official `@google/genai` 2.18 SDK and
+Interactions API. Default to configurable stable `gemini-3.5-flash-lite`, `store: false`, no tools,
+minimal thinking, no thinking summaries, and strict JSON-schema output. Pin the SDK below its
 announced Node-22-requiring 3.0 change until that release is deliberately reviewed.
 
 **Why:** Google recommends Interactions for new applications. The stable Flash-Lite model supports a
@@ -401,7 +397,7 @@ API adds a separate file/job lifecycle and is deferred until measured volume jus
 
 ## 2026-08-22 — Make unpaid Gemini public-only before provider construction
 
-**Decision:** Model provider capability as `public_only` or future `approved_private`. Phase 6
+**Decision:** Model provider capability as `public_only` or `approved_private`. Current
 configuration accepts only `AI_DATA_HANDLING=public_only`. The extraction service rejects any
 private/team registry, requested source, or selected context item before constructing the provider
 or issuing a request. The whole attempt is blocked with `ai_private_data_not_approved`; force,
@@ -436,7 +432,7 @@ be supplied to the model; paraphrased evidence remains quarantined.
 **Why:** Operational attempts have a different lifecycle and retention need from candidate
 knowledge. Persisting prompt/model/usage/latency/status provenance makes charged work reproducible
 without storing raw invalid responses. Keeping numeric trust and freshness exclusively on KnownPaths
-prevents Gemini from becoming the deterministic scorer reserved for Phase 7.
+prevents Gemini from becoming the deterministic scoring authority.
 
 **Rejected:** Storing every model call as a candidate conflates non-solutions and malformed output
 with knowledge. A single source-hash key would miss prompt/model/schema changes. Embedding attempt
@@ -469,16 +465,16 @@ contention. Computing every latest score at read time is unnecessarily expensive
 ## 2026-08-22 — Treat seed confidence as explainable ranking, not probability
 
 **Decision:** Implement `knownpath-seed-evidence` version 1 as deterministic integer 0–100 scoring
-with separately stored source-evidence, freshness, version-fit, and future outcome components.
-Objective official/GitHub metadata supplies strong signals. Closure timing and reactions are weak,
-capped signals. Conflicts, unsupported model labels, weak confirmation, staleness, and missing
-provenance are explicit penalties or caps. Outcome confidence remains unobserved until real reports
-exist and its future schema records Wilson bounds.
+with separately stored source-evidence, freshness, version-fit, and outcome components. Objective
+official/GitHub metadata supplies strong signals. Closure timing and reactions are weak, capped
+signals. Conflicts, unsupported model labels, weak confirmation, staleness, and missing provenance
+are explicit penalties or caps. Outcome confidence remains unobserved until real reports exist;
+observed assessments record Wilson bounds.
 
 **Why:** The available seed signals are heterogeneous ranking evidence, not independent probability
-measurements. Component storage and reason codes prevent fake precision and let future agent
-outcomes be statistically conservative at small sample sizes. Versioned policy JSON permits
-deterministic rescore experiments without environment-driven hidden behavior.
+measurements. Component storage and reason codes prevent fake precision and keep agent outcomes
+statistically conservative at small sample sizes. Versioned policy JSON permits deterministic
+rescore experiments without environment-driven hidden behavior.
 
 **Rejected:** Letting Gemini choose confidence makes the result non-reproducible. Treating reactions
 as truth rewards popularity. A single opaque floating-point score obscures conflicts and freshness.
@@ -524,11 +520,11 @@ The unpaid provider remains `public_only`; private/team input fails with an acti
 **Why:** Provider metadata makes vectors safely regenerable when models or dimensions change. The
 privacy gate prevents silent free-tier disclosure and lets a future explicitly approved paid,
 self-hosted, or alternative provider plug into the same orchestration. Ordinary document storage is
-sufficient for bounded pair comparison in this phase.
+sufficient for bounded pair comparison.
 
 **Rejected:** Storing only vectors loses reproducibility. A fallback from private/team processing to
-the public free path violates the data boundary. Creating a MongoDB vector index now would implement
-Phase 9 retrieval prematurely.
+the public free path violates the data boundary. Creating a MongoDB vector index before the
+retrieval projection existed would couple two separate embedding lifecycles.
 
 **References:** [Gemini embeddings](https://ai.google.dev/gemini-api/docs/embeddings),
 [Gemini model reference](https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2),
@@ -545,12 +541,12 @@ recomputing a new opaque score.
 
 **Why:** Canonical identity must remain stable as evidence improves, while every merge decision and
 prior projection remains debuggable and reversible. An append-only resumable operation journal works
-on the standalone local MongoDB topology and can later be wrapped in transactions where a replica
-set is operationally justified.
+on the standalone local MongoDB topology and can be wrapped in transactions where a replica set is
+operationally justified.
 
 **Rejected:** Deleting merged candidates destroys provenance. Overwriting canonical summaries loses
-history. Requiring local replica-set transactions in this phase adds operational complexity and does
-not replace idempotent recovery. Forcing all alternatives into one solution erases legitimate
+history. Requiring local replica-set transactions adds operational complexity and does not replace
+idempotent recovery. Forcing all alternatives into one solution erases legitimate
 environment-specific fixes.
 
 **References:**
@@ -635,14 +631,12 @@ requires explicit request intent plus an active admin-owned API key with `knowle
 admin sessions remain published-only. Hide inaccessible review IDs behind `knowledge_not_found` and
 append review search/read audit events with user, key, request, target, and timestamp metadata.
 
-**Why:** The real Phase 9 corpus contains two review records and zero published records. Durable
-moderation access permits honest verification without falsely publishing them or adding a
-development bypass. Explicit intent prevents administrator role from silently widening every
-request.
+**Why:** Review records need durable moderation access without being falsely published or exposed
+through a development bypass. Explicit intent prevents administrator role from silently widening
+every request.
 
-**Rejected:** Publishing verification records misstates their lifecycle. A local-only bypass must be
-removed later and risks production exposure. Ordinary user keys and sessions cannot safely inspect
-unapproved knowledge.
+**Rejected:** Publishing review records misstates their lifecycle. A local-only bypass risks
+production exposure. Ordinary user keys and sessions cannot safely inspect unapproved knowledge.
 
 ## 2026-08-22 — Keep search selection usage separate from agent outcomes
 
@@ -663,9 +657,9 @@ operational usage with immutable sensitive-action history.
 
 **Decision:** Build MCP with the official TypeScript SDK v2 and the current `2026-07-28` protocol
 era. Host the production stateless Streamable HTTP endpoint at `/mcp` inside the existing Fastify
-API. Keep `apps/mcp-server` as a lightweight stdio client of the Phase 10 HTTP API, configured only
-by `KNOWNPATH_API_URL`, `KNOWNPATH_API_KEY`, and bounded transport limits. Create both transports
-from the same `@knownpath/mcp` tool contracts/server factory.
+API. Keep `apps/mcp-server` as a lightweight stdio client of the HTTP API, configured only by
+`KNOWNPATH_API_URL`, `KNOWNPATH_API_KEY`, and bounded transport limits. Create both transports from
+the same `@knownpath/mcp` tool contracts/server factory.
 
 **Why:** The backend is already the authority for API-key authentication, lifecycle authorization,
 review auditing, retrieval/ranking, usage, and persistence. A thin bridge makes agent installation
@@ -686,6 +680,12 @@ future deployment/authentication decision.
 
 ## 2026-08-22 — Keep the MCP surface compact and progressively disclosed
 
+**Status:** Superseded in part.
+
+**Superseded by:** The consented contribution and observed-outcome decisions, which added
+`knownpath_contribute` and `knownpath_report_outcome`. The four read tools and
+progressive-disclosure design remain current.
+
 **Decision:** Advertise only `knownpath_search`, `knownpath_get`, `knownpath_alternatives`, and
 `knownpath_status`. Bound all input arrays/text and output counts/text; return
 match/trust/freshness, safe provenance links, stable error codes, and explicit truncation state.
@@ -694,8 +694,8 @@ contribution/outcome names in documentation but do not register fake write tools
 
 **Why:** Agents need predictable schemas and high-signal context, not transport-shaped REST calls or
 large source dumps. Progressive disclosure reduces context cost while preserving explainability.
-Passing `searchId` to `get` records selection through the Phase 10 usage boundary without confusing
-it with success.
+Passing `searchId` to `get` records selection through the usage boundary without confusing it with
+success.
 
 **Rejected:** Many overlapping tools increase tool-selection ambiguity. Returning raw records leaks
 internal/provider fields and wastes context. Placeholder writes imply behavior the system cannot yet
@@ -708,7 +708,7 @@ Skills frontmatter and portable Markdown instructions. Allow automatic and manua
 positive triggers for non-trivial debugging, migrations, dependency/build/version/environment
 problems, and unfamiliar errors, plus explicit exclusions for trivial edits and unrelated work. Keep
 detailed Expo/React Native examples in one optional reference. Document client-specific manual links
-separately and defer automatic installation/adapters to Phase 13.
+separately and let the installer own client placement.
 
 **Why:** A single artifact avoids behavior drift across Codex, Claude Code, Cursor, Gemini CLI, and
 other conforming clients. Precise metadata lets agents consult shared experience before expensive
@@ -730,15 +730,14 @@ unimplemented writes.
 
 ## 2026-08-23 — Install a thin bridge through owned, reversible per-agent adapters
 
-**Decision:** Publish the Phase 13 CLI as the future `knownpath` npm package and make
-`npx -y knownpath mcp` the default stdio entry in Codex CLI, Claude Code, Cursor, Gemini CLI, and
-OpenCode. Each client config contains only its documented reference form for `KNOWNPATH_API_URL` and
-`KNOWNPATH_API_KEY`; both must exist at install/update and agent launch, and there is no URL
-fallback. Keep client detection/configuration and non-secret ownership state in
-`@knownpath/agent-adapters`, while the CLI owns prompts/output and packages the one canonical skill.
-Bundle private workspace implementation into the npm artifact while leaving maintained public
-libraries as normal versioned runtime dependencies, so the released executable does not depend on
-unpublished `@knownpath/*` packages.
+**Decision:** Publish the CLI as the `knownpath` npm package and make `npx -y knownpath mcp` the
+default stdio entry in Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. Each client config
+contains only its documented reference form for `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; both
+must exist at install/update and agent launch, and there is no URL fallback. Keep client
+detection/configuration and non-secret ownership state in `@knownpath/agent-adapters`, while the CLI
+owns prompts/output and packages the one canonical skill. Bundle private workspace implementation
+into the npm artifact while leaving maintained public libraries as normal versioned runtime
+dependencies, so the released executable does not depend on unpublished `@knownpath/*` packages.
 
 Prefer official MCP mutation commands for Claude Code and Gemini CLI when installed. Use a bounded
 managed TOML block for Codex and structural JSONC edits for documented JSON clients. Back up an
@@ -757,8 +756,9 @@ backups, and atomic edits make repeated installation and reversal safe across sh
 **Rejected:** Literal key values in config, a committed/default URL, direct MongoDB/provider access,
 or per-agent bridge logic would weaken the central security boundary. Wholesale config rewrites and
 blind adoption of an existing `knownpath` entry risk destroying user work. Keychain integration is
-premature in this phase. GitHub Copilot, Cline, and Windsurf adapters remain deferred rather than
-depending on preview, extension-specific, or insufficiently stable mechanisms.
+outside the selected configuration model. GitHub Copilot, Cline, and Windsurf adapters remain
+unsupported rather than depending on preview, extension-specific, or insufficiently stable
+mechanisms.
 
 **References:** [OpenAI Codex MCP](https://developers.openai.com/codex/mcp/),
 [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Cursor MCP](https://cursor.com/docs/mcp),
@@ -772,7 +772,7 @@ depending on preview, extension-specific, or insufficiently stable mechanisms.
 monorepo root. Keep MongoDB Atlas as the database, use Render's runtime `PORT` with explicit
 `0.0.0.0` binding, and define commands, health checks, non-secret settings, generated auth secrets,
 and the Atlas URI placeholder in a root Blueprint. Use the Singapore region and free instance for
-initial verification; upgrade the same service before relying on it for always-on MCP traffic.
+initial low-cost operation; upgrade the same service before relying on it for always-on MCP traffic.
 
 **Why:** The API is already the authority for authentication, authorization, retrieval, auditing,
 and MCP HTTP transport. Deploying it establishes the stable HTTPS origin required by the installer
@@ -793,6 +793,12 @@ hardcoded API URL would violate the installer's explicit environment-reference m
 
 ## 2026-08-23 — Accept minimized contributions through a consented, low-trust pipeline
 
+**Status:** Superseded in part.
+
+**Superseded by:** “Use explicit shared-collection tenant scope and live workspace membership,”
+which added team contributions after workspace ownership and authorization existed. The consent,
+sanitization, provider, and low-trust rules remain current.
+
 **Decision:** Accept only versioned structured public or owner-private lessons through an API key
 with `knowledge:contribute`. Require explicit per-submission consent, default accounts to `ask`, and
 reject team visibility. Sanitize before persistence with Secretlint plus bounded PII/path/URL
@@ -802,7 +808,7 @@ an immutable source snapshot, pending candidate, immutable deterministic assessm
 review—not directly to canonical knowledge. Cap self-reported confidence at 34.
 
 The optional generalizer interface declares either `public_only` or `approved_private`, and the
-visibility gate runs before provider construction/call. Phase 14 configures no generalizer. Thus
+visibility gate runs before provider construction/call. No generalizer is currently configured. Thus
 private contributions remain inside the backend and MongoDB, with no unpaid Gemini, public
 embedding, external-provider fallback, or silent public conversion.
 
@@ -853,7 +859,7 @@ integer ranking contract.
 event and queues the KnownPath for review. It does not directly change ranking, confidence,
 lifecycle, moderation, or visibility. A ranking penalty requires two independent eligible safety
 reporters within 90 days, verified moderation, or separately measured outcome degradation. Only an
-explicit later safety-policy/moderation action may restrict published visibility.
+explicit safety-policy/moderation action may restrict published visibility.
 
 **Why:** Fast review response reduces safety latency, while separation prevents one account from
 gaming rank or delisting content. Account/version/window influence caps, durable rate limits, and
@@ -927,7 +933,7 @@ fan-out is discovered dynamically and durable service-level idempotency is clear
 
 **Decision:** Keep the Render API on its free web-service plan, use one free Upstash
 Redis-compatible database for BullMQ queue state, and run the existing six consumers through a
-bounded `jobs drain` command scheduled every fifteen minutes on GitHub Actions. Keep continuous
+bounded `jobs drain` command scheduled twice per hour on GitHub Actions. Keep continuous
 `jobs start` semantics unchanged. Treat this as an early deployment with delayed processing, not an
 always-on production SLA.
 
@@ -940,7 +946,7 @@ remain authoritative if a run is delayed or interrupted.
 **Rejected:** Render's free Key Value instance can restart without preserving queue state, and a
 laptop worker is not reliably available. An always-on Render worker plus persistent Key Value gives
 better latency but creates recurring cost before KnownPath has measured usage. Replacing BullMQ with
-a provider-specific scheduler would undo Phase 16's queue boundary.
+a provider-specific scheduler would bypass the queue boundary.
 
 **References:** [Upstash BullMQ integration](https://upstash.com/docs/redis/integrations/bullmq),
 [Upstash durability](https://upstash.com/docs/redis/features/durability),
@@ -949,8 +955,8 @@ a provider-specific scheduler would undo Phase 16's queue boundary.
 
 ## 2026-08-25 — Keep the dashboard server-first behind an allowlisted same-origin bridge
 
-**Decision:** Build the Phase 17 developer dashboard with the existing Next.js 16 App Router and
-warm green/cream identity. Server Components read runtime-validated safe DTOs directly from Fastify.
+**Decision:** Build the developer dashboard with the existing Next.js 16 App Router and warm
+green/cream identity. Server Components read runtime-validated safe DTOs directly from Fastify.
 Browser mutations use a narrow same-origin route bridge configured by `KNOWNPATH_API_URL`; the
 bridge allowlists product routes, limits request bodies, never forwards Authorization, and preserves
 secure session cookies. Fastify remains the sole authority for auth, ownership, visibility,
@@ -968,8 +974,9 @@ tokens Better Auth uses for token-oriented session management.
 
 **Rejected:** Direct MongoDB access from Next.js duplicates authorization and persistence
 boundaries. A broad reverse proxy could accidentally expose admin routes. Storing API keys or
-session tokens in local storage weakens credential isolation. Adding public signup, OAuth, or an
-admin console would expand beyond Phase 17 and the closed-registration decision.
+session tokens in local storage weakens credential isolation. Adding public signup or OAuth would
+conflict with the closed-registration decision. Administration was subsequently added through the
+same API and web boundaries rather than a separate data path.
 
 **References:** [Next.js authentication](https://nextjs.org/docs/app/guides/authentication),
 [Next.js data security](https://nextjs.org/docs/app/guides/data-security),
@@ -1016,9 +1023,9 @@ persisted sanitized V2 structured payload with `no-store`; original digests, rem
 credentials, and redacted material remain unavailable.
 
 **Why:** Moderators sometimes need the generalized private lesson to investigate abuse or safety,
-but broad or silent visibility would weaken Phase 14's privacy boundary. Separate authorization and
-per-access audit make necessity and repeated access reviewable without pretending the original
-submission can be reconstructed.
+but broad or silent visibility would weaken the contribution privacy boundary. Separate
+authorization and per-access audit make necessity and repeated access reviewable without pretending
+the original submission can be reconstructed.
 
 **Rejected:** Showing private content on every contribution page overexposes user data. Showing the
 original unsanitized submission is impossible by design and would violate data minimization.
@@ -1057,7 +1064,7 @@ free embeddings or changing visibility in place violates the approved privacy bo
 [MongoDB Vector Search tenant filtering](https://www.mongodb.com/docs/atlas/atlas-vector-search/multi-tenant-architecture/),
 [OWASP Authorization](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html),
 [OWASP BOLA](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/),
-[MCP authorization](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization)
+[MCP authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 
 ## 2026-08-28 — Fail closed with Valkey limits and use explicit OpenTelemetry instrumentation
 
@@ -1145,7 +1152,7 @@ existing architecture and tightens an observable lifecycle boundary without addi
 **Rejected:** Dropping/recreating Atlas indexes causes unnecessary search downtime. Skipping domain
 revalidation would weaken defense in depth. Advertising JavaScript `Date` values in JSON Schema is
 not protocol-compatible. Relaxing symlink protections or recursively deleting installer state would
-weaken the Phase 20 filesystem boundary.
+weaken the installer filesystem boundary.
 
 **References:**
 [MongoDB Search index management](https://www.mongodb.com/docs/manual/reference/method/db.collection.updateSearchIndex/),

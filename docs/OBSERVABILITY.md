@@ -1,15 +1,13 @@
 # Observability
 
-`@knownpath/observability` is the provider-neutral OpenTelemetry boundary. It uses explicit manual
-spans and metrics so KnownPath controls attribute cardinality and prevents accidental content
-capture. Traces and metrics are stable in OpenTelemetry JavaScript; Pino remains the log pipeline
-because OpenTelemetry JavaScript logs are still under development.
+KnownPath uses Pino for structured application logs and `@knownpath/observability` as an explicit,
+provider-neutral OpenTelemetry boundary. Manual instrumentation keeps metric and span attributes
+bounded and prevents source content, queries, and tenant data from being collected accidentally.
 
-Automatic resource detection and automatic framework/database instrumentation are disabled. This
-prevents host IDs, process arguments, local paths, database statements, and request URLs from being
-captured outside KnownPath's explicit attribute allowlist.
+The OTLP exporter is optional. Telemetry failure does not change authentication, writes, tenant
+enforcement, or retrieval behavior.
 
-## Configure
+## Configuration
 
 Telemetry is disabled by default:
 
@@ -18,35 +16,71 @@ OTEL_ENABLED=false
 OTEL_EXPORTER=none
 ```
 
-For local inspection, use `OTEL_ENABLED=true` and `OTEL_EXPORTER=console`. For an operator-owned
-collector, use `OTEL_EXPORTER=otlp` and set `OTEL_EXPORTER_OTLP_ENDPOINT` to its HTTP origin/base
-path. KnownPath sends traces to `/v1/traces` and metrics to `/v1/metrics`. Standard exporter header
-environment variables may be managed by the runtime; never commit them.
+For local inspection:
 
-The collector/exporter is optional. Its outage does not affect product writes, auth, tenant
-enforcement, or retrieval. OpenTelemetry export should be routed through a collector in production.
+```dotenv
+OTEL_ENABLED=true
+OTEL_EXPORTER=console
+```
 
-## Instruments
+For an operator-owned collector:
 
-- HTTP request counts/duration/error status by route template, method, and status class;
-- MCP calls/duration by the six stable tool names and success/error;
-- search count, empty/non-empty result class, result count, backend, and coarse scope;
-- dependency checks for MongoDB, queue, production rate limiter, and telemetry;
-- queue depth snapshots by fixed queue/state;
-- GitHub/official ingestion transitions;
-- GitHub/Gemini rate-limit, quota, authentication, and transient-failure classes;
-- contribution state/visibility and bounded outcome classifications;
+```dotenv
+OTEL_ENABLED=true
+OTEL_EXPORTER=otlp
+OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.example.com
+OTEL_SERVICE_NAME=knownpath-api
+OTEL_SERVICE_VERSION=your-release-version
+OTEL_METRIC_EXPORT_INTERVAL_MS=60000
+```
+
+KnownPath appends `/v1/traces` and `/v1/metrics` to the configured OTLP HTTP endpoint. Manage
+standard exporter headers in the deployment secret store; never commit them. Route production
+exports through a collector that uses TLS and applies a second sensitive-attribute filter.
+
+## Signals
+
+The current instruments cover:
+
+- HTTP counts, duration, and status class by route template and method;
+- MCP call count/duration by the six registered tool names and result class;
+- search count, result count, empty/non-empty class, backend, and coarse visibility scope;
+- MongoDB, queue, production limiter, and telemetry dependency checks;
+- queue depth by fixed queue and state;
+- ingestion item transitions and provider rate-limit/quota/failure classes;
+- contribution state/visibility and bounded outcome classifications; and
 - security denials by surface and reason class.
 
-HTTP spans nest MCP tool spans and a manual MongoDB knowledge-search span. Pino request logs bind
-the request ID and active trace/span IDs. `traceparent` is returned for diagnostic correlation.
+HTTP spans contain MCP tool spans and explicit database/search spans. Pino request logs include the
+request ID and active trace/span IDs; responses expose `traceparent` for correlation.
 
-## Privacy contract
+## Privacy and cardinality policy
 
-Telemetry must never contain queries, code, prompts, source text, contribution/outcome notes, raw
-errors, URLs, authorization/cookies, IPs, emails, user/workspace/API-key IDs, KnownPath/source IDs,
-or arbitrary strings. New instruments require a bounded attribute vocabulary and a security review.
-This restriction applies even to private operator-controlled collectors.
+Telemetry must not contain:
+
+- queries, prompts, source text, code, contributions, or outcome notes;
+- credentials, cookies, authorization headers, raw errors, or provider responses;
+- URLs, IP addresses, emails, filesystem paths, or database statements; or
+- user, workspace, API-key, KnownPath, source, or other record identifiers.
+
+Allowed attributes are fixed low-cardinality values such as method, route template, status class,
+tool name, search backend, queue/state, provider event class, visibility, and outcome class. New
+instruments require the same bounded vocabulary and a privacy review.
+
+Automatic framework/database instrumentation and Node resource detection are disabled. Exported
+resource attributes are limited to configured service name, version, and deployment environment,
+avoiding host IDs, process arguments, local paths, and operating-system account names.
+
+## Failure and operating guidance
+
+If a collector is unavailable, OpenTelemetry applies exporter retry/drop behavior while the product
+continues to serve. Alert on sustained export failure separately from product readiness. Operators
+should also alert on MongoDB readiness, production limiter failure, queue backlog/failures, provider
+quota exhaustion, elevated HTTP/MCP error rates, empty-search trends, moderation backlog, and recent
+outcome degradation.
+
+Use trace and request IDs to correlate events, then consult MongoDB audit/history records for
+durable truth. Never add sensitive content to logs to make an incident easier to debug.
 
 ## References
 

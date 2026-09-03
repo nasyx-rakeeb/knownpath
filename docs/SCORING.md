@@ -1,101 +1,140 @@
-# Deterministic evidence and seed-confidence scoring
+# Evidence and trust scoring
 
-## Scope
+KnownPath verifies candidate claims against immutable source snapshots and computes an explainable
+integer score from 0 to 100. The score is a ranking signal, not a calibrated probability or a claim
+of truth.
 
-Phase 7 verifies extracted candidate claims against immutable source snapshots and produces an
-explainable seed-confidence assessment. It does not call Gemini, merge duplicate candidates, promote
-candidates into KnownPaths, or incorporate agent outcomes. A score is an integer ranking signal from
-0–100, not a calibrated probability that a solution is true.
+Gemini never assigns this score.
 
-## Evidence verification
+## Evidence integrity
 
-Every referenced source ID must resolve through `@knownpath/database`. Direct evidence digests,
-canonical URLs, exact excerpts, and visibility must match persisted source data. Any mismatch makes
-the assessment `ineligible` with score 0. Model-suggested labels remain untrusted until the verifier
-can establish them from objective metadata.
+Every candidate evidence reference must resolve to a stored source item. The verifier checks:
 
-GitHub signals are derived only from captured provider metadata:
+- source ID;
+- content digest;
+- canonical URL;
+- exact cited excerpt;
+- visibility compatibility.
 
-- `OWNER`, `MEMBER`, and `COLLABORATOR` identify current repository authority. `CONTRIBUTOR` is not
-  treated as current authority.
-- `isAnswer` verifies a selected Discussion answer.
-- Original-author confirmation requires a `verifies_outcome` reference authored by the thread's
-  original author. Text similarity alone is insufficient.
-- A merged closing pull request is strong supporting evidence when GitHub exposes it.
-- Closure after a solution is worth only five points and explicitly does not establish causality.
-- Reactions/upvotes are deduplicated by actor where identities exist, logarithmically scaled, and
-  capped at +6/-6. They are popularity signals, never truth.
+Any integrity mismatch makes the assessment ineligible with score 0. Model-suggested labels remain
+unsupported until deterministic source metadata proves them.
 
-First-party official source classification comes from deterministic registry/source metadata, not
-the model. Conflicts remain explicit negative signals; authoritative conflicts carry a stronger
-penalty and cap the final result below `high`.
+## Verified signals
 
-## Version 2 algorithm and policy
+GitHub signals come only from persisted provider metadata:
 
-The algorithm identifier is `knownpath-seed-evidence`, algorithm version 2. The bundled policy is
-`knownpath-seed-confidence`, policy version 2. The verifier implementation is independently
-versioned. Each assessment stores all three versions plus the complete policy digest.
+- `OWNER`, `MEMBER`, and `COLLABORATOR` identify repository authority;
+- accepted Discussion answers use GitHub's selected-answer semantics;
+- original-author confirmation requires a cited outcome statement from the root author;
+- merged closing pull requests count only when GitHub reports the merge;
+- closure after a proposed solution is a weak temporal signal and never proves causality;
+- reactions are deduplicated where actor identity exists, scaled logarithmically, and capped.
 
-Source-evidence points are additive and clamped to 0–100:
+First-party authority comes from the source registry and normalized source record, not from model
+text. Conflicting evidence remains explicit and is weighted by source authority.
 
-| Signal                                 |    Points | Strength             |
-| -------------------------------------- | --------: | -------------------- |
-| Grounded extraction references         |       +20 | moderate             |
-| Uncorroborated agent self-report       |        +5 | weak                 |
-| First-party official solution guidance |       +40 | decisive             |
-| Repository authority solution          |       +28 | strong               |
-| Selected GitHub Discussion answer      |       +24 | strong               |
-| Original author confirms outcome       |       +20 | strong               |
-| Merged closing pull request            |       +15 | strong               |
-| Thread closes after solution           |        +5 | weak temporal signal |
-| Independent-source convergence         | up to +15 | moderate             |
-| Positive/negative reactions            | +6/-6 max | weak popularity      |
-| Authoritative conflict                 |       -35 | strong               |
-| Community conflict                     |       -15 | moderate             |
-| Unsupported model-suggested label      |       -10 | moderate             |
+## Current policy
 
-No strong/decisive confirmation caps source evidence at 55. An authoritative conflict caps the final
-score at 69. A stale applicability result also caps it at 69. A `very_high` result requires a
-decisive signal or at least two strong signals; otherwise it is capped at 84. Any assessment
-containing an agent self-report signal is capped at 34 until independent evidence or future observed
-outcomes justify a stronger score.
+The current identifiers are:
 
-The seed result is:
+- algorithm: `knownpath-seed-evidence` version 2;
+- policy: `knownpath-seed-confidence` version 2;
+- verifier implementation: version 6.
+
+Source-evidence points:
+
+| Signal                                 |    Points |
+| -------------------------------------- | --------: |
+| Grounded extraction references         |       +20 |
+| Uncorroborated agent self-report       |        +5 |
+| First-party official solution guidance |       +40 |
+| Repository authority solution          |       +28 |
+| Selected GitHub Discussion answer      |       +24 |
+| Original author confirms outcome       |       +20 |
+| Merged closing pull request            |       +15 |
+| Thread closes after solution           |        +5 |
+| Independent-source convergence         | up to +15 |
+| Positive/negative reactions            | capped ±6 |
+| Authoritative conflict                 |       -35 |
+| Community conflict                     |       -15 |
+| Unsupported candidate label            |       -10 |
+
+Reactions measure popularity only. They cannot create a high-confidence result.
+
+The seed score is:
 
 ```text
 round(source evidence × 0.70 + freshness × 0.20 + version fit × 0.10)
 ```
 
-Grades are `very_low` 0–24, `low` 25–49, `moderate` 50–69, `high` 70–84, and `very_high` 85–100. The
-complete component values, raw inputs, applied caps, reason codes, and explanations are stored.
+Grades:
 
-## Freshness and version fit
+| Score  | Grade       |
+| ------ | ----------- |
+| 0–24   | `very_low`  |
+| 25–49  | `low`       |
+| 50–69  | `moderate`  |
+| 70–84  | `high`      |
+| 85–100 | `very_high` |
 
-Freshness uses an explicit `evaluatedAt`, latest source observation time, grace period, and
-half-life. Time-sensitive upgrade/release/compatibility/migration/deprecation/breaking-change
-material uses 90 grace days and a 180-day half-life. General material uses 180 grace days and a
-365-day half-life. This makes decay reproducible and inspectable rather than dependent on hidden
-wall-clock reads.
+## Caps and penalties
 
-Version fit is independent: exact normalized overlap scores 100; general versionless official
-guidance 75; one-sided context 55; unknown 40; explicit conflict 10. This is intentionally lexical
-metadata matching, not semantic compatibility inference.
+Caps prevent weak evidence from accumulating into false precision:
 
-## Immutable history and idempotency
+- no strong/decisive confirmation caps source evidence at 55;
+- authoritative conflict caps the final score at 69;
+- stale applicability caps the final score at 69;
+- `very_high` requires a decisive signal or two strong signals, otherwise the score is capped at 84;
+- any uncorroborated agent self-report is capped at 34.
 
-Every result is a new `candidate_assessments` document. Existing assessments are never updated. The
-candidate has only a mutable `latestAssessmentId` pointer for fast access. The idempotency key
-covers the candidate material digest, resolved source IDs/hashes, algorithm/policy/verifier
-versions, policy digest, and evaluation timestamp. Normal CLI defaults use UTC-day evaluation
-granularity so same-day unchanged reruns reuse an assessment. `--force` intentionally creates
-another immutable record.
+Every assessment stores the applied cap, reason codes, explanations, component values, and complete
+inputs.
 
-Phase 15 keeps this seed assessment unchanged and adds a separate immutable KnownPath outcome
-assessment. Its time-decayed Wilson lower bounds, effective sample size, version distribution,
-trend, and penalties never overwrite source-evidence history. Retrieval policy version 2 gives the
-conservative outcome component up to 15 points while source trust, freshness, and version fit remain
-separately inspectable. See [`OUTCOMES.md`](OUTCOMES.md) for the current algorithm and safety-review
-policy.
+## Freshness
+
+Freshness is independently calculated from an explicit `evaluatedAt`, latest source observation,
+grace period, and half-life.
+
+- Time-sensitive upgrade, release, compatibility, migration, deprecation, and breaking-change
+  material: 90-day grace and 180-day half-life.
+- General material: 180-day grace and 365-day half-life.
+
+The calculation is reproducible and can be rerun at a historical timestamp.
+
+## Version fit
+
+Current deterministic metadata scores:
+
+- exact normalized overlap: 100;
+- general versionless official guidance: 75;
+- partial/one-sided context: 55;
+- unknown: 40;
+- explicit conflict: 10.
+
+This is metadata matching, not dependency resolution. Unknown applicability is never reported as
+confirmed.
+
+## Immutable assessments
+
+Each result is a separate immutable `candidate_assessments` record. It contains algorithm,
+policy/digest, verifier version, evaluation time, signals, inputs, components, caps, final score,
+reason codes, and explanations.
+
+The candidate stores only `latestAssessmentId` for fast access. Rescoring appends history and moves
+that pointer; it never overwrites an older assessment.
+
+Idempotency covers candidate material, source IDs/hashes, algorithm/policy/verifier versions, policy
+digest, and evaluation timestamp. Normal CLI runs use UTC-day granularity. `--force` intentionally
+creates another audit record.
+
+## Outcome confidence
+
+Agent outcomes remain a separate immutable KnownPath-level assessment. Time-decayed Wilson lower
+bounds and effective sample size protect against tiny samples. Retrieval uses up to 15 ranking
+points from observed outcomes without changing source-evidence history.
+
+Safety review also remains separate: one report queues review, while ranking penalty requires
+corroboration, moderation, or measurable degradation. See [Outcomes](OUTCOMES.md).
 
 ## Commands
 
@@ -107,17 +146,13 @@ pnpm score inspect --assessment <uuid>
 pnpm score history --candidate <uuid>
 ```
 
-Use `--as-of <ISO timestamp>` for reproducible historical evaluation. Use `--policy <path-to-json>`
-to inspect a deliberately modified, runtime-validated policy. Use `--force` only when a distinct
-audit record is intentional. `pending` selects candidates without a latest pointer; `all` safely
-re-evaluates every selected candidate and reuses exact matches.
+Use `--as-of <ISO timestamp>` for historical evaluation and `--policy <json-file>` for a
+deliberately changed, runtime-validated policy.
 
 ## References
 
-- [GitHub GraphQL `CommentAuthorAssociation`](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation)
-- [GitHub Discussions GraphQL objects](https://docs.github.com/en/graphql/reference/objects#discussion)
-- [GitHub reactions REST API](https://docs.github.com/en/rest/reactions/reactions)
-- [NIST confidence intervals and Wilson method](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/binotest.htm)
-- [Semantic Versioning 2.0.0](https://semver.org/)
-- [Elasticsearch date-decay functions](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-function-score-query.html#function-decay)
-- [OpenSSF Scorecard checks](https://scorecard.dev/)
+- [GitHub author association](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation)
+- [GitHub Discussions](https://docs.github.com/en/graphql/reference/objects#discussion)
+- [GitHub reactions](https://docs.github.com/en/rest/reactions/reactions)
+- [NIST confidence intervals](https://www.itl.nist.gov/div898/software/dataplot/refman1/auxillar/binotest.htm)
+- [Semantic Versioning](https://semver.org/)
