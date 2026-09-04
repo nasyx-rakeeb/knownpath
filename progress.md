@@ -3390,8 +3390,14 @@ Verification completed:
   `pnpm package:validate`, `npm pack --dry-run`, and the high-severity dependency audit. The
   official hosted API liveness endpoint returned HTTP 200.
 
-The committed hosted API/web changes still require deployment before the production browser flow is
-available: the currently deployed registration route and proposed web origin both returned HTTP 404.
+Release/deployment completed on 2026-09-04: `knownpath@0.5.0` is the npm `latest` package, the
+annotated `v0.5.0` tag and GitHub release are public, and both Render services report successful
+deployment. Production smoke checks observed API readiness HTTP 200, open-registration HTTP 200, a
+valid device-grant response without printing its codes, and the rendered signup page HTTP 200. A
+clean `npx knownpath@0.5.0` invocation reported version `0.5.0` and its empty-home install dry-run
+remained write/auth free. CI, CodeQL, dependency audit, and Dependabot-update workflows passed for
+the release source commit.
+
 Native credential persistence was exercised on macOS; Windows Credential Manager and Linux Secret
 Service remain documented-library/platform checks. Cursor and Gemini CLI were not installed locally,
 so their verified official formats were exercised through isolated adapter fixtures rather than the
