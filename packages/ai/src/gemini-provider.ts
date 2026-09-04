@@ -98,7 +98,7 @@ function mapUsage(usage: {
 }
 
 function classifyGeminiError(error: unknown): ExtractionProviderError {
-  const status = error instanceof ApiError ? error.status : undefined;
+  const status = geminiHttpStatus(error);
   const message = error instanceof Error ? error.message : "Gemini request failed";
   if (status === 401 || status === 403) {
     recordProviderEvent("gemini", "authentication");
@@ -117,4 +117,14 @@ function classifyGeminiError(error: unknown): ExtractionProviderError {
     return new ExtractionProviderError("ai_provider_transient_failure", message, true);
   }
   return new ExtractionProviderError("ai_provider_permanent_failure", message, false, status);
+}
+
+function geminiHttpStatus(error: unknown): number | undefined {
+  if (error instanceof ApiError) return error.status;
+  if (error === null || typeof error !== "object") return undefined;
+  for (const key of ["status", "statusCode"] as const) {
+    const value = Reflect.get(error, key);
+    if (typeof value === "number" && Number.isInteger(value)) return value;
+  }
+  return undefined;
 }
