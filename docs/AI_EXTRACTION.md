@@ -114,8 +114,10 @@ An extraction attempt key includes:
 An unchanged terminal attempt is reused without another provider call. `--force` creates a
 deliberate new attempt but does not weaken privacy.
 
-Requests are serialized. Network, 408, 429, and 5xx failures receive bounded exponential backoff.
-Authentication, permission, configuration, schema, and privacy errors do not.
+Requests are serialized. Network, 408, and 5xx failures receive bounded exponential backoff. A 429
+is recorded as quota exhaustion without an immediate retry storm; operators can explicitly requeue
+the failed extraction after the project's quota window resets. Authentication, permission,
+configuration, schema, and privacy errors do not.
 
 Command budgets limit target count, provider calls, estimated input, reported tokens, output tokens,
 request spacing, and retries. Quota exhaustion stops the batch. The asynchronous Gemini Batch API is

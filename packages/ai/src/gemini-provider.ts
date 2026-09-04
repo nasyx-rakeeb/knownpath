@@ -106,7 +106,7 @@ function classifyGeminiError(error: unknown): ExtractionProviderError {
   }
   if (status === 429) {
     recordProviderEvent("gemini", "quota");
-    return new ExtractionProviderError("ai_provider_quota_exhausted", message, true, status);
+    return new ExtractionProviderError("ai_provider_quota_exhausted", message, false, status);
   }
   if (status === 408 || (status !== undefined && status >= 500)) {
     recordProviderEvent("gemini", "transient_failure");
