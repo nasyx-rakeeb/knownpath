@@ -121,7 +121,9 @@ recovery key makes repeated invocations idempotent for the same failed attempt.
 
 Gemini extraction uses the stable `generateContent` structured-output API. This keeps the
 free-development `gemini-2.5-flash-lite` path independent of Interactions API model availability;
-the selected model and generation configuration remain part of extraction provenance.
+the selected model and generation configuration remain part of extraction provenance. The scheduled
+worker validates that its API key exposes the configured model with `generateContent` support before
+installing dependencies or touching queue state.
 
 ## Valkey outages
 

@@ -91,6 +91,26 @@ jobs:
           done
           exit "${missing}"
 
+      - name: Validate configured Gemini model
+        shell: bash
+        run: |
+          response_file="$(mktemp)"
+          trap 'rm -f "${response_file}"' EXIT
+          curl --silent --show-error --fail \
+            --header "x-goog-api-key: ${GEMINI_API_KEY}" \
+            --output "${response_file}" \
+            "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
+          if ! jq --exit-status --arg model "models/${GEMINI_MODEL}" \
+            '.models[] | select(.name == $model and (.supportedGenerationMethods | index("generateContent")))' \
+            "${response_file}" >/dev/null; then
+            echo "::error::GEMINI_MODEL=${GEMINI_MODEL} is not exposed to this API key with generateContent support."
+            echo "Available generateContent models:"
+            jq --raw-output \
+              '.models[] | select(.supportedGenerationMethods | index("generateContent")) | .name' \
+              "${response_file}"
+            exit 1
+          fi
+
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
 
