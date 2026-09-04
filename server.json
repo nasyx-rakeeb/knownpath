@@ -3,7 +3,7 @@
   "name": "io.github.nasyx-rakeeb/knownpath",
   "title": "KnownPath",
   "description": "Evidence-grounded shared technical knowledge for AI coding agents.",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "websiteUrl": "https://github.com/nasyx-rakeeb/knownpath",
   "repository": {
     "url": "https://github.com/nasyx-rakeeb/knownpath",
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "knownpath",
-      "version": "0.4.2",
+      "version": "0.5.0",
       "runtimeHint": "npx",
       "runtimeArguments": [
         {
@@ -25,22 +25,6 @@
         {
           "type": "positional",
           "value": "mcp"
-        }
-      ],
-      "environmentVariables": [
-        {
-          "name": "KNOWNPATH_API_URL",
-          "description": "KnownPath HTTP API origin selected by the operator.",
-          "isRequired": true,
-          "isSecret": false,
-          "format": "string"
-        },
-        {
-          "name": "KNOWNPATH_API_KEY",
-          "description": "KnownPath API key with the scopes required by the enabled tools.",
-          "isRequired": true,
-          "isSecret": true,
-          "format": "string"
         }
       ],
       "transport": {

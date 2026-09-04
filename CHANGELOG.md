@@ -10,6 +10,16 @@ intents.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-04
+
+### Added
+
+- Add one-command hosted installation with browser signup/sign-in and device authorization.
+- Store scoped machine credentials in the native OS credential store and keep agent configuration
+  secret-free.
+- Add CLI login, logout, and identity inspection while preserving explicit self-hosted and legacy
+  environment credential paths.
+
 ## [0.4.2] - 2026-08-31
 
 ### Fixed
@@ -39,7 +49,8 @@ intents.
 - Environment-reference-only KnownPath API URL and key configuration.
 - Packaged canonical KnownPath Agent Skill and stdio MCP bridge.
 
-[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.3.0...v0.4.0
