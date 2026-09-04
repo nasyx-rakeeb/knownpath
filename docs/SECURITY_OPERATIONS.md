@@ -29,9 +29,12 @@ Never put secrets in issues, commits, shell history, agent prompts, or logs.
 
 ### KnownPath API key
 
-Create a replacement through the dashboard or authenticated API, update `KNOWNPATH_API_KEY` in the
-agent's launch environment, run `knownpath doctor`, and revoke the old key. Installer-managed agent
-configuration contains only the variable reference and does not need rewriting.
+For a CLI-device credential, revoke it in the dashboard or run `knownpath logout`, then run
+`knownpath login` or `knownpath install` to authorize a replacement and save it in the native OS
+credential store. Agent configuration does not need rewriting and contains no secret.
+
+For an advanced manual/environment key, create a replacement through the dashboard/API, update both
+the secure environment source and all consumers, run `knownpath doctor`, then revoke the old key.
 
 ### Session and API-key secrets
 

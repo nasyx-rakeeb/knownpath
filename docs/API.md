@@ -210,9 +210,27 @@ GET  /api/v1/account/sessions
 POST /api/v1/account/sessions/:id/revoke
 ```
 
-Sign-in and password/session lifecycle are mounted under `/api/v1/auth`. Registration, public
-signup, email verification, password reset, and OAuth are not exposed. Accounts are provisioned by
-an operator using `pnpm auth:user:create`.
+Sign-in, signup, device authorization, and password/session lifecycle are mounted under
+`/api/v1/auth`. `GET /api/v1/auth/registration` reports whether the deployment permits public
+signup. Operators set `AUTH_REGISTRATION_MODE=open|closed`; closed deployments provision users with
+`pnpm auth:user:create`.
+
+CLI authorization uses the RFC 8628-style endpoints below. Device/user codes are short-lived,
+rate-limited, one-time records; they are not long-lived credentials.
+
+```text
+POST /api/v1/auth/device/code
+GET  /api/v1/auth/device?user_code=...
+POST /api/v1/auth/device/approve
+POST /api/v1/auth/device/deny
+POST /api/v1/auth/device/token
+POST /api/v1/device-credentials/exchange
+POST /api/v1/device-credentials/revoke-current
+```
+
+An authenticated browser session must claim and approve a code. The exchange consumes the temporary
+proof atomically and returns one dedicated `cli_device` API key once. Email verification, password
+reset, OAuth providers, and MCP OAuth discovery are not exposed.
 
 ## Workspace routes
 

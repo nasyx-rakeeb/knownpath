@@ -34,6 +34,7 @@ export const userSchema = z.strictObject({
 });
 
 export const apiKeyStatusSchema = z.enum(["active", "revoked", "expired"]);
+export const apiKeyCredentialKindSchema = z.enum(["manual", "cli_device"]);
 export const apiKeyBindingSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("personal") }),
   z.strictObject({ kind: z.literal("workspace"), workspaceId: workspaceIdSchema }),
@@ -55,6 +56,7 @@ export const apiKeySchema = z.strictObject({
   prefix: z.string().regex(/^kp_[a-zA-Z0-9]{12}$/u),
   keyHash: sha256Schema,
   hashVersion: z.int().positive(),
+  credentialKind: apiKeyCredentialKindSchema.default("manual"),
   binding: apiKeyBindingSchema.default({ kind: "personal" }),
   scopes: z.array(apiKeyScopeSchema).max(32),
   status: apiKeyStatusSchema,
@@ -67,5 +69,6 @@ export const apiKeySchema = z.strictObject({
 export type User = z.infer<typeof userSchema>;
 export type ApiKey = z.infer<typeof apiKeySchema>;
 export type ApiKeyScope = z.infer<typeof apiKeyScopeSchema>;
+export type ApiKeyCredentialKind = z.infer<typeof apiKeyCredentialKindSchema>;
 export type UserRole = z.infer<typeof userRoleSchema>;
 export type ApiKeyBinding = z.infer<typeof apiKeyBindingSchema>;

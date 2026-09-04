@@ -134,19 +134,22 @@ export function ApiKeyManager({ initialKeys }: { initialKeys: ApiKeyMetadata[] }
                   </div>
                   <code>{key.prefix}••••••••</code>
                   <small>
-                    Created {formatDate(key.createdAt)} · {key.scopes.join(", ")}
+                    {key.credentialKind === "cli_device" ? "CLI device" : "Manual key"} · Created{" "}
+                    {formatDate(key.createdAt)} · {key.scopes.join(", ")}
                   </small>
                 </div>
                 {key.status !== "active" ? null : (
                   <div className="row-actions">
-                    <button
-                      className="quiet-button"
-                      disabled={pending}
-                      onClick={() => rotate(key.id)}
-                      type="button"
-                    >
-                      Rotate
-                    </button>
+                    {key.credentialKind === "manual" ? (
+                      <button
+                        className="quiet-button"
+                        disabled={pending}
+                        onClick={() => rotate(key.id)}
+                        type="button"
+                      >
+                        Rotate
+                      </button>
+                    ) : null}
                     <AlertDialog.Root>
                       <AlertDialog.Trigger asChild>
                         <button className="danger-button" disabled={pending} type="button">

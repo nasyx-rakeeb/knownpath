@@ -3346,3 +3346,53 @@ and diff whitespace checks passed. The dependency audit initially found newly di
 advisories in transitive lockfile resolutions; only those resolutions were refreshed from
 `3.1.5`/`4.1.2` to patched `3.1.7`/`4.1.4`, after which the audit reported no known vulnerabilities.
 No product feature phase was started and no runtime behavior was changed.
+
+## Post-Phase 22 — Zero-config hosted onboarding
+
+The normal installer previously required users to supply `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`
+at install time and whenever an agent launched. Hosted onboarding now starts with
+`npx knownpath install`: the CLI selects the versioned official API origin, opens a short-lived
+browser/device authorization, exchanges the one-time grant for an existing KnownPath API-key
+credential, stores the secret in the native OS credential store, installs secret-free MCP/Agent
+Skill configuration, and verifies the connection. Public signup is enabled in the official Render
+configuration; self-hosters retain an explicit `open|closed` registration setting.
+
+The device flow uses separate device/user codes, bounded polling, one-time session consumption,
+distributed rate policies, authenticated approval, origin/CSRF protection, expiry, revocation, and
+credential lifecycle audit events. CLI-device keys use the existing digest-only API-key model and
+carry `knowledge:read`, `knowledge:contribute`, and `knowledge:outcome`; contribution consent
+remains `ask` by default. `login`, `logout`, and `whoami` manage credentials independently of
+installer state. `@napi-rs/keyring` uses Keychain, Credential Manager, or Secret Service with no
+plaintext fallback. Profile metadata is non-secret, permission-restricted, and symlink-safe.
+
+Self-hosters can use `--api-url` with the same browser flow. The complete legacy environment pair
+remains an explicit `--auth api-key` compatibility path. Installer-owned environment-reference
+entries migrate to the profile-aware stdio bridge; unrelated or modified configuration is still
+preserved/refused according to ownership rules. Documentation, the dashboard signup/device approval
+flows, API-key metadata, `.env.example`, Render Blueprint, architecture decisions, and npm package
+README were updated to match.
+
+Verification completed:
+
+- installed dependencies from the frozen lockfile; initialized the Atlas schema/indexes twice and
+  confirmed idempotent `auth_device_codes` validator/index reconciliation;
+- completed a real local signup -> device claim -> approval -> token -> one-time exchange -> MCP
+  status -> revocation flow; replay and revoked-key requests returned unauthorized;
+- stored a real development credential in macOS Keychain, ran `whoami`, invoked the stdio bridge
+  with the official MCP SDK without KnownPath environment variables, then revoked/removed it;
+- installed, reinstalled, inspected, and uninstalled all five adapter formats in an isolated home;
+  repeated install was idempotent, unrelated config survived, and generated configs contained no
+  environment references or credential-shaped plaintext;
+- confirmed dry-run in an empty home performed no authentication or writes; scanned tracked files
+  and profile metadata with zero copies of the generated credential; removed all temporary users,
+  keys, sessions, audit records, profiles, and adapter fixtures;
+- passed `pnpm install --frozen-lockfile`, formatting, typecheck, lint, full build,
+  `pnpm package:validate`, `npm pack --dry-run`, and the high-severity dependency audit. The
+  official hosted API liveness endpoint returned HTTP 200.
+
+The committed hosted API/web changes still require deployment before the production browser flow is
+available: the currently deployed registration route and proposed web origin both returned HTTP 404.
+Native credential persistence was exercised on macOS; Windows Credential Manager and Linux Secret
+Service remain documented-library/platform checks. Cursor and Gemini CLI were not installed locally,
+so their verified official formats were exercised through isolated adapter fixtures rather than the
+real clients. No numbered feature phase or automated test suite was added.

@@ -203,6 +203,10 @@ infrastructure prematurely. A dedicated vector database remains rejected.
 
 ## 2026-08-22 — Use Better Auth with one closed-registration user identity
 
+**Status:** Superseded in part by “Use browser/device authorization and native credential storage
+for hosted onboarding.” Self-hosted deployments may still select closed registration, but the
+official hosted service enables public signup.
+
 **Decision:** Use Better Auth 1.7 with its official MongoDB adapter for scrypt password credentials
 and database-backed HttpOnly cookie sessions. Better Auth and KnownPath share the existing `users`
 collection. Email/password signup is disabled; public signup, email verification, reset, OAuth,
@@ -730,6 +734,10 @@ unimplemented writes.
 
 ## 2026-08-23 — Install a thin bridge through owned, reversible per-agent adapters
 
+**Status:** Superseded in part by “Use browser/device authorization and native credential storage
+for hosted onboarding.” The bridge and reversible adapters remain; mandatory environment references
+were replaced by keychain-backed profiles and an official hosted default.
+
 **Decision:** Publish the CLI as the `knownpath` npm package and make `npx -y knownpath mcp` the
 default stdio entry in Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. Each client config
 contains only its documented reference form for `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; both
@@ -955,6 +963,10 @@ a provider-specific scheduler would bypass the queue boundary.
 
 ## 2026-08-25 — Keep the dashboard server-first behind an allowlisted same-origin bridge
 
+**Status:** Superseded in part by “Use browser/device authorization and native credential storage
+for hosted onboarding.” The server-first API boundary remains; public signup and device approval are
+now deliberately exposed through the same allowlisted bridge.
+
 **Decision:** Build the developer dashboard with the existing Next.js 16 App Router and warm
 green/cream identity. Server Components read runtime-validated safe DTOs directly from Fastify.
 Browser mutations use a narrow same-origin route bridge configured by `KNOWNPATH_API_URL`; the
@@ -1158,3 +1170,40 @@ weaken the installer filesystem boundary.
 [MongoDB Search index management](https://www.mongodb.com/docs/manual/reference/method/db.collection.updateSearchIndex/),
 [Zod transforms](https://zod.dev/api?id=transforms),
 [Node.js file-system promises](https://nodejs.org/api/fs.html#promises-api)
+
+## 2026-09-04 — Use browser/device authorization and native credential storage for hosted onboarding
+
+**Decision:** Make `npx knownpath install` select the official hosted API, open a browser-based RFC
+8628-style authorization flow, exchange the one-time authorization for the existing scoped KnownPath
+API-key credential, and store that secret only in the native operating-system credential store
+through `@napi-rs/keyring`. Keep agent configuration secret-free: the stdio MCP bridge resolves the
+selected non-secret profile and retrieves the credential at runtime. Enable public signup on the
+official hosted deployment while preserving `AUTH_REGISTRATION_MODE=closed` for self-hosters.
+
+Issue hosted CLI credentials with `knowledge:read`, `knowledge:contribute`, and `knowledge:outcome`.
+Contribution writes remain separately consent-gated and sanitized. Preserve explicit `--api-url` and
+complete `KNOWNPATH_API_URL`/`KNOWNPATH_API_KEY` overrides for self-hosting and automation.
+
+**Why:** Browser authorization separates human authentication from a revocable machine credential,
+avoids copying bearer secrets through terminals and config files, and lets reinstall reuse one valid
+profile. Reusing the existing API-key domain keeps scope enforcement, rotation, revocation,
+last-used tracking, and audit behavior in one authority. Native credential stores provide the safest
+portable default without inventing a plaintext fallback.
+
+**Security properties:** Device and user codes are separate, short-lived, one-time values. Creation,
+polling, approval, and exchange have distributed rate policies; approval requires an authenticated
+browser session and origin checks. A temporary bearer session is atomically consumed before machine
+credential issuance. Device lifecycle and credential issue/revoke/logout actions are audited without
+recording codes or secrets. Revoked credentials cause a clean reauthorization on the next install.
+
+**Rejected:** Placing secrets in agent JSON/TOML, shell profiles, command arguments, URLs, or
+installer state. Browser session cookies are not reused as long-lived agent credentials. A custom
+plaintext file fallback would weaken the default. MCP OAuth was not selected because KnownPath's
+stdio bridge needs a cross-client local credential lifecycle and the existing API-key authorization
+model already supplies its downstream bearer boundary.
+
+**References:**
+[OAuth 2.0 Device Authorization Grant (RFC 8628)](https://www.rfc-editor.org/rfc/rfc8628),
+[Better Auth device authorization](https://www.better-auth.com/docs/plugins/device-authorization),
+[OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
+[Node keyring bindings](https://github.com/Brooooooklyn/keyring-node)

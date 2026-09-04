@@ -17,9 +17,15 @@ their own legal notices, retention policy, and deployment jurisdiction.
   sanitized note.
 - Account, API-key metadata, workspace membership, consent, provenance, moderation, and audit
   records needed to operate the service.
+- Short-lived device authorization state and non-secret machine-credential metadata. The machine
+  secret is shown once to the CLI and stored locally only in the operating system credential store.
 
 Ordinary contribution and outcome contracts do not request raw files, full repository content, or
 chain-of-thought.
+
+Normal agent configuration and local profile metadata contain no API key. Keychain, Windows
+Credential Manager, or Linux Secret Service stores the machine secret; KnownPath does not silently
+write a plaintext fallback.
 
 ## Visibility
 

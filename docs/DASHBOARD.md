@@ -6,22 +6,27 @@ live in the separate admin console.
 
 ## Access
 
-Registration is closed. Operators provision users through the masked `pnpm auth:user:create`
-command. The dashboard provides:
+The official hosted deployment allows public signup. Self-hosted operators choose open or closed
+registration; closed deployments provision users with `pnpm auth:user:create`. The dashboard
+provides:
 
+- email/password signup when enabled;
 - email/password sign-in;
+- short-lived CLI device authorization approval/denial;
 - password change;
 - session listing and revocation;
 - profile display-name changes.
 
-It does not expose signup, password reset, email verification, OAuth, or email-address changes.
+It does not expose password reset, email verification, OAuth, or email-address changes.
 
 ## Routes
 
 | Route                   | Purpose                                                          |
 | ----------------------- | ---------------------------------------------------------------- |
 | `/`                     | Product overview                                                 |
-| `/sign-in`              | Closed-registration sign-in                                      |
+| `/sign-in`              | Account sign-in                                                  |
+| `/sign-up`              | Account creation when registration is open                       |
+| `/device`               | Claim and approve/deny a CLI device authorization                |
 | `/app`                  | 30-day private activity summary                                  |
 | `/app/explore`          | Search public, personal, or authorized workspace knowledge       |
 | `/app/known-paths/[id]` | Inspect solution, applicability, trust, outcomes, and provenance |
@@ -55,8 +60,9 @@ Review records are not available through the ordinary user dashboard.
 
 ## API-key management
 
-Users can issue keys with explicit scopes, inspect non-secret metadata, rotate, and revoke. The full
-key is displayed only once after creation or rotation.
+Users can issue manual keys with explicit scopes and inspect/revoke both manual and CLI-device
+credentials. Manual keys can be rotated. The full value is displayed only once at issuance or manual
+rotation; CLI-device credentials are delivered directly to the native OS credential store.
 
 Plaintext remains only in transient browser component state. It is not written to:
 
@@ -71,11 +77,11 @@ agent config need not change when it references an environment variable.
 
 ## Installer onboarding
 
-The install page presents the real `npx knownpath install` flow and supported clients. Broad OS
-detection happens only in the browser and is not sent to KnownPath.
-
-Current setup still requires `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` in the agent's launch
-environment. See [Agent installation](AGENT_INSTALLATION.md).
+The install page presents the `npx knownpath install` flow and supported clients. Normal hosted
+installation needs no API URL/key setup. The browser displays the requesting CLI, exact short code,
+and scopes before approval; the machine credential remains independently revocable. Broad OS
+detection happens only in the browser and is not sent to KnownPath. See
+[Agent installation](AGENT_INSTALLATION.md).
 
 ## Contributions and privacy
 

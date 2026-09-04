@@ -10,6 +10,7 @@ import {
 } from "@knownpath/agent-adapters";
 
 import { parseCliArguments } from "./arguments.js";
+import { logoutProfile, resolveRuntimeCredential, validateRuntimeCredential } from "./auth.js";
 import { runMcpBridge } from "./mcp.js";
 import { printDetection, printHelp, printReport } from "./output.js";
 import { resolvePackagedSkillDirectory } from "./skill.js";
@@ -25,7 +26,45 @@ async function main(): Promise<void> {
     return;
   }
   if (arguments_.command === "mcp") {
-    await runMcpBridge();
+    await runMcpBridge(arguments_.profileName);
+    return;
+  }
+  if (arguments_.command === "login") {
+    const credential = await resolveRuntimeCredential({
+      allowLogin: true,
+      ...(arguments_.apiUrl === undefined ? {} : { apiUrl: arguments_.apiUrl }),
+      ...(arguments_.authMode === undefined ? {} : { authMode: arguments_.authMode }),
+      ...(arguments_.profileName === undefined ? {} : { profileName: arguments_.profileName }),
+    });
+    if (credential === undefined) throw new Error("KnownPath login did not produce a credential");
+    const response = await validateRuntimeCredential(credential);
+    if (!response.ok)
+      throw new Error(`KnownPath credential check returned HTTP ${response.status}`);
+    process.stdout.write(`Signed in to ${credential.apiUrl} (${credential.profileName}).\n`);
+    return;
+  }
+  if (arguments_.command === "logout") {
+    const outcome = await logoutProfile(arguments_.profileName);
+    process.stdout.write(
+      outcome.removed
+        ? `Removed the local credential${outcome.revoked ? " and revoked it on the server" : "; server revocation could not be confirmed"}.\n`
+        : "No stored KnownPath credential was found.\n",
+    );
+    return;
+  }
+  if (arguments_.command === "whoami") {
+    const credential = await resolveRuntimeCredential({
+      allowLogin: false,
+      ...(arguments_.apiUrl === undefined ? {} : { apiUrl: arguments_.apiUrl }),
+      ...(arguments_.authMode === undefined ? {} : { authMode: arguments_.authMode }),
+      ...(arguments_.profileName === undefined ? {} : { profileName: arguments_.profileName }),
+    });
+    if (credential === undefined) throw new Error("Not signed in; run `npx knownpath login`");
+    const response = await validateRuntimeCredential(credential);
+    if (!response.ok)
+      throw new Error(`KnownPath credential check returned HTTP ${response.status}`);
+    const body = (await response.json()) as unknown;
+    process.stdout.write(`${JSON.stringify(body, null, 2)}\n`);
     return;
   }
 
@@ -77,10 +116,32 @@ async function main(): Promise<void> {
   } as const;
 
   if (arguments_.command === "status" || arguments_.command === "doctor") {
+    const credential =
+      arguments_.command === "doctor"
+        ? await resolveRuntimeCredential({
+            allowLogin: false,
+            ...(arguments_.apiUrl === undefined ? {} : { apiUrl: arguments_.apiUrl }),
+            ...(arguments_.authMode === undefined ? {} : { authMode: arguments_.authMode }),
+            ...(arguments_.profileName === undefined
+              ? {}
+              : { profileName: arguments_.profileName }),
+          })
+        : undefined;
+    const diagnosticRequest =
+      credential === undefined
+        ? request
+        : {
+            ...request,
+            environment: {
+              ...process.env,
+              KNOWNPATH_API_URL: credential.apiUrl,
+              KNOWNPATH_API_KEY: credential.apiKey,
+            },
+          };
     const report =
       arguments_.command === "status"
-        ? await installer.status(request)
-        : await installer.doctor(request);
+        ? await installer.status(diagnosticRequest)
+        : await installer.doctor(diagnosticRequest);
     finish(report, arguments_.json);
     return;
   }
@@ -102,8 +163,44 @@ async function main(): Promise<void> {
       return;
     }
   }
-  const report = await installer[operation]({ ...request, dryRun: false });
-  finish(report, arguments_.json);
+  const credential =
+    operation === "uninstall"
+      ? undefined
+      : await resolveRuntimeCredential({
+          allowLogin: true,
+          ...(arguments_.apiUrl === undefined ? {} : { apiUrl: arguments_.apiUrl }),
+          ...(arguments_.authMode === undefined ? {} : { authMode: arguments_.authMode }),
+          ...(arguments_.profileName === undefined ? {} : { profileName: arguments_.profileName }),
+        });
+  if (operation !== "uninstall" && credential === undefined) {
+    throw new Error("KnownPath authentication did not complete");
+  }
+  if (credential !== undefined) {
+    const response = await validateRuntimeCredential(credential);
+    if (!response.ok) {
+      throw new Error(
+        `The KnownPath credential is not authorized (HTTP ${response.status}); run \`npx knownpath logout\` and retry`,
+      );
+    }
+  }
+  const applied = await installer[operation]({ ...request, dryRun: false });
+  if (operation === "uninstall" || credential === undefined) {
+    finish(applied, arguments_.json);
+    return;
+  }
+  const diagnosed = await installer.doctor({
+    ...request,
+    dryRun: false,
+    environment: {
+      ...process.env,
+      KNOWNPATH_API_URL: credential.apiUrl,
+      KNOWNPATH_API_KEY: credential.apiKey,
+    },
+  });
+  finish(
+    { ...applied, checks: diagnosed.checks, success: applied.success && diagnosed.success },
+    arguments_.json,
+  );
 }
 
 function finish(report: InstallerReport, json: boolean): void {

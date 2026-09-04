@@ -79,8 +79,10 @@ A workspace key cannot switch tenants, retrieve personal knowledge, or submit pu
 contributions. The full key appears once at creation; MongoDB stores only a secure hash and
 non-secret prefix.
 
-The installer can record a non-secret `--profile` and `--workspace-id`. It still stores only
-references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`; `doctor` verifies the active binding.
+The installer can record a non-secret `--profile` and `--workspace-id`. Hosted machine credentials
+remain in the native OS credential store; agent configuration contains only the profile selector.
+`doctor` validates the credential and verifies its server-authorized workspace binding. Explicit
+environment credentials remain an advanced compatibility path for self-hosted automation.
 
 ## Contributions
 

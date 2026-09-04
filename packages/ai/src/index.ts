@@ -1,4 +1,3 @@
-// Extraction contracts are intentionally deferred to a later phase.
 export * from "./batch.js";
 export * from "./cli.js";
 export * from "./context.js";

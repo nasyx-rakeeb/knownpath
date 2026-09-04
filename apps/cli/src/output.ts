@@ -56,12 +56,17 @@ Commands:
   update       Reconcile installer-owned files to this CLI version
   uninstall    Remove only installer-owned KnownPath entries and files
   doctor       Diagnose environment, backend, agent config, and skill state
+  login        Sign in through the browser and create a machine credential
+  logout       Revoke and remove the selected machine credential
+  whoami       Show the authenticated KnownPath connection
   mcp          Run the thin stdio-to-HTTP MCP bridge
 
 Options:
   --agent <id|all>      Target one or more agents, or all supported agents; repeatable
   --scope <scope>       global (default) or project
   --project-dir <path>  Project root for project-scoped configuration
+  --api-url <origin>    Use an explicit self-hosted KnownPath API origin
+  --auth <mode>         browser (default) or api-key (advanced environment mode)
   --profile <label>     Record a non-secret key profile label
   --workspace-id <id>   Require the profile key to match this workspace UUID
   --dry-run             Show the exact change plan without writing
@@ -70,7 +75,8 @@ Options:
   --help, -h            Show help
   --version, -v         Show the CLI version
 
-Install and update require KNOWNPATH_API_URL and KNOWNPATH_API_KEY in the current environment.
-Only their variable names are written to agent configuration; their values are never persisted.
+Hosted installation signs in through the browser and stores a scoped machine credential in the
+native OS credential store. Agent configuration contains no credential. Self-hosters may use
+--api-url; the legacy KNOWNPATH_API_URL and KNOWNPATH_API_KEY pair remains supported explicitly.
 `);
 }

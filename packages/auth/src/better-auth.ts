@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { IncomingHttpHeaders } from "node:http";
 
 import type { AuthConfig } from "@knownpath/config";
 import type { KnownPathDatabase } from "@knownpath/database";
@@ -8,17 +9,46 @@ import {
   userIdSchema,
   userStatusSchema,
 } from "@knownpath/domain";
-import { betterAuth } from "better-auth";
-import { admin } from "better-auth/plugins";
+import { betterAuth, type BetterAuthOptions } from "better-auth";
+import { admin, bearer, deviceAuthorization } from "better-auth/plugins";
+import { fromNodeHeaders } from "better-auth/node";
 
 import { AuditService } from "./audit.js";
+
+type KnownPathAuthOptions = Omit<BetterAuthOptions, "plugins"> & {
+  plugins: [
+    ReturnType<typeof bearer>,
+    ReturnType<typeof deviceAuthorization>,
+    ReturnType<typeof admin>,
+  ];
+};
+
+export interface KnownPathAuth {
+  readonly api: {
+    createUser(input: {
+      body: { email: string; name: string; password: string; role: "admin" | "user" };
+    }): Promise<{ user: { id: string } }>;
+    getSession(input: { headers: Headers }): Promise<{
+      session: {
+        id: string;
+        createdAt: Date;
+      };
+      user: { id: string };
+    } | null>;
+  };
+  handler(request: Request): Promise<Response>;
+}
+
+export function getKnownPathSession(auth: KnownPathAuth, headers: IncomingHttpHeaders) {
+  return auth.api.getSession({ headers: fromNodeHeaders(headers) });
+}
 
 export function createKnownPathAuth(
   config: AuthConfig,
   database: KnownPathDatabase,
   audit: AuditService,
-) {
-  return betterAuth({
+): KnownPathAuth {
+  const options: KnownPathAuthOptions = {
     appName: "KnownPath",
     baseURL: config.baseUrl,
     basePath: "/api/v1/auth",
@@ -27,7 +57,7 @@ export function createKnownPathAuth(
     trustedOrigins: [...config.trustedOrigins],
     emailAndPassword: {
       enabled: true,
-      disableSignUp: true,
+      disableSignUp: config.registrationMode === "closed",
       minPasswordLength: 12,
       maxPasswordLength: 128,
     },
@@ -132,13 +162,33 @@ export function createKnownPathAuth(
       },
     },
     plugins: [
+      bearer(),
+      deviceAuthorization({
+        expiresIn: `${config.deviceCodeExpiresSeconds}s`,
+        interval: `${config.devicePollIntervalSeconds}s`,
+        verificationUri: `${config.publicWebUrl}/device`,
+        validateClient: (clientId) => clientId === "knownpath-cli",
+        onDeviceAuthRequest: async (clientId, scope) => {
+          if (scope !== "knowledge:read knowledge:contribute knowledge:outcome") {
+            throw new Error("KnownPath CLI requested an invalid device authorization scope");
+          }
+          await audit.record({
+            actor: { kind: "system" },
+            eventType: "device_authorization.initiated",
+            outcome: "success",
+            target: { kind: "device_authorization", id: clientId },
+            metadata: { client: clientId },
+          });
+        },
+        schema: { deviceCode: { modelName: "auth_device_codes" } },
+      }),
       admin({
         defaultRole: "user",
         adminRoles: ["admin"],
       }),
     ],
     disabledPaths: [
-      "/sign-up/email",
+      ...(config.registrationMode === "closed" ? ["/sign-up/email"] : []),
       "/request-password-reset",
       "/reset-password",
       "/send-verification-email",
@@ -162,7 +212,6 @@ export function createKnownPathAuth(
       useSecureCookies: config.runtimeMode === "production",
     },
     telemetry: { enabled: false },
-  });
+  };
+  return betterAuth(options) as unknown as KnownPathAuth;
 }
-
-export type KnownPathAuth = ReturnType<typeof createKnownPathAuth>;

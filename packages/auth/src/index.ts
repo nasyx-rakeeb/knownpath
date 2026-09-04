@@ -4,5 +4,6 @@ export * from "./authenticator.js";
 export * from "./authorization.js";
 export * from "./better-auth.js";
 export * from "./dashboard.js";
+export * from "./device-credentials.js";
 export * from "./errors.js";
 export * from "./rate-limits.js";

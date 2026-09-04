@@ -6,6 +6,7 @@ import {
   type ApiKeyId,
   type ApiKeyScope,
   type ApiKeyBinding,
+  type ApiKeyCredentialKind,
   type AuditActor,
   type User,
   type UserId,
@@ -29,6 +30,7 @@ export interface ApiKeyRequestContext {
 }
 
 export interface IssueApiKeyInput extends ApiKeyRequestContext {
+  readonly credentialKind?: ApiKeyCredentialKind;
   readonly expiresAt?: Date;
   readonly name: string;
   readonly scopes: readonly ApiKeyScope[];
@@ -67,6 +69,7 @@ export class ApiKeyService {
       prefix: generated.prefix,
       keyHash: this.hash(generated.plaintext),
       hashVersion: API_KEY_HASH_VERSION,
+      credentialKind: input.credentialKind ?? "manual",
       binding: input.binding ?? { kind: "personal" },
       scopes: [...new Set(input.scopes)],
       status: "active",

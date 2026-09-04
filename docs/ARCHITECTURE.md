@@ -43,10 +43,12 @@ objective source metadata, production trust scores, publication, or automatic se
   contribution, outcome, and maintenance commands plus BullMQ consumers.
 - **`@knownpath/web`** — Next.js user dashboard and server-guarded admin console. It consumes safe
   API DTOs and owns no database, ranking, or authorization logic.
-- **`@knownpath/mcp-server`** — thin local stdio bridge to the HTTP API. It requires only
-  `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`.
+- **`@knownpath/mcp-server`** — thin local stdio bridge to the HTTP API. Hosted use resolves a
+  versioned API origin and native OS-stored machine credential; explicit environment overrides
+  remain available for self-hosters.
 - **`knownpath`** — public installer/integration CLI. It configures supported agents and packages
-  the canonical Agent Skill and stdio bridge command.
+  the canonical Agent Skill and stdio bridge command. Browser device authorization exchanges a
+  one-time proof for an existing scoped API-key credential rather than duplicating auth logic.
 
 ## Core packages
 
@@ -119,10 +121,12 @@ authorization, ranking, contributions, outcomes, and tenant checks to the API.
 
 ## Authentication and API boundary
 
-Better Auth supplies database-backed human sessions while registration remains closed. KnownPath
-issues scoped machine keys whose plaintext is shown once; MongoDB stores only identification
-metadata and an HMAC digest. Principals and policy functions are shared across HTTP, MCP,
-workspaces, and administration.
+Better Auth supplies database-backed human sessions. Registration is an operator setting: the
+official hosted service enables public signup, while self-hosters can keep it closed. Browser/device
+authorization exchanges a short-lived one-time grant for a scoped CLI machine key; manual keys
+remain available for advanced integrations. MongoDB stores only identification metadata and an HMAC
+digest, and the CLI keeps the machine secret in the native OS credential store. Principals and
+policy functions are shared across HTTP, MCP, workspaces, and administration.
 
 The API exposes versioned Zod contracts under `/api/v1`. Response schemas are allowlists: raw source
 bodies, embeddings, credentials, provider internals, and hidden tenant fields never leave the
@@ -134,7 +138,7 @@ See [API](API.md), [MCP](MCP.md), and [Workspaces](WORKSPACES.md).
 ## MongoDB and Valkey
 
 MongoDB stores product entities, immutable histories, audit records, pipeline intent, and derived
-search projections. Initialization creates/reconciles 33 collections, critical validators, and named
+search projections. Initialization creates/reconciles 34 collections, critical validators, and named
 indexes idempotently. See [Data model](DATA_MODEL.md).
 
 Valkey is auxiliary and ephemeral. BullMQ uses it for delivery, schedules, retries, leases, and

@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { readApiError } from "../lib/client-api";
 
-export function SignInForm() {
+export function SignInForm({ returnTo = "/app" }: { readonly returnTo?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -19,7 +19,7 @@ export function SignInForm() {
         body: JSON.stringify({ email: data.get("email"), password: data.get("password") }),
       });
       if (!response.ok) throw new Error(await readApiError(response));
-      router.replace("/app");
+      router.replace(returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/app");
       router.refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sign in failed");

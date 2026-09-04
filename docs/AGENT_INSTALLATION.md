@@ -1,168 +1,142 @@
 # Install KnownPath in a coding agent
 
-This guide is for developers connecting an existing coding agent to KnownPath. You do not need to
-run MongoDB, Valkey, Gemini, or any KnownPath server when using a hosted deployment.
+This guide is for developers connecting an existing coding agent to KnownPath. Hosted users do not
+need to run MongoDB, Valkey, Gemini, Atlas, or any KnownPath server.
 
-KnownPath currently supports:
+Supported adapters: OpenAI Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode.
 
-- OpenAI Codex CLI
-- Claude Code
-- Cursor
-- Gemini CLI
-- OpenCode
+## Hosted installation
 
-## Before you install
-
-You need:
-
-- Node.js 24
-- the URL of a hosted or self-hosted KnownPath API
-- an active KnownPath API key with at least the `knowledge:read` scope
-- one supported coding agent
-
-The hosted KnownPath service currently uses closed registration. Ask the service operator for
-access, or follow [Deployment](DEPLOYMENT.md) to operate your own instance.
-
-Export the connection details in the shell that launches both the installer and your agent:
-
-```sh
-export KNOWNPATH_API_URL="https://your-knownpath.example"
-read -rsp "KnownPath API key: " KNOWNPATH_API_KEY
-export KNOWNPATH_API_KEY
-printf "\n"
-```
-
-On PowerShell:
-
-```powershell
-$env:KNOWNPATH_API_URL = "https://your-knownpath.example"
-$secret = Read-Host "KnownPath API key" -AsSecureString
-$env:KNOWNPATH_API_KEY = [System.Net.NetworkCredential]::new("", $secret).Password
-```
-
-The CLI requires an HTTP or HTTPS origin with no path, query, fragment, or embedded credentials. It
-does not fall back to localhost or a hard-coded hosted URL.
-
-## Install
-
-Preview the exact changes first:
-
-```sh
-npx knownpath install --dry-run
-```
-
-Then install interactively:
+Node.js 24 and one supported agent are the only local prerequisites.
 
 ```sh
 npx knownpath install
 npx knownpath doctor
 ```
 
-The installer detects supported agents, asks which ones to configure, installs the canonical
-KnownPath Agent Skill, and registers a local stdio MCP bridge. The bridge calls the configured
-KnownPath HTTP API; it never connects directly to product infrastructure.
+The installer detects available agents, shows its change plan, and asks for confirmation. It then:
 
-For non-interactive installation, select targets and confirm explicitly:
+1. selects the official hosted KnownPath API;
+2. opens the dashboard for signup or sign-in;
+3. asks you to approve a short-lived CLI authorization request;
+4. creates a dedicated machine credential with `knowledge:read`, `knowledge:contribute`, and
+   `knowledge:outcome` scopes;
+5. saves it in the native OS credential store;
+6. installs the secret-free stdio MCP entry and canonical Agent Skill; and
+7. verifies the backend, authentication, MCP configuration, and skill.
 
-```sh
-npx knownpath install --agent codex --agent claude --yes
-npx knownpath doctor --agent codex --agent claude
-```
+The write scopes do not enable silent sharing. Public contributions still require explicit consent,
+account contribution mode remains `ask` by default, and outcomes require a real attempted result.
 
-Use `--agent all` to target all five adapters.
-
-## Global and project scope
-
-`--scope global` is the default and makes KnownPath available across projects for the selected
-agent. `--scope project` writes only to the repository identified by `--project-dir` or the current
-directory:
+Use `--dry-run` to inspect local changes without opening a browser or creating credentials:
 
 ```sh
-npx knownpath install --agent cursor --scope project --dry-run
+npx knownpath install --dry-run
 ```
 
-Not every client uses the same native config location, but the installer applies the documented
-scope for each adapter. See [Installer behavior](INSTALLER.md) for exact paths and merge rules.
-
-## Workspace profiles
-
-A workspace-bound API key can be associated with a non-secret installer profile:
+## Credential lifecycle
 
 ```sh
-npx knownpath install \
-  --agent codex \
-  --profile mobile-team \
-  --workspace-id 11111111-1111-4111-8111-111111111111
+npx knownpath login
+npx knownpath whoami
+npx knownpath logout
 ```
 
-The profile label and expected workspace ID are safe metadata; the key remains in
-`KNOWNPATH_API_KEY`. `doctor` verifies that the active key is actually bound to the expected
-workspace and fails instead of silently using a personal or different workspace key.
+`login` reuses a valid stored credential. A revoked or expired stored credential triggers a clean
+browser authorization on the next install/login. `logout` attempts server revocation and removes the
+local credential. `uninstall` is separate: it removes MCP/skill configuration but does not revoke
+authentication.
 
-Because all configured agents reference the same environment variable, install different workspace
-profiles in separate launch environments. The CLI rejects conflicting workspace expectations that
-would share one `KNOWNPATH_API_KEY`.
+Machine credentials appear on the dashboard API-key page with their device label, prefix, scopes,
+creation/last-use time, expiry, and status. Full credentials are never displayed there.
 
-## What is stored
+| Platform | Credential backend         |
+| -------- | -------------------------- |
+| macOS    | Keychain                   |
+| Windows  | Windows Credential Manager |
+| Linux    | Secret Service/libsecret   |
 
-Agent configuration contains only references to:
+KnownPath does not silently fall back to plaintext when the native credential service is missing or
+locked. Non-secret profile metadata is stored in `~/.knownpath/profiles.json` with restrictive file
+permissions where supported.
 
-- `KNOWNPATH_API_URL`
-- `KNOWNPATH_API_KEY`
+## Agent and scope selection
 
-The installer never writes or prints their values. Its ownership state contains paths, content
-digests, versions, ownership flags, profile metadata, and timestamps. Config files are backed up
-before changes, and unknown settings are preserved.
+```sh
+npx knownpath install --agent codex
+npx knownpath install --agent claude --agent cursor
+npx knownpath install --agent all --yes
+npx knownpath install --scope project --project-dir /path/to/repository
+```
 
-Do not place the key in a committed environment file, agent config, command argument, or public
-shell history. Use your operating system or process manager to provide persistent environment
-variables. Keychain integration is not currently included.
+Interactive installation selects detected agents. JSON/non-interactive modes require explicit
+`--agent` values. Global and project paths follow each client's current documented conventions; see
+[Installer behavior](INSTALLER.md).
 
-## Maintain the installation
+## Profiles and workspaces
+
+Profiles keep separate non-secret connection metadata and OS-stored credentials:
+
+```sh
+npx knownpath install --profile my-team
+npx knownpath doctor --profile my-team
+npx knownpath install --profile my-team --workspace-id 00000000-0000-4000-8000-000000000000
+```
+
+The backend—not local metadata—authorizes workspace access. `doctor` verifies the authenticated key
+binding and fails on a mismatch. Workspace-bound credential issuance and selection remain controlled
+through the authenticated dashboard/API.
+
+## Self-hosted installation
+
+A compatible self-hosted instance can use the same browser flow:
+
+```sh
+npx knownpath install --api-url https://knownpath.example
+```
+
+Self-hosted operators choose `AUTH_REGISTRATION_MODE=open|closed`. Closed instances still allow
+existing operator-created users to sign in and authorize a device.
+
+The earlier manual key flow remains an explicit compatibility option. Supply both variables
+together; neither is written to agent configuration:
+
+```sh
+export KNOWNPATH_API_URL="https://knownpath.example"
+read -rsp "KnownPath API key: " KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf "\n"
+npx knownpath install --auth api-key
+```
+
+In this advanced mode, the environment must also be available to the `knownpath mcp` process. Never
+put the key in command arguments, agent JSON/TOML, shell history, or a repository.
+
+## Update, status, and uninstall
 
 ```sh
 npx knownpath status
-npx knownpath doctor
 npx knownpath update
+npx knownpath doctor
 npx knownpath uninstall
 ```
 
-- `status` compares the installed MCP and skill artifacts with installer ownership state.
-- `doctor` checks Node.js, environment variables, backend authentication, agent configuration, skill
-  version, and optional workspace binding.
-- `update` reconciles installer-owned artifacts to the currently installed CLI package.
-- `uninstall` removes only KnownPath-owned entries and files.
+- `status` inspects installer-owned MCP and skill state without network access.
+- `update` reconciles owned files and migrates older environment-reference MCP entries to the
+  secret-free bridge configuration.
+- `doctor` checks Node, agent detection, MCP/skill state, backend readiness, authentication, and an
+  expected workspace binding.
+- `uninstall` removes only KnownPath-owned entries/files and preserves unrelated configuration.
 
-All commands accept `--agent`, `--scope`, `--project-dir`, and `--json` where applicable. Mutating
-non-interactive commands require `--yes`.
+Changes are merge-safe, idempotent, backed up where needed, and refused if an unmanaged or locally
+modified `knownpath` entry would be overwritten.
 
 ## Troubleshooting
 
-### Missing environment variables
+- **Browser did not open:** use the verification URL and code printed by the terminal. Restart after
+  expiry.
+- **Credential store unavailable:** unlock/configure the native credential service; KnownPath does
+  not write an unencrypted fallback.
+- **Credential revoked:** run `knownpath install` or `knownpath login` to authorize again.
+- **Backend unreachable:** run `knownpath doctor`. Hosted free infrastructure may cold-start.
+- **Config conflict:** rename/remove the unmanaged entry deliberately or restore owned content.
 
-Set both required variables in the same process environment that starts the agent. Restart the
-terminal or desktop application after changing persistent environment settings.
-
-### Authentication fails
-
-Confirm the key is active and includes `knowledge:read`. Revoked keys fail without requiring a
-configuration rewrite because the agent stores only the environment-variable reference.
-
-### Backend is unreachable
-
-Run `npx knownpath doctor`. Confirm that `KNOWNPATH_API_URL` is the API origin, that HTTPS and DNS
-work from the agent process, and that the deployment readiness endpoint is healthy.
-
-### Existing KnownPath entry conflicts
-
-The CLI will not overwrite an unmanaged or locally modified `knownpath` entry. Inspect the reported
-path, preserve any settings you need, and remove or rename the conflicting entry yourself before
-retrying.
-
-### Skill is not discovered
-
-Restart or reload the agent after installation. Use `status` to inspect file placement and `doctor`
-to verify both the MCP entry and packaged skill version.
-
-For manual client configuration and transport details, see [MCP](MCP.md). For every CLI flag, backup
-rule, and adapter path, see [Installer](INSTALLER.md).
+See [MCP](MCP.md), [Agent Skill](AGENT_SKILL.md), and [Privacy](PRIVACY.md).

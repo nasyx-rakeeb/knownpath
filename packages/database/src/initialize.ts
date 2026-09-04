@@ -310,6 +310,7 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
     validator: envelopeValidator(["userId", "keyHash", "status"], {
       userId: { bsonType: "string" },
       keyHash: { bsonType: "string" },
+      credentialKind: { enum: ["manual", "cli_device"] },
       status: { enum: ["active", "revoked", "expired"] },
     }),
     indexes: [
@@ -363,6 +364,31 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
       { key: { token: 1 }, name: "uq_auth_sessions_token", unique: true },
       { key: { userId: 1, expiresAt: -1 }, name: "ix_auth_sessions_user_expires_at" },
       { key: { expiresAt: 1 }, name: "ix_auth_sessions_expires_at" },
+    ],
+  },
+  {
+    name: collectionNames.authDeviceCodes,
+    obsoleteIndexes: ["uq_auth_device_codes_device_code", "uq_auth_device_codes_user_code"],
+    validator: plainValidator(
+      ["deviceCode", "userCode", "clientId", "scope", "status", "expiresAt"],
+      {
+        deviceCode: { bsonType: "string" },
+        userCode: { bsonType: "string" },
+        clientId: { bsonType: "string" },
+        scope: { bsonType: "string" },
+        status: { enum: ["pending", "approved", "denied"] },
+        expiresAt: { bsonType: "date" },
+      },
+    ),
+    indexes: [
+      {
+        key: { deviceCode: 1 },
+        name: "auth_device_codes_deviceCode_uidx",
+        unique: true,
+      },
+      { key: { userCode: 1 }, name: "auth_device_codes_userCode_uidx", unique: true },
+      { key: { expiresAt: 1 }, name: "ttl_auth_device_codes_expires_at", expireAfterSeconds: 0 },
+      { key: { status: 1, expiresAt: 1 }, name: "ix_auth_device_codes_status_expires_at" },
     ],
   },
   {

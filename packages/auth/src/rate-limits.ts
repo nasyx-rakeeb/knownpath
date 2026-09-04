@@ -3,6 +3,10 @@ export interface RateLimitPolicy {
   readonly name:
     | "default"
     | "sign-in"
+    | "device-code"
+    | "device-poll"
+    | "device-approval"
+    | "device-exchange"
     | "api-key-mutation"
     | "knowledge-search"
     | "knowledge-read"
@@ -30,6 +34,10 @@ export function createRateLimitPolicies(defaultMax: number, timeWindowMs: number
   return {
     default: { max: defaultMax, name: "default", timeWindowMs },
     signIn: { max: 10, name: "sign-in", timeWindowMs: 60_000 },
+    deviceCode: { max: 5, name: "device-code", timeWindowMs: 60_000 },
+    devicePoll: { max: 30, name: "device-poll", timeWindowMs: 60_000 },
+    deviceApproval: { max: 8, name: "device-approval", timeWindowMs: 60_000 },
+    deviceExchange: { max: 5, name: "device-exchange", timeWindowMs: 60_000 },
     apiKeyMutation: { max: 30, name: "api-key-mutation", timeWindowMs: 60_000 },
     knowledgeSearch: { max: 30, name: "knowledge-search", timeWindowMs: 60_000 },
     knowledgeRead: { max: 120, name: "knowledge-read", timeWindowMs: 60_000 },

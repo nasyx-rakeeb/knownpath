@@ -6,6 +6,11 @@ export const dynamic = "force-dynamic";
 const MAX_BODY_BYTES = 64 * 1_024;
 const exactRoutes = new Set([
   "auth/sign-in/email",
+  "auth/sign-up/email",
+  "auth/registration",
+  "auth/device",
+  "auth/device/approve",
+  "auth/device/deny",
   "auth/sign-out",
   "auth/change-password",
   "account/me",

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { adapterDefinition, detectAgents, mutateMcpConfig } from "./adapters.js";
 import { inspectMcpConfig, writeMcpConfig } from "./configuration.js";
 import { apiKeyEnvironmentName, installerStateVersion } from "./constants.js";
-import { inspectKnownPathEnvironment, requireKnownPathEnvironment } from "./environment.js";
+import { inspectKnownPathEnvironment } from "./environment.js";
 import {
   backupFile,
   digestDirectory,
@@ -69,7 +69,7 @@ interface PreparedContext {
 interface AgentSnapshot {
   readonly configFileExists: boolean;
   readonly detection: AgentDetection;
-  readonly mcpActual: "absent" | "conflict" | "current";
+  readonly mcpActual: "absent" | "conflict" | "current" | "legacy";
   readonly owned?: OwnedInstallation;
   readonly paths: ReturnType<typeof resolveInstallationPaths>;
   readonly skillActualDigest?: string;
@@ -185,7 +185,6 @@ export class KnownPathInstaller {
     request: InstallerRequest,
   ): Promise<InstallerReport> {
     const context = await this.prepare(request);
-    if (operation !== "uninstall") requireKnownPathEnvironment(context.environment);
     const statePath = this.statePath(context);
     let state = await readInstallerState(statePath);
     const snapshots = await this.snapshots(context, state);
@@ -266,7 +265,12 @@ export class KnownPathInstaller {
         });
       }
       if (configChange.kind === "update_config_entry") {
-        await writeMcpConfig(agent, snapshot.paths.configPath, "install");
+        await writeMcpConfig(
+          agent,
+          snapshot.paths.configPath,
+          "install",
+          context.profileName ?? snapshot.owned?.profileName,
+        );
       } else {
         await mutateMcpConfig({
           agent,
@@ -276,6 +280,9 @@ export class KnownPathInstaller {
           detection: snapshot.detection,
           environment: context.environment,
           operation: configChange.kind === "remove_config_entry" ? "remove" : "install",
+          ...((context.profileName ?? snapshot.owned?.profileName) === undefined
+            ? {}
+            : { profileName: (context.profileName ?? snapshot.owned?.profileName)! }),
           scope: context.scope,
         });
       }
@@ -407,7 +414,18 @@ export class KnownPathInstaller {
           scope: context.scope,
         });
         const owned = findOwnedInstallation(state, agent, context.scope);
-        const mcpActual = await inspectMcpConfig(agent, paths.configPath);
+        const installedProfile = owned?.profileName;
+        const desiredProfile = context.profileName ?? installedProfile;
+        let mcpActual = await inspectMcpConfig(agent, paths.configPath, desiredProfile);
+        if (
+          mcpActual === "conflict" &&
+          owned?.mcpManaged === true &&
+          context.profileName !== undefined &&
+          context.profileName !== installedProfile &&
+          (await inspectMcpConfig(agent, paths.configPath, installedProfile)) === "current"
+        ) {
+          mcpActual = "legacy";
+        }
         const configFileExists = await pathExists(paths.configPath);
         const skillActualDigest = await digestDirectory(paths.skillPath);
         const installedSkillVersion =

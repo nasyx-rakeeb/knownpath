@@ -7,11 +7,23 @@ import {
   type InstallationScope,
 } from "@knownpath/agent-adapters";
 
-export const cliCommands = ["install", "status", "update", "uninstall", "doctor", "mcp"] as const;
+export const cliCommands = [
+  "install",
+  "status",
+  "update",
+  "uninstall",
+  "doctor",
+  "login",
+  "logout",
+  "whoami",
+  "mcp",
+] as const;
 export type CliCommand = (typeof cliCommands)[number];
 
 export interface CliArguments {
   readonly agents?: readonly AgentId[];
+  readonly apiUrl?: string;
+  readonly authMode?: "api-key" | "browser";
   readonly command?: CliCommand;
   readonly dryRun: boolean;
   readonly help: boolean;
@@ -30,6 +42,8 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
     allowPositionals: true,
     options: {
       agent: { type: "string", multiple: true },
+      "api-url": { type: "string" },
+      auth: { type: "string" },
       "dry-run": { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
       json: { type: "boolean", default: false },
@@ -54,6 +68,10 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
     throw new InstallerError("invalid_scope", "--scope must be global or project");
   }
   const agents = parseAgents(parsed.values.agent);
+  const authMode = parsed.values.auth;
+  if (authMode !== undefined && authMode !== "browser" && authMode !== "api-key") {
+    throw new InstallerError("invalid_auth_mode", "--auth must be browser or api-key");
+  }
   const profileName = parsed.values.profile?.trim();
   const expectedWorkspaceId = parsed.values["workspace-id"]?.trim();
   if (profileName !== undefined && (profileName.length < 1 || profileName.length > 80)) {
@@ -75,6 +93,8 @@ export function parseCliArguments(arguments_: readonly string[]): CliArguments {
   }
   return {
     ...(agents === undefined ? {} : { agents }),
+    ...(parsed.values["api-url"] === undefined ? {} : { apiUrl: parsed.values["api-url"] }),
+    ...(authMode === undefined ? {} : { authMode }),
     ...(command === undefined ? {} : { command: command as CliCommand }),
     dryRun: parsed.values["dry-run"] ?? false,
     help: parsed.values.help ?? false,

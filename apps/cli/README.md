@@ -6,20 +6,27 @@ KnownPath backend.
 
 ## Install
 
-Obtain an API origin and scoped key from the hosted KnownPath operator or your self-hosted
-deployment. Export both values in the environment that will launch the installer and coding agent:
+Install KnownPath into detected coding agents:
 
 ```sh
-export KNOWNPATH_API_URL="https://your-knownpath.example"
-read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
-
-npx knownpath install --dry-run
 npx knownpath install
 npx knownpath doctor
 ```
 
-There is no implicit URL. The installer stores references to `KNOWNPATH_API_URL` and
-`KNOWNPATH_API_KEY`, never their values, and never prints the key.
+The CLI uses the official hosted KnownPath service by default. It opens a browser for signup or
+sign-in, issues a dedicated machine credential, and stores the credential in macOS Keychain, Windows
+Credential Manager, or Linux Secret Service. There is no plaintext fallback, and agent configuration
+contains no KnownPath secret.
+
+Preview filesystem/configuration changes without authenticating:
+
+```sh
+npx knownpath install --dry-run
+```
+
+Self-hosters can pass `--api-url https://knownpath.example`. The legacy
+`KNOWNPATH_API_URL`/`KNOWNPATH_API_KEY` pair remains available with `--auth api-key` as an advanced
+environment-based flow.
 
 ## Commands
 
@@ -27,6 +34,9 @@ There is no implicit URL. The installer stores references to `KNOWNPATH_API_URL`
 knownpath install
 knownpath status
 knownpath doctor
+knownpath login
+knownpath logout
+knownpath whoami
 knownpath update
 knownpath uninstall
 ```

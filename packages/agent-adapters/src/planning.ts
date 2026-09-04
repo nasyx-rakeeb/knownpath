@@ -18,7 +18,7 @@ export interface PlanningContext {
 
 export interface PlanningSnapshot {
   readonly configFileExists: boolean;
-  readonly mcpActual: "absent" | "conflict" | "current";
+  readonly mcpActual: "absent" | "conflict" | "current" | "legacy";
   readonly owned?: OwnedInstallation;
   readonly paths: InstallationPaths;
   readonly skillActualDigest?: string;
@@ -70,6 +70,17 @@ export function planAgent(
   }
   if (snapshot.mcpActual === "conflict") {
     throw modifiedConfig(snapshot);
+  } else if (snapshot.mcpActual === "legacy") {
+    if (snapshot.owned?.mcpManaged !== true) throw modifiedConfig(snapshot);
+    changes.push(backupChange(snapshot));
+    changes.push(
+      change(
+        agent,
+        "update_config_entry",
+        snapshot.paths.configPath,
+        "Migrate the KnownPath MCP entry to secure stored credentials",
+      ),
+    );
   } else if (snapshot.mcpActual === "absent") {
     if (operation === "update" && snapshot.owned?.mcpManaged !== true)
       throw modifiedConfig(snapshot);
@@ -170,11 +181,12 @@ export function deduplicateSharedSkillChanges(changes: readonly PlannedChange[])
 }
 
 export function componentStatus(
-  actual: "absent" | "conflict" | "current",
+  actual: "absent" | "conflict" | "current" | "legacy",
   managed: boolean | undefined,
 ): ComponentState {
   if (actual === "absent") return managed === true ? "stale" : "absent";
   if (actual === "conflict") return managed === true ? "modified" : "conflict";
+  if (actual === "legacy") return managed === true ? "stale" : "conflict";
   return managed === true ? "current" : "unmanaged";
 }
 

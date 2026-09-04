@@ -47,7 +47,9 @@
   "dependencies": {
     "@inquirer/prompts": "catalog:",
     "@modelcontextprotocol/server": "catalog:",
+    "@napi-rs/keyring": "catalog:",
     "jsonc-parser": "catalog:",
+    "open": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

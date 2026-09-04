@@ -7,6 +7,7 @@ import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import {
   ApiKeyService,
+  DeviceCredentialService,
   type AbuseRateGate,
   AuditService,
   Authenticator,
@@ -48,6 +49,7 @@ import { registerAdminRoutes } from "./admin-routes.js";
 import { AdminService } from "./admin-service.js";
 import { registerErrorHandler } from "./error-handler.js";
 import { registerDashboardRoutes } from "./dashboard-routes.js";
+import { registerDeviceCredentialRoutes } from "./device-credential-routes.js";
 import { registerKnowledgeRoutes } from "./knowledge-routes.js";
 import { registerContributionRoutes } from "./contribution-routes.js";
 import { registerMcpRoutes } from "./mcp-routes.js";
@@ -120,6 +122,11 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
             type: "http",
             scheme: "bearer",
             bearerFormat: "KnownPath API key",
+          },
+          deviceBearer: {
+            type: "http",
+            scheme: "bearer",
+            bearerFormat: "One-time device authorization proof",
           },
           cookieSession: {
             type: "apiKey",
@@ -204,6 +211,7 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
       request.url.startsWith("/api/v1/auth") ||
       request.url.startsWith("/api/v1/account") ||
       request.url.startsWith("/api/v1/api-keys") ||
+      request.url.startsWith("/api/v1/device-credentials") ||
       request.url.startsWith("/api/v1/knowledge") ||
       request.url.startsWith("/api/v1/known-paths") ||
       request.url.startsWith("/api/v1/contributions") ||
@@ -237,6 +245,13 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.authConfig.apiKeyLastUsedWriteIntervalMs,
   );
   const authenticator = new Authenticator(auth, apiKeys, options.database);
+  const deviceCredentials = new DeviceCredentialService(
+    auth,
+    options.database,
+    apiKeys,
+    audit,
+    options.authConfig.machineCredentialTtlDays,
+  );
   const dashboard = new UserDashboardService(
     options.database.repositories,
     audit,
@@ -309,7 +324,19 @@ export async function buildApi(options: BuildApiOptions): Promise<FastifyInstanc
     options.abuseRateGate,
     options.apiConfig.rateLimitStore,
   );
-  registerAuthRoutes(api, auth, options.authConfig.baseUrl, rateLimitPolicies.signIn);
+  registerAuthRoutes(api, auth, options.authConfig.baseUrl, audit, {
+    approval: rateLimitPolicies.deviceApproval,
+    code: rateLimitPolicies.deviceCode,
+    poll: rateLimitPolicies.devicePoll,
+    signIn: rateLimitPolicies.signIn,
+  });
+  registerDeviceCredentialRoutes(
+    api,
+    authenticator,
+    deviceCredentials,
+    options.authConfig,
+    rateLimitPolicies.deviceExchange,
+  );
   registerAccountRoutes(api, authenticator);
   registerDashboardRoutes(api, authenticator, dashboard);
   registerWorkspaceRoutes(

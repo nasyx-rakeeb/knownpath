@@ -39,6 +39,12 @@ exact trusted `Origin`; CORS uses an explicit origin allowlist. API keys are sho
 keyed digest plus non-secret identification metadata, and authorized by scopes. Authorization,
 cookies, keys, tokens, and response cookies are centrally redacted from logs.
 
+CLI login uses short-lived, rate-limited device and user codes. Browser approval requires an active
+session and matching claimed request; polling respects server intervals, approved grants are
+consumed once, and exchange issues a separate expiring `cli_device` API key rather than reusing the
+browser cookie. Device lifecycle actions are audited without raw codes. The CLI saves the key only
+through native OS credential storage and writes no secret to agent config or profile metadata.
+
 Workspace access is resolved from current membership and role state. Workspace-bound keys cannot
 escape their workspace. Inaccessible private identifiers are handled like nonexistent records to
 avoid revealing their existence.
@@ -53,8 +59,9 @@ evidence.
 
 Production requires a reachable Valkey-backed distributed limiter. In-memory limiting is available
 only through explicit local-development configuration; there is no automatic fallback. Policies
-distinguish sign-in, MCP mutations, provider-backed retrieval, contributions, outcomes, admin
-mutations, search, and reads. BullMQ separately controls provider/source concurrency.
+distinguish sign-in/signup, device creation/polling/approval/exchange, MCP mutations,
+provider-backed retrieval, contributions, outcomes, admin mutations, search, and reads. BullMQ
+separately controls provider/source concurrency.
 
 ## Source ingestion and SSRF
 

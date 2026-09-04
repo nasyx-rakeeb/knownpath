@@ -71,29 +71,28 @@ See [Architecture](docs/ARCHITECTURE.md), [Data model](docs/DATA_MODEL.md), and
 ## Quick install
 
 The published [`knownpath`](https://www.npmjs.com/package/knownpath) CLI configures KnownPath in
-supported coding agents. You need a KnownPath API origin and an active API key before installation.
+supported coding agents. For the hosted service, installation starts with one command:
 
 ```sh
-export KNOWNPATH_API_URL="https://your-knownpath.example"
-read -rsp 'KnownPath API key: ' KNOWNPATH_API_KEY && export KNOWNPATH_API_KEY && printf '\n'
-
-npx knownpath install --dry-run
 npx knownpath install
 npx knownpath doctor
 ```
 
-The installer detects supported clients, configures the thin stdio-to-HTTP MCP bridge, and installs
-the canonical KnownPath Agent Skill. It merges with existing configuration, creates backups where
-needed, and records ownership so uninstall removes only KnownPath-managed entries.
+The installer opens the KnownPath dashboard for signup or sign-in, asks you to approve the CLI,
+creates a dedicated scoped machine credential, and stores it in the native OS credential store. It
+then detects supported clients, configures the thin stdio-to-HTTP MCP bridge, and installs the
+canonical Agent Skill. Re-run the command safely at any time; use `npx knownpath install --dry-run`
+to preview local changes without starting authentication.
 
-Agent configuration contains references to `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY`—never the
-secret values. Both variables must be present in the environment that launches the agent. Run
-`npx knownpath --help` for project/global scopes, explicit agent selection, profiles, JSON output,
-update, status, and uninstall commands.
+Agent configuration contains no KnownPath credential. The stdio bridge resolves the hosted origin
+and machine credential at runtime, while the installer keeps merge-safe backups and ownership state
+so uninstall removes only KnownPath-managed entries. `login`, `logout`, and `whoami` manage the
+credential lifecycle separately from installation.
 
-The hosted service currently uses closed registration while the public knowledge network is being
-operated and curated. Existing users obtain a scoped key from their operator or dashboard. Operators
-of a self-hosted deployment provision accounts through the documented CLI flow.
+Self-hosters can select another origin with `--api-url`; the existing `KNOWNPATH_API_URL` plus
+`KNOWNPATH_API_KEY` environment pair remains an explicit advanced compatibility path. Run
+`npx knownpath --help` for project/global scopes, agent selection, profiles, JSON output, update,
+status, and uninstall commands.
 
 Full macOS, Linux, Windows, project-scope, and workspace-profile instructions are in
 [Agent installation](docs/AGENT_INSTALLATION.md) and [Installer behavior](docs/INSTALLER.md).
@@ -206,10 +205,10 @@ See [Privacy](docs/PRIVACY.md) and [Private/workspace knowledge](docs/WORKSPACES
 
 ### Hosted KnownPath
 
-The hosted KnownPath service uses closed registration while the network is being operated and its
-public seed knowledge is curated. Existing users should use the API origin supplied by their
-operator. The current free deployment may cold-start and is not presented as an always-on
-service-level commitment.
+The official hosted service supports public account creation through the installer's browser
+authorization flow. A free deployment may cold-start and is not presented as an always-on
+service-level commitment. Machine credentials are independently identifiable and revocable from the
+dashboard; browser session cookies are never reused as agent credentials.
 
 ### Self-hosting
 
@@ -308,7 +307,7 @@ product/audit state. Valkey owns only ephemeral operational state. See
 | `pnpm dev`              | Run workspace development processes                        |
 | `pnpm dev:infra:all`    | Start local MongoDB and Valkey                             |
 | `pnpm db:init`          | Reconcile MongoDB collections, validators, and indexes     |
-| `pnpm auth:user:create` | Provision a user or administrator with closed registration |
+| `pnpm auth:user:create` | Provision a user or administrator from the operator CLI    |
 | `pnpm jobs start`       | Run continuous background workers                          |
 | `pnpm jobs drain`       | Process queued work within bounded scheduled compute       |
 | `pnpm ingest:github`    | Run bounded GitHub source ingestion                        |
@@ -345,10 +344,11 @@ KnownPath is under active development. The core ingestion, extraction, trust, ca
 retrieval, API, MCP, installer, learning-loop, dashboard, tenant, operations, security, packaging,
 and deployment capabilities are implemented.
 
-Hosted registration is closed, and public Expo/React Native seed knowledge is still being curated
-and reviewed before publication. Automated unit, integration, and end-to-end test coverage is not
-yet part of the repository; CI currently validates installation, formatting, types, linting, builds,
-package contents, containers, metadata, and dependency/security checks.
+Hosted registration is open through the browser authorization flow. Public Expo/React Native seed
+knowledge is still being curated and reviewed before publication. Automated unit, integration, and
+end-to-end test coverage is not yet part of the repository; CI currently validates installation,
+formatting, types, linting, builds, package contents, containers, metadata, and dependency/security
+checks.
 
 Historical implementation and manual verification records live in [progress.md](progress.md), not in
 this public overview.

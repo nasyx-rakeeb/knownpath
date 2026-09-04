@@ -1,176 +1,115 @@
-# KnownPath installer CLI
+# Installer CLI
 
-The `knownpath` npm package configures supported coding agents to use the KnownPath MCP server and
-installs the canonical KnownPath Agent Skill. It is an integration installer, not a packaged
-KnownPath backend.
-
-```sh
-npx knownpath install
-```
-
-The installed stdio bridge sends requests to the configured HTTP API. Authentication, authorization,
-retrieval, contributions, outcomes, and auditing remain centralized in the backend.
-
-## Requirements
-
-The installer requires Node.js 24 and these environment variables:
-
-```text
-KNOWNPATH_API_URL=https://your-knownpath.example
-KNOWNPATH_API_KEY=an-active-knownpath-api-key
-```
-
-The URL must be an HTTP or HTTPS origin without a path, query, fragment, or embedded credentials.
-The CLI has no localhost or production fallback. The key must be at least 16 characters.
-
-`install` and `update` validate both variables before writing. `doctor` reports missing, malformed,
-unreachable, and unauthorized configurations separately. Agent configuration contains only
-references to these names, never their values.
-
-See [Agent installation](AGENT_INSTALLATION.md) for safe shell setup.
+The public `knownpath` npm package installs the API-backed MCP bridge and canonical Agent Skill. It
+does not contain or run the KnownPath backend.
 
 ## Commands
 
 | Command     | Purpose                                                               |
 | ----------- | --------------------------------------------------------------------- |
-| `install`   | Detect agents, preview changes, configure MCP, and install the skill  |
-| `status`    | Compare installed files and entries with KnownPath ownership state    |
-| `update`    | Reconcile installer-owned artifacts to the current CLI version        |
-| `uninstall` | Remove only KnownPath-owned entries and files                         |
-| `doctor`    | Diagnose runtime, environment, backend, MCP, skill, and profile state |
-| `mcp`       | Run the stdio-to-HTTP MCP bridge used by configured clients           |
+| `install`   | Authenticate, configure selected agents, install the skill, verify    |
+| `status`    | Inspect local installer-owned state without network access            |
+| `update`    | Reconcile owned files and migrate older KnownPath MCP entries         |
+| `uninstall` | Remove only installer-owned MCP/skill entries                         |
+| `doctor`    | Check runtime, authentication, backend, configs, skill, and workspace |
+| `login`     | Run browser authorization and store a machine credential              |
+| `logout`    | Revoke (when reachable) and remove the selected machine credential    |
+| `whoami`    | Show safe authenticated service/key capability metadata               |
+| `mcp`       | Run the stdio-to-HTTP bridge used by agent clients                    |
 
-Common options:
+Run `npx knownpath --help` for authoritative flags.
 
-| Option                    | Behavior                                                          |
-| ------------------------- | ----------------------------------------------------------------- |
-| `--agent <id\|all>`       | Select `codex`, `claude`, `cursor`, `gemini`, `opencode`, or all  |
-| `--scope global\|project` | Choose user-wide or repository-local configuration                |
-| `--project-dir <path>`    | Set the project root instead of the current directory             |
-| `--profile <label>`       | Record a non-secret profile label                                 |
-| `--workspace-id <uuid>`   | Require the active key to match a workspace; requires `--profile` |
-| `--dry-run`               | Print the planned changes without writing                         |
-| `--yes`, `-y`             | Confirm a mutation non-interactively                              |
-| `--json`                  | Emit one machine-readable JSON result                             |
-| `--help`, `-h`            | Show CLI help                                                     |
-| `--version`, `-v`         | Show the package version                                          |
+## Connection precedence
 
-`--agent` can be repeated or receive a comma-separated list. Without it, an interactive terminal
-shows detected clients and asks which ones to configure. JSON/non-interactive use requires explicit
-agent selection; non-interactive mutations also require `--yes`.
+The CLI resolves a connection in this order:
 
-## Recommended lifecycle
+1. explicit `--api-url`;
+2. the complete legacy `KNOWNPATH_API_URL`/`KNOWNPATH_API_KEY` environment pair;
+3. the selected stored profile and native credential;
+4. the versioned official hosted API default.
 
-```sh
-npx knownpath install --agent all --dry-run
-npx knownpath install --agent all
-npx knownpath status --agent all
-npx knownpath doctor --agent all
-```
+Providing only one legacy variable is an error. API origins must be credential-free HTTP(S) origins
+without a path, query, or fragment. `--auth api-key` selects the advanced environment flow; browser
+authorization is the default.
 
-Running `install` again with current artifacts produces no changes. Use `update` after installing a
-new CLI version. Use `uninstall --dry-run` before removal when you want to inspect ownership.
+## Browser authorization
 
-## Supported adapters
+The CLI follows the OAuth 2.0 device-authorization pattern through Better Auth:
 
-Every adapter registers an MCP server named `knownpath` that launches:
+1. request a high-entropy device code and separate short user code;
+2. open the dashboard verification URL;
+3. let an authenticated user claim and explicitly approve or deny the request;
+4. poll at the server-provided interval with `authorization_pending`/`slow_down` handling;
+5. consume the approved grant once; and
+6. exchange its short-lived session proof for a KnownPath API key marked `cli_device`.
+
+The key is revocable, expires according to operator policy, and is shown only once to the CLI
+process. The API stores its HMAC digest and non-secret metadata. Device codes expire, cannot be
+replayed, and lifecycle events are audited without code values.
+
+## Native credential storage
+
+`@napi-rs/keyring` connects to Keychain (macOS), Credential Manager (Windows), and Secret Service
+(Linux). Credential-store errors stop setup; there is no plaintext fallback.
+
+`~/.knownpath/profiles.json` contains only API origin, key ID/prefix, scopes, expiry, keychain
+account locator, and timestamps. It never contains the credential. Writes are atomic,
+permission-restricted, and reject symbolic-link path components.
+
+## Agent configuration
+
+Every adapter invokes the same bridge:
 
 ```text
 npx -y knownpath mcp
 ```
 
-| Client      | Global MCP configuration  | Project MCP configuration           | Skill location             |
-| ----------- | ------------------------- | ----------------------------------- | -------------------------- |
-| Codex CLI   | `~/.codex/config.toml`    | `.codex/config.toml`                | `.agents/skills/knownpath` |
-| Claude Code | `~/.claude.json`          | `.mcp.json`                         | `.claude/skills/knownpath` |
-| Cursor      | `~/.cursor/mcp.json`      | `.cursor/mcp.json`                  | `.agents/skills/knownpath` |
-| Gemini CLI  | `~/.gemini/settings.json` | `.gemini/settings.json`             | `.agents/skills/knownpath` |
-| OpenCode    | platform config directory | `opencode.jsonc` or `opencode.json` | `.agents/skills/knownpath` |
+Named profiles append `--profile <name>`. No API key, token, URL, or KnownPath-specific environment
+reference is stored in normal hosted configuration.
 
-OpenCode's global directory follows the platform's configuration conventions. All path resolution
-uses Node platform APIs and respects XDG and Windows application-data locations where applicable.
+| Agent       | Global configuration                                | Project configuration           |
+| ----------- | --------------------------------------------------- | ------------------------------- |
+| Codex CLI   | `~/.codex/config.toml`                              | `.codex/config.toml`            |
+| Claude Code | documented user MCP settings                        | documented project MCP settings |
+| Cursor      | `~/.cursor/mcp.json`                                | `.cursor/mcp.json`              |
+| Gemini CLI  | `~/.gemini/settings.json`                           | `.gemini/settings.json`         |
+| OpenCode    | platform config directory `opencode/opencode.jsonc` | `opencode.jsonc`                |
 
-### Environment references
+Claude Code and Gemini CLI use official mutation commands when available. Other paths use
+comment-preserving JSONC/TOML-safe merge logic based on current official client formats.
 
-Each native format receives only its supported environment-reference syntax:
+## Safety and ownership
 
-- Codex forwards `KNOWNPATH_API_URL` and `KNOWNPATH_API_KEY` through `env_vars`.
-- Claude Code stores `${KNOWNPATH_API_URL}` and `${KNOWNPATH_API_KEY}`.
-- Cursor stores `${env:KNOWNPATH_API_URL}` and `${env:KNOWNPATH_API_KEY}`.
-- Gemini CLI stores `$KNOWNPATH_API_URL` and `$KNOWNPATH_API_KEY`.
-- OpenCode stores `{env:KNOWNPATH_API_URL}` and `{env:KNOWNPATH_API_KEY}`.
+Before writing, the installer detects clients, resolves platform paths, parses existing config, and
+calculates an exact plan. It:
 
-Claude Code and Gemini CLI use their official MCP mutation commands when their executables are
-available. For an explicitly selected unavailable client, the adapter uses its documented file
-format. Codex receives a bounded managed TOML block. JSONC edits preserve comments and trailing
-commas.
+- preserves unknown fields/comments where the format allows;
+- backs up existing user config before mutation;
+- creates files atomically with restrictive permissions;
+- refuses symlink traversal and non-regular managed files;
+- refuses unmanaged or locally modified `knownpath` conflicts;
+- records only paths, digests, versions, ownership flags, profile metadata, and timestamps;
+- makes repeated installation idempotent; and
+- removes only owned entries during uninstall.
 
-## Detection and ownership
+`uninstall` does not log out. `logout` does not remove agent configuration.
 
-Detection is advisory. An explicitly selected client can be configured even when its executable is
-not found; the result is marked unverified.
+## Dry-run and automation
 
-KnownPath records non-secret ownership state separately from agent configuration. State includes:
+```sh
+npx knownpath install --agent all --dry-run
+npx knownpath install --agent codex --yes
+npx knownpath status --agent all --json
+```
 
-- target client and scope
-- managed paths
-- content digests and versions
-- ownership flags
-- profile label and expected workspace ID
-- timestamps
+Dry-run does not open a browser, create a device code, or mutate credentials. JSON and non-TTY modes
+require explicit agents and `--yes` for changes. Reports never include credentials or sensitive
+headers.
 
-A matching artifact that predates ownership remains unmanaged. A differing `knownpath` MCP entry or
-a locally changed managed artifact is a conflict. The installer stops rather than adopting or
-overwriting it.
+## Profiles and workspace checks
 
-## Merge, backup, and filesystem safety
+`--profile` selects a stored connection/credential. `--workspace-id` stores only an expected UUID
+and requires a profile. During `doctor`, the backend's authenticated binding must match that UUID;
+local profile data cannot grant workspace access.
 
-- Existing config files are backed up beside the original as `*.knownpath-backup-<timestamp>` before
-  mutation.
-- JSON and JSONC edits preserve unknown fields; Codex edits are confined to a marked block.
-- Writes are atomic and retain restrictive permissions.
-- Managed targets must be absolute regular files or directories.
-- Symlink components, symlinked skill contents, NUL paths, and non-regular targets are rejected.
-- Temporary files use exclusive creation and no-follow behavior.
-- `uninstall` removes only paths and entries recorded as KnownPath-owned.
-- A shared `.agents/skills/knownpath` directory is removed only after no selected installation owns
-  it.
-
-Backups may contain unrelated user-owned agent settings. Protect them as you would the original
-config.
-
-## Profiles and workspaces
-
-`--profile` is a non-secret label for the launch environment supplying a key. Adding
-`--workspace-id` records the expected workspace binding. During `doctor`, the CLI calls the safe MCP
-status endpoint and confirms that the key matches that workspace.
-
-The installer never chooses a workspace or rewrites key scope. If selected installations require
-different workspace bindings while sharing one `KNOWNPATH_API_KEY`, setup fails with an actionable
-conflict.
-
-## Machine-readable operation
-
-`--json` writes exactly one JSON document to standard output. It is suitable for scripts and managed
-provisioning. Sensitive environment values and authorization-like strings are redacted from normal
-and error output.
-
-## Contribution and outcome permissions
-
-Installing KnownPath does not enable background sharing. Contributions require an API key with
-`knowledge:contribute`, explicit consent for each submission, and account contribution mode that
-permits asking. Outcomes require `knowledge:outcome` and an actual attempted result.
-
-A read-only `knowledge:read` key can search but cannot contribute or report outcomes. These rules
-are enforced by the backend, not by installer configuration. See [Contributions](CONTRIBUTIONS.md)
-and [Outcomes](OUTCOMES.md).
-
-## Adding another adapter
-
-An adapter should be added only when the client has stable, public MCP and Agent Skill mechanisms.
-It must support detection, scoped paths, merge-safe configuration, status, update, and precise
-uninstall without changing the canonical skill. GitHub Copilot, Cline, and Windsurf are not current
-installer targets.
-
-The current client references are linked from [Agent installation](AGENT_INSTALLATION.md). Internal
-adapter boundaries are documented in `packages/agent-adapters/README.md`.
+See [Agent installation](AGENT_INSTALLATION.md), [MCP](MCP.md), and [Workspaces](WORKSPACES.md).

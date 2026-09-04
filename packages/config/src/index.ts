@@ -105,9 +105,14 @@ const authEnvironmentSchema = z.object({
     .max(86_400)
     .default(300),
   API_KEY_PEPPER: secretSchema,
+  AUTH_DEVICE_CODE_EXPIRES_SECONDS: z.coerce.number().int().min(300).max(1_800).default(600),
+  AUTH_DEVICE_POLL_INTERVAL_SECONDS: z.coerce.number().int().min(5).max(30).default(5),
+  AUTH_MACHINE_CREDENTIAL_TTL_DAYS: z.coerce.number().int().min(30).max(365).default(180),
+  AUTH_REGISTRATION_MODE: z.enum(["closed", "open"]).default("closed"),
   AUTH_TRUSTED_ORIGINS: commaSeparatedUrlsSchema,
   BETTER_AUTH_SECRET: secretSchema,
   BETTER_AUTH_URL: z.url({ protocol: /^https?$/u }),
+  KNOWNPATH_PUBLIC_WEB_URL: z.url({ protocol: /^https?$/u }).default("http://localhost:3000"),
   NODE_ENV: runtimeModeSchema,
 });
 
@@ -291,6 +296,11 @@ export interface AuthConfig {
   readonly apiKeyLastUsedWriteIntervalMs: number;
   readonly apiKeyPepper: string;
   readonly baseUrl: string;
+  readonly deviceCodeExpiresSeconds: number;
+  readonly devicePollIntervalSeconds: number;
+  readonly machineCredentialTtlDays: number;
+  readonly publicWebUrl: string;
+  readonly registrationMode: "closed" | "open";
   readonly runtimeMode: RuntimeMode;
   readonly secret: string;
   readonly trustedOrigins: readonly string[];
@@ -464,6 +474,7 @@ export function loadApiConfig(environment: NodeJS.ProcessEnv = process.env): Api
 export function loadAuthConfig(environment: NodeJS.ProcessEnv = process.env): AuthConfig {
   const parsed = parseEnvironment(authEnvironmentSchema, environment);
   const baseUrl = new URL(parsed.BETTER_AUTH_URL);
+  const publicWebUrl = new URL(parsed.KNOWNPATH_PUBLIC_WEB_URL);
 
   if (
     baseUrl.username !== "" ||
@@ -476,10 +487,26 @@ export function loadAuthConfig(environment: NodeJS.ProcessEnv = process.env): Au
       "Invalid KnownPath configuration: BETTER_AUTH_URL must be an origin without credentials, path, query, or fragment",
     );
   }
+  if (
+    publicWebUrl.username !== "" ||
+    publicWebUrl.password !== "" ||
+    publicWebUrl.search !== "" ||
+    publicWebUrl.hash !== "" ||
+    (publicWebUrl.pathname !== "" && publicWebUrl.pathname !== "/")
+  ) {
+    throw new Error(
+      "Invalid KnownPath configuration: KNOWNPATH_PUBLIC_WEB_URL must be an origin without credentials, path, query, or fragment",
+    );
+  }
 
   if (parsed.NODE_ENV === "production" && baseUrl.protocol !== "https:") {
     throw new Error(
       "Invalid KnownPath configuration: BETTER_AUTH_URL must use HTTPS in production",
+    );
+  }
+  if (parsed.NODE_ENV === "production" && publicWebUrl.protocol !== "https:") {
+    throw new Error(
+      "Invalid KnownPath configuration: KNOWNPATH_PUBLIC_WEB_URL must use HTTPS in production",
     );
   }
   if (parsed.BETTER_AUTH_SECRET === parsed.API_KEY_PEPPER) {
@@ -500,6 +527,11 @@ export function loadAuthConfig(environment: NodeJS.ProcessEnv = process.env): Au
     apiKeyLastUsedWriteIntervalMs: parsed.API_KEY_LAST_USED_WRITE_INTERVAL_SECONDS * 1_000,
     apiKeyPepper: parsed.API_KEY_PEPPER,
     baseUrl: baseUrl.toString().replace(/\/$/u, ""),
+    deviceCodeExpiresSeconds: parsed.AUTH_DEVICE_CODE_EXPIRES_SECONDS,
+    devicePollIntervalSeconds: parsed.AUTH_DEVICE_POLL_INTERVAL_SECONDS,
+    machineCredentialTtlDays: parsed.AUTH_MACHINE_CREDENTIAL_TTL_DAYS,
+    publicWebUrl: publicWebUrl.toString().replace(/\/$/u, ""),
+    registrationMode: parsed.AUTH_REGISTRATION_MODE,
     runtimeMode: parsed.NODE_ENV,
     secret: parsed.BETTER_AUTH_SECRET,
     trustedOrigins: parsed.AUTH_TRUSTED_ORIGINS,

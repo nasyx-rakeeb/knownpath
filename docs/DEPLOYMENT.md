@@ -1,8 +1,8 @@
 # Self-hosting and deployment
 
 This guide is for operators who choose to run KnownPath. It is not required for developers using the
-hosted network through `npx knownpath install`; those users only need a provisioned API URL and key.
-See [Agent installation](AGENT_INSTALLATION.md).
+hosted network through `npx knownpath install`; hosted signup, device authorization, and credential
+storage are handled by the installer. See [Agent installation](AGENT_INSTALLATION.md).
 
 KnownPath is provider-neutral and can run on a container platform, virtual machines, or Kubernetes.
 Provider examples are illustrative, not required architecture.
@@ -41,6 +41,11 @@ exact CORS/trusted origins, and distinct `BETTER_AUTH_SECRET` and `API_KEY_PEPPE
 belong only on processes that use them. Public/unpaid Gemini must remain blocked for private/team
 content.
 
+Set `KNOWNPATH_PUBLIC_WEB_URL` to the dashboard origin so device verification links are correct.
+Choose `AUTH_REGISTRATION_MODE=open` for public signup or `closed` for existing/operator-created
+users only. Device-code expiry, polling interval, and machine-key lifetime are bounded by the
+`AUTH_DEVICE_*` and `AUTH_MACHINE_CREDENTIAL_TTL_DAYS` settings in `.env.example`.
+
 ## Build images
 
 ```sh
@@ -63,9 +68,9 @@ SEARCH_BACKEND=atlas pnpm run search indexes status  # only for Atlas search
 pnpm auth:user:create
 ```
 
-`db:init` is idempotent and should run before traffic on a schema/index release. Registration is
-closed; create the initial administrator through the interactive CLI and never store its credential
-in an image or CI definition.
+`db:init` is idempotent and should run before traffic on a schema/index release. Always create the
+initial administrator through the interactive operator CLI; public signup creates ordinary users
+only. Never store administrator credentials in an image or CI definition.
 
 ## Run
 

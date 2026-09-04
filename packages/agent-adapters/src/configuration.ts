@@ -3,7 +3,7 @@ import { applyEdits, modify, parse, printParseErrorCode, type ParseError } from 
 import {
   apiKeyEnvironmentName,
   apiUrlEnvironmentName,
-  stdioArguments,
+  stdioArgumentsForProfile,
   stdioCommand,
 } from "./constants.js";
 import { atomicWrite, readTextIfPresent } from "./filesystem.js";
@@ -11,33 +11,47 @@ import { InstallerError, type AgentId } from "./types.js";
 
 const codexBlockStart = "# >>> KnownPath installer managed MCP entry >>>";
 const codexBlockEnd = "# <<< KnownPath installer managed MCP entry <<<";
-const codexBlock = `${codexBlockStart}
+function codexBlock(profileName?: string): string {
+  return `${codexBlockStart}
 [mcp_servers.knownpath]
 command = ${JSON.stringify(stdioCommand)}
-args = ${JSON.stringify(stdioArguments)}
+args = ${JSON.stringify(stdioArgumentsForProfile(profileName))}
+${codexBlockEnd}`;
+}
+
+const legacyCodexBlock = `${codexBlockStart}
+[mcp_servers.knownpath]
+command = ${JSON.stringify(stdioCommand)}
+args = ${JSON.stringify(stdioArgumentsForProfile())}
 env_vars = ${JSON.stringify([apiUrlEnvironmentName, apiKeyEnvironmentName])}
 ${codexBlockEnd}`;
 
-export type McpConfigState = "absent" | "conflict" | "current";
+export type McpConfigState = "absent" | "conflict" | "current" | "legacy";
 
-export async function inspectMcpConfig(agent: AgentId, path: string): Promise<McpConfigState> {
+export async function inspectMcpConfig(
+  agent: AgentId,
+  path: string,
+  profileName?: string,
+): Promise<McpConfigState> {
   const source = await readTextIfPresent(path);
   if (source === undefined) return "absent";
-  if (agent === "codex") return inspectCodex(source);
+  if (agent === "codex") return inspectCodex(source, profileName);
   const document = parseJsonc(source, path);
   const value = readPath(document, configPropertyPath(agent));
   if (value === undefined) return "absent";
-  return deepEqual(value, desiredMcpEntry(agent)) ? "current" : "conflict";
+  if (deepEqual(value, desiredMcpEntry(agent, profileName))) return "current";
+  return deepEqual(value, legacyMcpEntry(agent)) ? "legacy" : "conflict";
 }
 
 export async function writeMcpConfig(
   agent: AgentId,
   path: string,
   operation: "install" | "remove",
+  profileName?: string,
 ): Promise<void> {
   const source = (await readTextIfPresent(path)) ?? (agent === "codex" ? "" : "{}\n");
   if (agent === "codex") {
-    await atomicWrite(path, updateCodex(source, operation));
+    await atomicWrite(path, updateCodex(source, operation, profileName));
     return;
   }
   const propertyPath = configPropertyPath(agent);
@@ -45,7 +59,7 @@ export async function writeMcpConfig(
   const edits = modify(
     source,
     propertyPath,
-    operation === "install" ? desiredMcpEntry(agent) : undefined,
+    operation === "install" ? desiredMcpEntry(agent, profileName) : undefined,
     {
       formattingOptions: {
         eol: source.includes("\r\n") ? "\r\n" : "\n",
@@ -57,44 +71,68 @@ export async function writeMcpConfig(
   await atomicWrite(path, ensureFinalNewline(applyEdits(source, edits)));
 }
 
-export function desiredMcpEntry(agent: Exclude<AgentId, "codex">): Record<string, unknown> {
+export function desiredMcpEntry(
+  agent: Exclude<AgentId, "codex">,
+  profileName?: string,
+): Record<string, unknown> {
+  const arguments_ = stdioArgumentsForProfile(profileName);
   if (agent === "claude") {
     return {
       type: "stdio",
       command: stdioCommand,
-      args: [...stdioArguments],
-      env: {
-        [apiUrlEnvironmentName]: `\${${apiUrlEnvironmentName}}`,
-        [apiKeyEnvironmentName]: `\${${apiKeyEnvironmentName}}`,
-      },
+      args: [...arguments_],
+      env: {},
     };
   }
   if (agent === "cursor") {
     return {
       type: "stdio",
       command: stdioCommand,
-      args: [...stdioArguments],
-      env: {
-        [apiUrlEnvironmentName]: `\${env:${apiUrlEnvironmentName}}`,
-        [apiKeyEnvironmentName]: `\${env:${apiKeyEnvironmentName}}`,
-      },
+      args: [...arguments_],
     };
   }
   if (agent === "gemini") {
     return {
       command: stdioCommand,
-      args: [...stdioArguments],
-      env: {
-        [apiUrlEnvironmentName]: `$${apiUrlEnvironmentName}`,
-        [apiKeyEnvironmentName]: `$${apiKeyEnvironmentName}`,
-      },
+      args: [...arguments_],
       timeout: 30_000,
       trust: false,
     };
   }
   return {
     type: "local",
-    command: [stdioCommand, ...stdioArguments],
+    command: [stdioCommand, ...arguments_],
+  };
+}
+
+function legacyMcpEntry(agent: Exclude<AgentId, "codex">): Record<string, unknown> {
+  const base = desiredMcpEntry(agent);
+  if (agent === "claude")
+    return {
+      ...base,
+      env: {
+        [apiUrlEnvironmentName]: `\${${apiUrlEnvironmentName}}`,
+        [apiKeyEnvironmentName]: `\${${apiKeyEnvironmentName}}`,
+      },
+    };
+  if (agent === "cursor")
+    return {
+      ...base,
+      env: {
+        [apiUrlEnvironmentName]: `\${env:${apiUrlEnvironmentName}}`,
+        [apiKeyEnvironmentName]: `\${env:${apiKeyEnvironmentName}}`,
+      },
+    };
+  if (agent === "gemini")
+    return {
+      ...base,
+      env: {
+        [apiUrlEnvironmentName]: `$${apiUrlEnvironmentName}`,
+        [apiKeyEnvironmentName]: `$${apiKeyEnvironmentName}`,
+      },
+    };
+  return {
+    ...base,
     environment: {
       [apiUrlEnvironmentName]: `{env:${apiUrlEnvironmentName}}`,
       [apiKeyEnvironmentName]: `{env:${apiKeyEnvironmentName}}`,
@@ -102,24 +140,36 @@ export function desiredMcpEntry(agent: Exclude<AgentId, "codex">): Record<string
   };
 }
 
-function inspectCodex(source: string): McpConfigState {
+function inspectCodex(source: string, profileName?: string): McpConfigState {
   const start = source.indexOf(codexBlockStart);
   const end = source.indexOf(codexBlockEnd);
   if (start >= 0 || end >= 0) {
     if (start < 0 || end < start) return "conflict";
     const installed = source.slice(start, end + codexBlockEnd.length).trim();
-    return installed === codexBlock ? "current" : "conflict";
+    if (installed === codexBlock(profileName)) return "current";
+    return installed === legacyCodexBlock ? "legacy" : "conflict";
   }
   return /^\s*\[mcp_servers\.knownpath\]\s*$/mu.test(source) ? "conflict" : "absent";
 }
 
-function updateCodex(source: string, operation: "install" | "remove"): string {
-  const state = inspectCodex(source);
+function updateCodex(
+  source: string,
+  operation: "install" | "remove",
+  profileName?: string,
+): string {
+  const state = inspectCodex(source, profileName);
   if (operation === "install") {
     if (state === "conflict") throw configConflict("Codex");
     if (state === "current") return ensureFinalNewline(source);
+    if (state === "legacy") {
+      const start = source.indexOf(codexBlockStart);
+      const end = source.indexOf(codexBlockEnd) + codexBlockEnd.length;
+      return ensureFinalNewline(
+        `${source.slice(0, start)}${codexBlock(profileName)}${source.slice(end)}`,
+      );
+    }
     const prefix = source.trimEnd();
-    return `${prefix}${prefix === "" ? "" : "\n\n"}${codexBlock}\n`;
+    return `${prefix}${prefix === "" ? "" : "\n\n"}${codexBlock(profileName)}\n`;
   }
   if (state === "absent") return ensureFinalNewline(source);
   if (state === "conflict") throw configConflict("Codex");

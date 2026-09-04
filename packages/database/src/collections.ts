@@ -51,6 +51,7 @@ export const collectionNames = {
   apiKeys: "api_keys",
   auditEvents: "audit_events",
   authAccounts: "auth_accounts",
+  authDeviceCodes: "auth_device_codes",
   authSessions: "auth_sessions",
   authVerifications: "auth_verifications",
   candidateExperiences: "candidate_experiences",

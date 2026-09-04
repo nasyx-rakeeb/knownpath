@@ -19,7 +19,7 @@ services:
       - key: API_DOCS_ENABLED
         value: "false"
       - key: API_CORS_ORIGINS
-        value: ""
+        value: https://knownpath-web.onrender.com
       - key: API_TRUST_PROXY
         value: "false"
       - key: API_RATE_LIMIT_MAX
@@ -46,10 +46,17 @@ services:
       - key: BETTER_AUTH_SECRET
         generateValue: true
       - key: AUTH_TRUSTED_ORIGINS
-        fromService:
-          type: web
-          name: knownpath-api
-          envVarKey: RENDER_EXTERNAL_URL
+        value: https://knownpath-api.onrender.com,https://knownpath-web.onrender.com
+      - key: AUTH_REGISTRATION_MODE
+        value: open
+      - key: KNOWNPATH_PUBLIC_WEB_URL
+        value: https://knownpath-web.onrender.com
+      - key: AUTH_DEVICE_CODE_EXPIRES_SECONDS
+        value: "600"
+      - key: AUTH_DEVICE_POLL_INTERVAL_SECONDS
+        value: "5"
+      - key: AUTH_MACHINE_CREDENTIAL_TTL_DAYS
+        value: "180"
       - key: API_KEY_PEPPER
         generateValue: true
       - key: API_KEY_LAST_USED_WRITE_INTERVAL_SECONDS
@@ -86,3 +93,24 @@ services:
         value: "20"
       - key: SEARCH_INDEX_READY_TIMEOUT_MS
         value: "120000"
+
+  - type: web
+    name: knownpath-web
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
+    buildCommand:
+      corepack enable && pnpm install --frozen-lockfile && pnpm turbo run build
+      --filter=@knownpath/web
+    startCommand: pnpm --filter @knownpath/web start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: KNOWNPATH_API_URL
+        fromService:
+          type: web
+          name: knownpath-api
+          envVarKey: RENDER_EXTERNAL_URL

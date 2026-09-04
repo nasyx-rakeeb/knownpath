@@ -36,28 +36,31 @@ export function InstallGuide() {
         </p>
       </section>
       <section className="section-block">
-        <p className="eyebrow">Before you run it</p>
-        <h2>Provide two environment variables</h2>
+        <p className="eyebrow">Hosted onboarding</p>
+        <h2>Sign in once in your browser</h2>
         <p className="section-copy">
-          KnownPath never writes secret values into agent configuration. Launch agents from a shell
-          that supplies both variables.
+          The installer opens the official KnownPath authorization page, creates a scoped machine
+          credential, and stores it in your operating system credential manager. No API URL or key
+          setup is required for the hosted service.
         </p>
         <div className="env-grid">
           <div>
-            <code>KNOWNPATH_API_URL</code>
-            <p>The URL of your trusted KnownPath API deployment.</p>
+            <strong>Credentials stay private</strong>
+            <p>The machine credential is never written to agent configuration or shell profiles.</p>
           </div>
           <div>
-            <code>KNOWNPATH_API_KEY</code>
-            <p>A scoped key created in this dashboard. Use knowledge:read for retrieval.</p>
+            <strong>Self-hosting stays explicit</strong>
+            <p>
+              Operators can select their own trusted API origin with <code>--api-url</code>.
+            </p>
           </div>
         </div>
       </section>
       <section className="section-block">
         <p className="eyebrow">Supported clients</p>
-        <h2>One installer, four agents</h2>
+        <h2>One installer, five agents</h2>
         <div className="client-grid">
-          {["OpenAI Codex CLI", "Claude Code", "Cursor", "Gemini CLI"].map((client) => (
+          {["OpenAI Codex CLI", "Claude Code", "Cursor", "Gemini CLI", "OpenCode"].map((client) => (
             <div key={client}>
               <strong>{client}</strong>
               <span>Detection · MCP · skill</span>
@@ -65,8 +68,8 @@ export function InstallGuide() {
           ))}
         </div>
         <p className="section-copy">
-          Run <code>npx knownpath doctor</code> after installation to check the API URL, key, MCP
-          configuration, and installed skill version.
+          Run <code>npx knownpath doctor</code> after installation to check authentication, backend
+          connectivity, MCP configuration, and the installed skill version.
         </p>
       </section>
     </>

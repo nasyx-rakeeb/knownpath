@@ -1,12 +1,7 @@
 import { access } from "node:fs/promises";
 import { join } from "node:path";
 
-import {
-  apiKeyEnvironmentName,
-  apiUrlEnvironmentName,
-  stdioArguments,
-  stdioCommand,
-} from "./constants.js";
+import { stdioArgumentsForProfile, stdioCommand } from "./constants.js";
 import { writeMcpConfig } from "./configuration.js";
 import { findExecutable } from "./process.js";
 import {
@@ -66,22 +61,30 @@ export async function mutateMcpConfig(input: {
   readonly detection: AgentDetection;
   readonly environment: NodeJS.ProcessEnv;
   readonly operation: "install" | "remove";
+  readonly profileName?: string;
   readonly scope: InstallationScope;
 }): Promise<void> {
   if (input.agent === "claude" && input.detection.executable !== undefined) {
-    await runOfficialMutation(input, claudeArguments(input.operation, input.scope));
+    await runOfficialMutation(
+      input,
+      claudeArguments(input.operation, input.scope, input.profileName),
+    );
     return;
   }
   if (input.agent === "gemini" && input.detection.executable !== undefined) {
-    await runOfficialMutation(input, geminiArguments(input.operation, input.scope));
+    await runOfficialMutation(
+      input,
+      geminiArguments(input.operation, input.scope, input.profileName),
+    );
     return;
   }
-  await writeMcpConfig(input.agent, input.configPath, input.operation);
+  await writeMcpConfig(input.agent, input.configPath, input.operation, input.profileName);
 }
 
 function claudeArguments(
   operation: "install" | "remove",
   scope: InstallationScope,
+  profileName?: string,
 ): readonly string[] {
   const mappedScope = scope === "global" ? "user" : "project";
   if (operation === "remove") return ["mcp", "remove", "--scope", mappedScope, "knownpath"];
@@ -90,22 +93,19 @@ function claudeArguments(
     "add",
     "--scope",
     mappedScope,
-    "--env",
-    `${apiUrlEnvironmentName}=\${${apiUrlEnvironmentName}}`,
-    "--env",
-    `${apiKeyEnvironmentName}=\${${apiKeyEnvironmentName}}`,
     "--transport",
     "stdio",
     "knownpath",
     "--",
     stdioCommand,
-    ...stdioArguments,
+    ...stdioArgumentsForProfile(profileName),
   ];
 }
 
 function geminiArguments(
   operation: "install" | "remove",
   scope: InstallationScope,
+  profileName?: string,
 ): readonly string[] {
   const mappedScope = scope === "global" ? "user" : "project";
   if (operation === "remove") return ["mcp", "remove", "--scope", mappedScope, "knownpath"];
@@ -116,14 +116,10 @@ function geminiArguments(
     mappedScope,
     "--transport",
     "stdio",
-    "--env",
-    `${apiUrlEnvironmentName}=$${apiUrlEnvironmentName}`,
-    "--env",
-    `${apiKeyEnvironmentName}=$${apiKeyEnvironmentName}`,
     "knownpath",
     stdioCommand,
     "--",
-    ...stdioArguments,
+    ...stdioArgumentsForProfile(profileName),
   ];
 }
 

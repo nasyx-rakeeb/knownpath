@@ -16,11 +16,12 @@ collections.
   `workspaceId`.
 - Historical facts are append-only where auditability matters. Current projections carry pointers to
   immutable records.
-- Product collections have no TTL indexes. Only ephemeral worker heartbeats expire automatically.
+- Durable product collections have no TTL indexes. Ephemeral worker heartbeats and one-time device
+  authorization grants expire automatically.
 
 ## Collection map
 
-Database initialization manages 33 collections.
+Database initialization manages 34 collections.
 
 ### Identity and authorization
 
@@ -31,6 +32,7 @@ Database initialization manages 33 collections.
 | `auth_sessions`      | Better Auth server-side sessions                                 |
 | `auth_accounts`      | Better Auth credentials/provider associations                    |
 | `auth_verifications` | Framework verification primitives for deliberately enabled flows |
+| `auth_device_codes`  | Short-lived, one-time CLI browser authorization grants           |
 | `audit_events`       | Append-only sensitive-action history without credential data     |
 
 `users` is the identity source for KnownPath and Better Auth. Password material lives only in
@@ -38,6 +40,12 @@ Database initialization manages 33 collections.
 cookies. An API key has the external form `kp_<public-id>_<random-secret>`; persistence contains its
 public prefix, HMAC-SHA-256 digest, scopes, binding, status, expiry/revocation, and throttled
 last-used timestamp.
+
+API keys carry a `credentialKind` (`manual` or `cli_device`). CLI-device keys reuse the same
+hashing, scope, binding, expiry, revocation, and last-use machinery as manual keys.
+`auth_device_codes` stores only expiring protocol state and has unique device/user-code indexes plus
+a TTL index; raw codes are not copied into audit events. CLI profile metadata and OS
+credential-store contents are client-side, not MongoDB product collections.
 
 ### Sources and extraction
 

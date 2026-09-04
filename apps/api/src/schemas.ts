@@ -1,4 +1,9 @@
-import { apiKeyScopeSchema, type ApiKeyScope } from "@knownpath/domain";
+import {
+  apiKeyCredentialKindSchema,
+  apiKeyScopeSchema,
+  type ApiKeyCredentialKind,
+  type ApiKeyScope,
+} from "@knownpath/domain";
 import { z } from "zod";
 
 export const errorEnvelopeSchema = z.object({
@@ -14,6 +19,7 @@ export const apiKeyMetadataSchema = z.object({
   id: z.uuidv4(),
   name: z.string(),
   prefix: z.string(),
+  credentialKind: apiKeyCredentialKindSchema,
   scopes: z.array(apiKeyScopeSchema),
   status: z.enum(["active", "revoked", "expired"]),
   binding: z.discriminatedUnion("kind", [
@@ -41,6 +47,35 @@ export const authSignInBodySchema = z.strictObject({
   rememberMe: z.boolean().optional(),
 });
 
+export const authSignUpBodySchema = z.strictObject({
+  email: z.email().max(320),
+  name: z.string().trim().min(1).max(256),
+  password: z.string().min(12).max(128),
+});
+
+export const authDeviceCodeBodySchema = z.strictObject({
+  client_id: z.literal("knownpath-cli"),
+  scope: z.literal("knowledge:read knowledge:contribute knowledge:outcome"),
+});
+
+export const authDeviceTokenBodySchema = z.strictObject({
+  grant_type: z.literal("urn:ietf:params:oauth:grant-type:device_code"),
+  device_code: z.string().min(32).max(191),
+  client_id: z.literal("knownpath-cli"),
+});
+
+export const authDeviceVerifyQuerySchema = z.strictObject({
+  user_code: z.string().trim().min(6).max(32),
+});
+
+export const authDeviceDecisionBodySchema = z.strictObject({
+  userCode: z.string().trim().min(6).max(32),
+});
+
+export const machineCredentialExchangeBodySchema = z.strictObject({
+  label: z.string().trim().min(1).max(128),
+});
+
 export const authChangePasswordBodySchema = z.strictObject({
   currentPassword: z.string().min(1).max(128),
   newPassword: z.string().min(12).max(128),
@@ -55,6 +90,7 @@ export function toApiKeyMetadata(key: {
   readonly _id: string;
   readonly audit: { readonly createdAt: Date; readonly updatedAt: Date };
   readonly expiresAt?: Date | undefined;
+  readonly credentialKind: ApiKeyCredentialKind;
   readonly lastUsedAt?: Date | undefined;
   readonly name: string;
   readonly prefix: string;
@@ -68,6 +104,7 @@ export function toApiKeyMetadata(key: {
     id: key._id,
     name: key.name,
     prefix: key.prefix,
+    credentialKind: key.credentialKind,
     scopes: key.scopes,
     status: key.status,
     binding: key.binding,

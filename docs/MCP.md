@@ -31,12 +31,9 @@ The `knownpath` CLI provides a lightweight bridge:
 npx -y knownpath mcp
 ```
 
-The bridge speaks MCP on standard input/output and calls the KnownPath HTTP API. It requires only:
-
-```text
-KNOWNPATH_API_URL
-KNOWNPATH_API_KEY
-```
+The bridge speaks MCP on standard input/output and calls the KnownPath HTTP API. For hosted use it
+resolves the versioned official API origin and the selected machine credential from the native OS
+credential store. Agent configuration therefore needs only the command above.
 
 It does not connect to MongoDB or Valkey and does not require Gemini, GitHub, Better Auth, Atlas, or
 API-key-pepper secrets. This is the default transport installed by `npx knownpath install`.
@@ -46,11 +43,15 @@ API-key-pepper secrets. This is the default transport installed by `npx knownpat
 Both transports require a bearer API key with `knowledge:read`. Browser sessions do not authorize
 MCP requests.
 
-The stdio bridge reads its key from `KNOWNPATH_API_KEY`. Remote clients should source their bearer
-token from an environment variable or another client-supported secret mechanism. Never put a key in
-a URL, a committed MCP file, or a skill.
+The stdio bridge reads a scoped machine credential from Keychain, Windows Credential Manager, or
+Linux Secret Service. `npx knownpath login` obtains it through browser device authorization; the
+credential is not a browser cookie and is independently revocable. Self-hosted and legacy users may
+explicitly provide the complete `KNOWNPATH_API_URL`/`KNOWNPATH_API_KEY` environment pair. Remote
+clients should source their bearer token from a client-supported secret mechanism. Never put a key
+in a URL, command argument, committed MCP file, or skill.
 
-OAuth discovery and authorization are not implemented. Key scope and owner/workspace binding are
+Remote MCP OAuth discovery is not implemented. CLI browser authorization is a separate RFC 8628
+device flow that issues an ordinary KnownPath API key. Key scope and owner/workspace binding remain
 enforced by the backend.
 
 ## Tools
@@ -142,15 +143,13 @@ records, and every review search/read is audited. Ordinary users cannot receive 
 ## Install through the CLI
 
 ```sh
-export KNOWNPATH_API_URL="https://your-knownpath.example"
-export KNOWNPATH_API_KEY="..."
-npx knownpath install --dry-run
 npx knownpath install
 npx knownpath doctor
 ```
 
-The installer writes environment-variable references instead of values. See
-[Agent installation](AGENT_INSTALLATION.md).
+The installer authenticates in the browser, stores the resulting machine credential in the OS
+credential store, and writes no credential or environment reference to agent config. A dry run is
+available before authentication. See [Agent installation](AGENT_INSTALLATION.md).
 
 ## Manual stdio configuration
 
@@ -159,16 +158,12 @@ For clients that accept a command-based server, configure:
 ```json
 {
   "command": "npx",
-  "args": ["-y", "knownpath", "mcp"],
-  "env": {
-    "KNOWNPATH_API_URL": "${KNOWNPATH_API_URL}",
-    "KNOWNPATH_API_KEY": "${KNOWNPATH_API_KEY}"
-  }
+  "args": ["-y", "knownpath", "mcp"]
 }
 ```
 
-Environment-reference syntax varies by client; use the exact examples in [Installer](INSTALLER.md),
-or let the CLI configure the supported client.
+Run `npx knownpath login` first, or let `install` handle authentication and configuration together.
+Named profiles add `--profile <name>` to the argument list.
 
 ## Manual remote configuration
 
@@ -182,7 +177,8 @@ bearer_token_env_var = "KNOWNPATH_API_KEY"
 ```
 
 The local stdio bridge remains the default installer architecture because it gives all supported
-agents one consistent environment-only setup.
+agents one consistent secret-free configuration. Direct remote MCP remains an advanced integration
+path.
 
 ## Limits and errors
 
