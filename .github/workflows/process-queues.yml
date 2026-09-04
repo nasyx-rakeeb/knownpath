@@ -41,6 +41,7 @@ jobs:
       QUEUE_DRAIN_POLL_MS: "5000"
       QUEUE_PRODUCER_CONNECT_TIMEOUT_MS: "10000"
       BETTER_AUTH_URL: https://knownpath-api.onrender.com
+      KNOWNPATH_PUBLIC_WEB_URL: https://knownpath-web.onrender.com
       BETTER_AUTH_SECRET: ${{ secrets.KNOWNPATH_BETTER_AUTH_SECRET }}
       AUTH_TRUSTED_ORIGINS: https://knownpath-api.onrender.com
       API_KEY_PEPPER: ${{ secrets.KNOWNPATH_API_KEY_PEPPER }}
