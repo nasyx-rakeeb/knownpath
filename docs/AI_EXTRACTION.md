@@ -18,8 +18,10 @@ GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-The current default model is `gemini-3.5-flash-lite`, selected for structured, high-volume document
-extraction. Model identity is configurable and recorded with every attempt.
+The application default model is `gemini-3.5-flash-lite`, selected for structured, high-volume
+document extraction. The free scheduled-worker workflow defaults to `gemini-2.5-flash-lite` unless
+the repository variable `KNOWNPATH_GEMINI_MODEL` overrides it. Model identity is configurable and
+recorded with every attempt.
 
 Requests set `store: false`, provide no tools, require JSON-schema output, use minimal thinking, and
 request no thought summaries. KnownPath never asks for or stores hidden chain-of-thought.

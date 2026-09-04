@@ -51,6 +51,7 @@ jobs:
       AUTH_TRUSTED_ORIGINS: https://knownpath-api.onrender.com
       API_KEY_PEPPER: ${{ secrets.KNOWNPATH_API_KEY_PEPPER }}
       GEMINI_API_KEY: ${{ secrets.KNOWNPATH_GEMINI_API_KEY }}
+      GEMINI_MODEL: ${{ vars.KNOWNPATH_GEMINI_MODEL || 'gemini-2.5-flash-lite' }}
       GITHUB_TOKEN: ${{ secrets.KNOWNPATH_GITHUB_TOKEN || github.token }}
       SOURCE_REGISTRY_PATH: config/sources/registry.json
       AI_PROVIDER: gemini
