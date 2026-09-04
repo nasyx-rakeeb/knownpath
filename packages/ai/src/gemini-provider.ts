@@ -16,9 +16,9 @@ export interface GeminiProviderOptions {
 }
 
 export function geminiGenerationConfigId(model: string): string {
-  return supportsMinimalThinking(model)
-    ? "minimal-thinking-no-summaries-v1"
-    : "model-default-thinking-no-summaries-v1";
+  return model.startsWith("gemini-2.5-flash-lite")
+    ? "generate-content-json-default-thinking-v1"
+    : "generate-content-json-no-thought-output-v1";
 }
 
 export class GeminiExtractionProvider implements ExtractionProvider {
@@ -42,37 +42,39 @@ export class GeminiExtractionProvider implements ExtractionProvider {
   public async extract(request: ExtractionProviderRequest): Promise<ExtractionProviderResponse> {
     const startedAt = Date.now();
     try {
-      const response = await this.client.interactions.create(
-        {
-          model: this.model,
-          input: request.input,
-          system_instruction: request.systemInstruction,
-          store: false,
-          response_format: {
-            type: "text",
-            mime_type: "application/json",
-            schema: request.jsonSchema,
-          },
-          generation_config: {
-            max_output_tokens: request.maxOutputTokens,
-            thinking_summaries: "none",
-            ...(supportsMinimalThinking(this.model) ? { thinking_level: "minimal" as const } : {}),
-          },
+      const response = await this.client.models.generateContent({
+        model: this.model,
+        contents: request.input,
+        config: {
+          abortSignal: AbortSignal.timeout(this.options.requestTimeoutMs),
+          systemInstruction: request.systemInstruction,
+          maxOutputTokens: request.maxOutputTokens,
+          responseMimeType: "application/json",
+          responseJsonSchema: request.jsonSchema,
+          ...(this.model.startsWith("gemini-2.5-flash-lite")
+            ? {}
+            : { thinkingConfig: { includeThoughts: false } }),
         },
-        { timeout: this.options.requestTimeoutMs, maxRetries: 0 },
-      );
-      if (response.status !== "completed" || response.output_text === undefined) {
+      });
+      const outputText = response.text;
+      if (outputText === undefined) {
         throw new ExtractionProviderError(
           "ai_provider_permanent_failure",
-          `Gemini interaction ended with status ${response.status}`,
+          `Gemini generateContent returned no text${
+            response.promptFeedback?.blockReason === undefined
+              ? ""
+              : ` (${response.promptFeedback.blockReason})`
+          }`,
           false,
         );
       }
       return {
-        interactionId: response.id,
+        ...(response.responseId === undefined ? {} : { interactionId: response.responseId }),
         latencyMs: Date.now() - startedAt,
-        outputText: response.output_text,
-        ...(response.usage === undefined ? {} : { usage: mapUsage(response.usage) }),
+        outputText,
+        ...(response.usageMetadata === undefined
+          ? {}
+          : { usage: mapUsage(response.usageMetadata) }),
       };
     } catch (error) {
       if (error instanceof ExtractionProviderError) throw error;
@@ -81,34 +83,27 @@ export class GeminiExtractionProvider implements ExtractionProvider {
   }
 }
 
-function supportsMinimalThinking(model: string): boolean {
-  return (
-    model.startsWith("gemini-3.5-") ||
-    model.startsWith("gemini-3.6-") ||
-    model === "gemini-3-flash-preview" ||
-    model === "gemini-3.1-flash-lite-image"
-  );
-}
-
 function mapUsage(usage: {
-  total_cached_tokens?: number | undefined;
-  total_input_tokens?: number | undefined;
-  total_output_tokens?: number | undefined;
-  total_thought_tokens?: number | undefined;
-  total_tokens?: number | undefined;
-  total_tool_use_tokens?: number | undefined;
+  cachedContentTokenCount?: number | undefined;
+  candidatesTokenCount?: number | undefined;
+  promptTokenCount?: number | undefined;
+  thoughtsTokenCount?: number | undefined;
+  toolUsePromptTokenCount?: number | undefined;
+  totalTokenCount?: number | undefined;
 }): ExtractionUsage {
   return {
-    ...(usage.total_input_tokens === undefined ? {} : { inputTokens: usage.total_input_tokens }),
-    ...(usage.total_output_tokens === undefined ? {} : { outputTokens: usage.total_output_tokens }),
-    ...(usage.total_thought_tokens === undefined
+    ...(usage.promptTokenCount === undefined ? {} : { inputTokens: usage.promptTokenCount }),
+    ...(usage.candidatesTokenCount === undefined
       ? {}
-      : { thoughtTokens: usage.total_thought_tokens }),
-    ...(usage.total_cached_tokens === undefined ? {} : { cachedTokens: usage.total_cached_tokens }),
-    ...(usage.total_tool_use_tokens === undefined
+      : { outputTokens: usage.candidatesTokenCount }),
+    ...(usage.thoughtsTokenCount === undefined ? {} : { thoughtTokens: usage.thoughtsTokenCount }),
+    ...(usage.cachedContentTokenCount === undefined
       ? {}
-      : { toolTokens: usage.total_tool_use_tokens }),
-    ...(usage.total_tokens === undefined ? {} : { totalTokens: usage.total_tokens }),
+      : { cachedTokens: usage.cachedContentTokenCount }),
+    ...(usage.toolUsePromptTokenCount === undefined
+      ? {}
+      : { toolTokens: usage.toolUsePromptTokenCount }),
+    ...(usage.totalTokenCount === undefined ? {} : { totalTokens: usage.totalTokenCount }),
   };
 }
 

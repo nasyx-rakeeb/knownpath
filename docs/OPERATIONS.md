@@ -119,6 +119,10 @@ item. For GitHub Actions, set `recovery_limit` to a small value first when valid
 provider key or model configuration. Each selected source gets a fresh extraction attempt; its
 recovery key makes repeated invocations idempotent for the same failed attempt.
 
+Gemini extraction uses the stable `generateContent` structured-output API. This keeps the
+free-development `gemini-2.5-flash-lite` path independent of Interactions API model availability;
+the selected model and generation configuration remain part of extraction provenance.
+
 ## Valkey outages
 
 - Workers refuse to start when `QUEUE_REDIS_URL` is missing or unreachable.
