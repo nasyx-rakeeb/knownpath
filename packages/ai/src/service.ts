@@ -35,6 +35,7 @@ const TERMINAL_STATUSES = new Set<ExtractionAttempt["status"]>([
 
 export interface ExtractionServiceOptions {
   readonly dataHandling: AiProviderCapability;
+  readonly generationConfigId: string;
   readonly maxEstimatedInputTokens: number;
   readonly maxOutputTokens: number;
   readonly maxRetries: number;
@@ -79,9 +80,8 @@ export class ExtractionService {
     const prompts = getPromptBundle(context.strategy);
     const generationConfigDigest = sha256(
       stableJson({
+        generationConfigId: this.options.generationConfigId,
         maxOutputTokens: this.options.maxOutputTokens,
-        thinkingLevel: "minimal",
-        summaries: "none",
       }),
     );
     const idempotencyKey = createVersionedKey([
@@ -363,7 +363,8 @@ function safeFailureMessage(error: ExtractionProviderError): string {
     return "Gemini quota or rate limit was exhausted; inspect AI Studio limits and retry later";
   if (error.code === "ai_provider_call_budget_exhausted")
     return "The configured provider-call budget was exhausted before extraction completed";
+  const status = error.status === undefined ? "" : ` (HTTP ${error.status})`;
   return error.retryable
-    ? "Gemini request failed after transient retries"
-    : "Gemini rejected the extraction request";
+    ? `Gemini request failed after transient retries${status}`
+    : `Gemini rejected the extraction request${status}`;
 }

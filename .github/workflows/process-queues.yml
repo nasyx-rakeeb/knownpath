@@ -15,6 +15,11 @@ on:
         required: true
         default: false
         type: boolean
+      recovery_limit:
+        description: Maximum extraction failures to requeue (1-20)
+        required: true
+        default: "5"
+        type: string
 
 concurrency:
   group: knownpath-production-worker
@@ -98,7 +103,10 @@ jobs:
 
       - name: Recover retryable extraction failures
         if: github.event_name == 'workflow_dispatch' && inputs.recover_failed_extractions
-        run: pnpm --filter @knownpath/worker start jobs recover-extractions --limit 20
+        env:
+          RECOVERY_LIMIT: ${{ inputs.recovery_limit }}
+        run:
+          pnpm --filter @knownpath/worker start jobs recover-extractions --limit "${RECOVERY_LIMIT}"
 
       - name: Drain runnable queues
         run: pnpm --filter @knownpath/worker start jobs drain --allow-incomplete

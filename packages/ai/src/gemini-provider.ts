@@ -15,6 +15,12 @@ export interface GeminiProviderOptions {
   readonly requestTimeoutMs: number;
 }
 
+export function geminiGenerationConfigId(model: string): string {
+  return supportsMinimalThinking(model)
+    ? "minimal-thinking-no-summaries-v1"
+    : "model-default-thinking-no-summaries-v1";
+}
+
 export class GeminiExtractionProvider implements ExtractionProvider {
   public readonly capability = "public_only" as const;
   public readonly identifier = "gemini";
@@ -49,8 +55,8 @@ export class GeminiExtractionProvider implements ExtractionProvider {
           },
           generation_config: {
             max_output_tokens: request.maxOutputTokens,
-            thinking_level: "minimal",
             thinking_summaries: "none",
+            ...(supportsMinimalThinking(this.model) ? { thinking_level: "minimal" as const } : {}),
           },
         },
         { timeout: this.options.requestTimeoutMs, maxRetries: 0 },
@@ -73,6 +79,15 @@ export class GeminiExtractionProvider implements ExtractionProvider {
       throw classifyGeminiError(error);
     }
   }
+}
+
+function supportsMinimalThinking(model: string): boolean {
+  return (
+    model.startsWith("gemini-3.5-") ||
+    model.startsWith("gemini-3.6-") ||
+    model === "gemini-3-flash-preview" ||
+    model === "gemini-3.1-flash-lite-image"
+  );
 }
 
 function mapUsage(usage: {

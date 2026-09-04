@@ -25,6 +25,7 @@ import {
   ExtractionBatchRunner,
   ExtractionService,
   GeminiExtractionProvider,
+  geminiGenerationConfigId,
   extractionUsage,
   inspectAttempt,
   inspectCandidate,
@@ -473,6 +474,7 @@ async function runExtraction(): Promise<void> {
     const config = loadAiExtractionConfig();
     const service = new ExtractionService(database, {
       dataHandling: config.dataHandling,
+      generationConfigId: geminiGenerationConfigId(config.model),
       maxEstimatedInputTokens: config.maxEstimatedInputTokens,
       maxOutputTokens: config.maxOutputTokens,
       maxRetries: config.maxRetries,

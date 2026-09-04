@@ -97,7 +97,7 @@ pnpm jobs status
 pnpm jobs pause ai
 pnpm jobs resume ai
 pnpm jobs retry-failed ai
-pnpm jobs recover-extractions --limit 20
+pnpm jobs recover-extractions --limit 5
 ```
 
 The admin API and dashboard expose safe queue counts, durable runs, heartbeats, pause/resume, and
@@ -115,8 +115,9 @@ Permanent failures use BullMQ's unrecoverable failure path. Exhausted work is ma
 in MongoDB with a bounded safe error; retries do not overwrite product entities. Graceful shutdown
 stops intake, waits for active jobs, and forces closure only after `QUEUE_WORKER_SHUTDOWN_MS`.
 `recover-extractions` explicitly requeues the latest retryable extraction failure for each source
-item with a fresh extraction attempt; its recovery key makes repeated invocations idempotent for the
-same failed attempt.
+item. For GitHub Actions, set `recovery_limit` to a small value first when validating a changed
+provider key or model configuration. Each selected source gets a fresh extraction attempt; its
+recovery key makes repeated invocations idempotent for the same failed attempt.
 
 ## Valkey outages
 

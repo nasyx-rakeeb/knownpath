@@ -25,7 +25,11 @@ import {
   queueForJob,
 } from "@knownpath/jobs";
 import { createPipelineHandlers, type PipelineServices } from "@knownpath/pipelines";
-import { ExtractionService, GeminiExtractionProvider } from "@knownpath/ai";
+import {
+  ExtractionService,
+  GeminiExtractionProvider,
+  geminiGenerationConfigId,
+} from "@knownpath/ai";
 import {
   CandidateDiscoveryService,
   CandidateEmbeddingService,
@@ -242,6 +246,7 @@ async function createOperationalServices(
   const logger = safeLogger();
   const extraction = new ExtractionService(database, {
     dataHandling: ai.dataHandling,
+    generationConfigId: geminiGenerationConfigId(ai.model),
     maxEstimatedInputTokens: ai.maxEstimatedInputTokens,
     maxOutputTokens: ai.maxOutputTokens,
     maxRetries: ai.maxRetries,
