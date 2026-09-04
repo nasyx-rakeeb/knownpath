@@ -38,6 +38,7 @@ export interface ExtractionServiceOptions {
   readonly maxEstimatedInputTokens: number;
   readonly maxOutputTokens: number;
   readonly maxRetries: number;
+  readonly minRequestSpacingMs: number;
   readonly model: string;
   readonly providerCapability: AiProviderCapability;
   readonly providerFactory: ExtractionProviderFactory;
@@ -335,7 +336,12 @@ export class ExtractionService {
         }
         retries += 1;
         await onRetry(retries);
-        await new Promise((resolve) => setTimeout(resolve, Math.min(8_000, 500 * 2 ** retries)));
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            Math.max(this.options.minRequestSpacingMs, Math.min(8_000, 500 * 2 ** retries)),
+          ),
+        );
       }
     }
   }

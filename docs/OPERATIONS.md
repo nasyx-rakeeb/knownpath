@@ -63,7 +63,9 @@ pnpm jobs drain
 
 The drain command exits after runnable queues remain idle for `QUEUE_DRAIN_IDLE_MS`. Future
 schedules and delayed retries do not prevent exit; `QUEUE_DRAIN_MAX_RUNTIME_MS` returns a nonzero
-status if runnable work exceeds the budget.
+status if runnable work exceeds the budget. Scheduled ephemeral workers may pass
+`--allow-incomplete` to exit successfully after that bounded window and leave durable queued work
+for the next invocation.
 
 ## Schedules
 
@@ -95,6 +97,7 @@ pnpm jobs status
 pnpm jobs pause ai
 pnpm jobs resume ai
 pnpm jobs retry-failed ai
+pnpm jobs recover-extractions --limit 20
 ```
 
 The admin API and dashboard expose safe queue counts, durable runs, heartbeats, pause/resume, and
@@ -111,6 +114,9 @@ attempts. BullMQ lock renewal and stalled-job checks recover interrupted work, w
 Permanent failures use BullMQ's unrecoverable failure path. Exhausted work is marked `quarantined`
 in MongoDB with a bounded safe error; retries do not overwrite product entities. Graceful shutdown
 stops intake, waits for active jobs, and forces closure only after `QUEUE_WORKER_SHUTDOWN_MS`.
+`recover-extractions` explicitly requeues the latest retryable extraction failure for each source
+item with a fresh extraction attempt; its recovery key makes repeated invocations idempotent for the
+same failed attempt.
 
 ## Valkey outages
 

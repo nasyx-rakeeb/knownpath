@@ -19,6 +19,7 @@ import {
   createValkeyConnection,
   JobProducer,
   OperationalWorkerRuntime,
+  PermanentJobError,
   QueueRegistry,
   ScheduleManager,
   queueForJob,
@@ -42,12 +43,13 @@ import { CandidateAssessmentService, defaultScoringPolicy } from "@knownpath/ver
 const usage = `KnownPath operational jobs
 
   jobs start
-  jobs drain
+  jobs drain [--allow-incomplete]
   jobs enqueue <job-name> --target-kind <kind> --target-id <id> [--options-json <json>]
   jobs status
   jobs pause [queue]
   jobs resume [queue]
   jobs retry-failed [queue]
+  jobs recover-extractions [--limit <n>]
   jobs schedules <apply|remove|status>
 
 Valkey is required through QUEUE_REDIS_URL. Product data remains in MongoDB.`;
@@ -114,7 +116,7 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
         }
       })();
       console.info(JSON.stringify({ event: "worker.drain.complete", ...result }));
-      if (result.status === "timeout")
+      if (result.status === "timeout" && !argv.includes("--allow-incomplete"))
         throw new Error(
           `Queue drain exceeded ${queueConfig.drain.maxRuntimeMs}ms with ${result.runnableJobs} runnable jobs`,
         );
@@ -151,8 +153,8 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
               everyMs: source.refreshIntervalMinutes * 60_000,
               options:
                 source.adapter === "github_repository"
-                  ? { limit: 50 }
-                  : { limit: 50, scope: "curated" },
+                  ? { extractionLimit: 20, limit: 5 }
+                  : { extractionLimit: 20, limit: 10, scope: "curated" },
             })) ?? [];
         const result =
           operation === "apply"
@@ -175,6 +177,27 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
         else await queue.retryJobs({ state: "failed", count: 100, timestamp: Date.now() });
       }
       console.info(JSON.stringify({ action, queues: selected }));
+      return;
+    }
+    if (action === "recover-extractions") {
+      const limit = positiveIntegerFlag(argv, "--limit", 20, 100);
+      const failures =
+        await database.repositories.extractionAttempts.listLatestRetryableFailures(limit);
+      let enqueued = 0;
+      let deduplicated = 0;
+      for (const failure of failures) {
+        const result = await producer.enqueue({
+          jobName: "source.extract",
+          kind: "reprocess",
+          target: { kind: "source_item", id: failure.targetSourceItemId },
+          trigger: "operator",
+          options: { force: true },
+          idempotencyParts: ["recover-extraction", failure._id],
+        });
+        if (result.deduplicated) deduplicated += 1;
+        else enqueued += 1;
+      }
+      console.info(JSON.stringify({ action, selected: failures.length, enqueued, deduplicated }));
       return;
     }
     if (action === "enqueue") {
@@ -222,6 +245,7 @@ async function createOperationalServices(
     maxEstimatedInputTokens: ai.maxEstimatedInputTokens,
     maxOutputTokens: ai.maxOutputTokens,
     maxRetries: ai.maxRetries,
+    minRequestSpacingMs: ai.minRequestSpacingMs,
     model: ai.model,
     providerCapability: "public_only",
     providerIdentifier: ai.provider,
@@ -325,7 +349,16 @@ async function createOperationalServices(
     extract: async (id, options) => {
       const item = await database.repositories.sourceItems.findById(id);
       if (item === null) throw new Error(`Source item not found: ${id}`);
-      const result = await extraction.processOne(item, options["force"] === true, 1);
+      const result = await extraction.processOne(
+        item,
+        options["force"] === true,
+        Math.min(ai.maxProviderCalls, ai.maxRetries + 1),
+      );
+      if (result.attempt.status === "failed") {
+        throw new PermanentJobError(
+          result.attempt.failureMessage ?? "Extraction failed and requires explicit recovery",
+        );
+      }
       return result.attempt.candidateExperienceId;
     },
     score: async (id) => {
@@ -415,6 +448,21 @@ function numberOption(
 ): number {
   const value = options[key];
   return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function positiveIntegerFlag(
+  argv: readonly string[],
+  flag: string,
+  fallback: number,
+  maximum: number,
+): number {
+  const raw = optionalFlag(argv, flag);
+  if (raw === undefined) return fallback;
+  if (!/^\d+$/u.test(raw)) throw new Error(`${flag} must be a positive integer`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1 || value > maximum)
+    throw new Error(`${flag} must be between 1 and ${maximum}`);
+  return value;
 }
 
 function selectQueues(value: string | undefined) {

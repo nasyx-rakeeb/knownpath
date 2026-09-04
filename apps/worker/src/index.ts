@@ -476,6 +476,7 @@ async function runExtraction(): Promise<void> {
       maxEstimatedInputTokens: config.maxEstimatedInputTokens,
       maxOutputTokens: config.maxOutputTokens,
       maxRetries: config.maxRetries,
+      minRequestSpacingMs: config.minRequestSpacingMs,
       model: config.model,
       providerCapability: "public_only",
       providerIdentifier: config.provider,

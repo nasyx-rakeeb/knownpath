@@ -10,6 +10,11 @@ on:
         required: true
         default: false
         type: boolean
+      recover_failed_extractions:
+        description: Requeue a bounded set of retryable extraction failures before draining
+        required: true
+        default: false
+        type: boolean
 
 concurrency:
   group: knownpath-production-worker
@@ -24,7 +29,7 @@ jobs:
       github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
       vars.KNOWNPATH_SCHEDULED_WORKER_ENABLED == 'true')
     runs-on: ubuntu-latest
-    timeout-minutes: 14
+    timeout-minutes: 20
     env:
       NODE_ENV: production
       MONGODB_URI: ${{ secrets.KNOWNPATH_MONGODB_URI }}
@@ -90,5 +95,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && inputs.apply_schedules
         run: pnpm --filter @knownpath/worker start jobs schedules apply
 
+      - name: Recover retryable extraction failures
+        if: github.event_name == 'workflow_dispatch' && inputs.recover_failed_extractions
+        run: pnpm --filter @knownpath/worker start jobs recover-extractions --limit 20
+
       - name: Drain runnable queues
-        run: pnpm --filter @knownpath/worker start jobs drain
+        run: pnpm --filter @knownpath/worker start jobs drain --allow-incomplete

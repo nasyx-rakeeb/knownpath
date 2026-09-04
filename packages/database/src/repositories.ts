@@ -968,6 +968,36 @@ export class ExtractionAttemptRepository
       .toArray();
     return values.map((value) => extractionAttemptSchema.parse(value));
   }
+
+  public async listLatestRetryableFailures(limit: number): Promise<ExtractionAttempt[]> {
+    const values = await this.collection
+      .aggregate<ExtractionAttempt>([
+        { $sort: { "audit.createdAt": -1, _id: -1 } },
+        {
+          $group: {
+            _id: "$targetSourceItemId",
+            attempt: { $first: "$$ROOT" },
+          },
+        },
+        {
+          $match: {
+            "attempt.status": "failed",
+            "attempt.failureCode": {
+              $in: [
+                "ai_provider_call_budget_exhausted",
+                "ai_provider_quota_exhausted",
+                "ai_provider_transient_failure",
+              ],
+            },
+          },
+        },
+        { $replaceRoot: { newRoot: "$attempt" } },
+        { $sort: { "audit.createdAt": 1, _id: 1 } },
+        { $limit: limit },
+      ])
+      .toArray();
+    return values.map((value) => extractionAttemptSchema.parse(value));
+  }
 }
 
 export class IngestionRunRepository
