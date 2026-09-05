@@ -9,7 +9,7 @@ import {
 
 import { ContributionError } from "./errors.js";
 
-const SANITIZER_VERSION = 1;
+const SANITIZER_VERSION = 2;
 const SECRET_SCANNER_VERSION = "13.0.4";
 const REDACTED_SECRET = "[REDACTED_SECRET]";
 // Explicit Unicode ranges remove non-printing control/bidi characters before any persistence.
@@ -23,6 +23,12 @@ const windowsHomePattern = /[A-Za-z]:\\Users\\[^\\\s]+/gu;
 const credentialUrlPattern = /\b((?:https?|ssh|git|mongodb(?:\+srv)?):\/\/)[^\s/@:]+:[^\s/@]+@/giu;
 const sensitiveQueryPattern =
   /([?&](?:token|key|api_key|apikey|secret|password|signature|credential)=)[^&#\s]+/giu;
+const internalHostPattern =
+  /\b(?:https?:\/\/)?(?:[A-Za-z0-9-]+\.)+(?:internal|corp|lan|local)(?::\d{1,5})?\b/giu;
+const privateIpPattern =
+  /\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b/gu;
+const repositoryUrlPattern =
+  /\bhttps?:\/\/(?:github\.com|gitlab\.com|bitbucket\.org)\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?\b/giu;
 const promptInjectionPatterns = [
   /\bignore (?:all |any )?(?:previous|prior|system|developer) instructions\b/iu,
   /\b(?:reveal|print|exfiltrate|send) (?:the )?(?:system prompt|credentials|secrets?|tokens?)\b/iu,
@@ -59,6 +65,30 @@ export async function sanitizeContributionPayload(
       controlCharacterPattern,
       "",
       "control_character",
+      fieldPath,
+      findings,
+    );
+    output = replaceAndRecord(
+      output,
+      internalHostPattern,
+      "[REDACTED_INTERNAL_HOST]",
+      "internal_identifier",
+      fieldPath,
+      findings,
+    );
+    output = replaceAndRecord(
+      output,
+      privateIpPattern,
+      "[REDACTED_INTERNAL_HOST]",
+      "internal_identifier",
+      fieldPath,
+      findings,
+    );
+    output = replaceAndRecord(
+      output,
+      repositoryUrlPattern,
+      "[REDACTED_REPOSITORY]",
+      "repository_identifier",
       fieldPath,
       findings,
     );
@@ -135,6 +165,9 @@ export async function sanitizeContributionPayload(
     symptoms: await cleanArray(parsed.symptoms, "payload.symptoms", clean),
     errors: await cleanArray(parsed.errors, "payload.errors", clean),
     solutionSummary: await clean(parsed.solutionSummary, "payload.solutionSummary"),
+    ...(parsed.rootCause === undefined
+      ? {}
+      : { rootCause: await clean(parsed.rootCause, "payload.rootCause") }),
     steps: await Promise.all(
       parsed.steps.map(async (step, index) => ({
         instruction: await clean(step.instruction, `payload.steps.${index}.instruction`),
@@ -151,6 +184,49 @@ export async function sanitizeContributionPayload(
       checks: await cleanArray(
         parsed.successEvidence.checks,
         "payload.successEvidence.checks",
+        clean,
+      ),
+    },
+    verificationType: parsed.verificationType,
+    ...(parsed.applicability === undefined
+      ? {}
+      : {
+          applicability: {
+            appliesWhen: await clean(
+              parsed.applicability.appliesWhen,
+              "payload.applicability.appliesWhen",
+            ),
+            doesNotApplyWhen: await cleanArray(
+              parsed.applicability.doesNotApplyWhen,
+              "payload.applicability.doesNotApplyWhen",
+              clean,
+            ),
+          },
+        }),
+    environment: {
+      runtimes: await cleanArray(
+        parsed.environment.runtimes,
+        "payload.environment.runtimes",
+        clean,
+      ),
+      operatingSystems: await cleanArray(
+        parsed.environment.operatingSystems,
+        "payload.environment.operatingSystems",
+        clean,
+      ),
+      architectures: await cleanArray(
+        parsed.environment.architectures,
+        "payload.environment.architectures",
+        clean,
+      ),
+      frameworks: await cleanArray(
+        parsed.environment.frameworks,
+        "payload.environment.frameworks",
+        clean,
+      ),
+      buildModes: await cleanArray(
+        parsed.environment.buildModes,
+        "payload.environment.buildModes",
         clean,
       ),
     },

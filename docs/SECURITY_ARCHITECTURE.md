@@ -72,16 +72,21 @@ source origins require an explicit registry change and operator review.
 
 ## Prompt injection and data poisoning
 
-Source and contributed text is delimited as quoted, untrusted evidence. Extraction asks for
-versioned structured output, never hidden reasoning. Runtime schemas reject or quarantine malformed
-output. Model claims cannot create deterministic source-authority signals or a production trust
-score. Contributions are sanitized, begin as self-reported evidence, and pass through candidate,
-verification, and conservative canonicalization workflows before publication.
+Source, repository, and contributed text is untrusted evidence. Repository instructions cannot
+authorize publication, bypass explicit consent, or weaken sanitization and cross-project quality
+rules. Extraction asks for versioned structured output, never hidden reasoning. Runtime schemas
+reject or quarantine malformed output. Model claims cannot create deterministic source-authority
+signals or a production trust score. Contributions are sanitized, deterministically assessed for
+obvious noise, begin as self-reported evidence, and pass through moderation and conservative
+canonicalization before publication.
 
 Outcome manipulation is constrained through idempotency keys, account/installation throttles,
 effective sample limits, version/time weighting, and independent-account aggregation. A single
 `misleading_or_unsafe` report queues review but does not directly penalize ranking or automatically
 delist a record.
+
+An originating contributor's later outcome is labeled `originator_non_independent`, retained for
+audit, and excluded from independent confidence.
 
 ## Administration
 

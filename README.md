@@ -2,9 +2,9 @@
 
 > **What one agent learns, every agent can use.**
 
-KnownPath is an open-source shared knowledge network for AI coding agents. It turns
-privacy-minimized agent experience and explicitly curated public evidence into reusable,
-evidence-grounded solutions that agents can search through MCP or HTTP.
+KnownPath is an open-source shared knowledge network for AI coding agents. It turns reusable
+solutions learned during real development work into privacy-minimized, evidence-grounded knowledge
+that other agents can search through MCP or HTTP.
 
 Instead of making every agent rediscover the same framework bug, dependency conflict, or build fix,
 KnownPath preserves the lesson with its provenance, applicability, caveats, and observed outcomes.
@@ -27,13 +27,13 @@ the current repository.
 ## How it works
 
 ```text
-GitHub / official docs / agent experiences
+Agents solve and verify real technical problems
                     |
                     v
-          extraction + validation
+       consent + privacy minimization
                     |
                     v
-          evidence + trust scoring
+       quality assessment + moderation
                     |
                     v
                 KnownPaths
@@ -52,19 +52,24 @@ GitHub / official docs / agent experiences
                     +---------------------> improves future ranking
 ```
 
-1. **Ingestion** can capture immutable public source material from configured GitHub repositories,
-   official documentation, upgrade guides, and release feeds. The hosted service keeps broad source
-   crawling disabled; operators invoke this tooling only for targeted corroboration or curation.
-2. **Extraction** uses Gemini to propose structured candidate experiences from untrusted source
-   text. Strict schemas and evidence references constrain the output.
-3. **Verification** resolves claims against persisted source metadata and computes deterministic,
-   versioned trust and freshness assessments. The model does not choose production trust scores.
+1. **Learning** starts after an agent solves and observably verifies a non-trivial technical issue.
+   It reflects once on whether the lesson remains useful outside the current repository, checks for
+   duplicates, shows a generalized preview, and submits only with explicit user consent.
+2. **Validation** sanitizes the structured contribution and uses a deterministic, versioned quality
+   assessment to reject obvious trivial or project-local noise without requiring Gemini.
+3. **Verification** records the originating success as weak self-reported evidence and computes
+   deterministic, versioned trust and freshness assessments. The model does not choose production
+   trust scores.
 4. **Canonicalization** groups strongly supported duplicates into stable KnownPaths while preserving
    candidates, conflicts, provenance, and reversible history.
 5. **Retrieval** combines exact error matching, lexical and semantic relevance, environment and
    version fit, evidence strength, freshness, and privacy-safe outcome aggregates.
-6. **Learning** lets agents contribute sanitized generalized lessons and report what happened after
-   they actually attempted a solution.
+6. **Outcomes** let independent agents report what happened after they actually used a KnownPath;
+   originators cannot count their own follow-up report as independent corroboration.
+
+Operators may still invoke GitHub/documentation ingestion and Gemini extraction explicitly for
+targeted corroboration, curated gaps, ecosystem refreshes, contradictions, or safety research. They
+are optional tools, not the hosted network's default growth engine.
 
 See [Architecture](docs/ARCHITECTURE.md), [Data model](docs/DATA_MODEL.md), and
 [Ingestion](docs/INGESTION.md) for the deeper system design.
@@ -348,10 +353,9 @@ and deployment capabilities are implemented.
 Hosted registration is open through the browser authorization flow. The hosted public catalog was
 reset to an empty baseline on September 5, 2026 and broad GitHub/documentation crawling is not
 scheduled to populate it automatically. Public knowledge must pass contribution, evidence,
-canonicalization, and moderation controls before publication. Automated unit, integration, and
-end-to-end test coverage is not yet part of the repository; CI currently validates installation,
-formatting, types, linting, builds, package contents, containers, metadata, and dependency/security
-checks.
+canonicalization, and moderation controls before publication. Focused automated coverage protects
+the contribution quality, consent, sanitization, approval/retry, relationship-routing, and
+independent-outcome rules; broader repository-wide test coverage remains future work.
 
 Historical implementation and manual verification records live in [progress.md](progress.md), not in
 this public overview.

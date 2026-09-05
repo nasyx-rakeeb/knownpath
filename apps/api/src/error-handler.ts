@@ -61,11 +61,17 @@ export function registerErrorHandler(api: FastifyInstance): void {
       const status =
         error.code === "contribution_not_found"
           ? 404
-          : error.code === "contribution_idempotency_conflict"
-            ? 409
-            : error.code === "contribution_content_rejected"
-              ? 422
-              : 403;
+          : error.code === "contribution_target_forbidden"
+            ? 404
+            : error.code === "contribution_idempotency_conflict"
+              ? 409
+              : error.code === "contribution_abuse_limit"
+                ? 429
+                : error.code === "contribution_duplicate_check_invalid"
+                  ? 400
+                  : error.code === "contribution_content_rejected"
+                    ? 422
+                    : 403;
       return reply.status(status).send(envelope(error.code, error.message, request.id));
     }
     if (error instanceof OutcomeError) {

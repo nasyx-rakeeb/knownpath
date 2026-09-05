@@ -1,5 +1,6 @@
 import {
   agentContributionSchema,
+  contributionQualityAssessmentSchema,
   agentOutcomeSchema,
   agentOutcomeV2Schema,
   outcomeAssessmentSchema,
@@ -33,6 +34,8 @@ import {
   type AgentContribution,
   type AgentContributionV2,
   type AgentContributionId,
+  type ContributionQualityAssessment,
+  type ContributionQualityAssessmentId,
   type AgentOutcome,
   type AgentOutcomeV2,
   type AgentOutcomeId,
@@ -1305,6 +1308,18 @@ export class CandidatePairAssessmentRepository
       .toArray();
     return documents.map((document) => candidatePairAssessmentSchema.parse(document));
   }
+
+  public async listByCandidate(
+    candidateExperienceId: CandidateExperienceId,
+    limit = 20,
+  ): Promise<CandidatePairAssessment[]> {
+    const documents = await this.collection
+      .find({ candidateIds: candidateExperienceId })
+      .sort({ evaluatedAt: -1, _id: -1 })
+      .limit(limit)
+      .toArray();
+    return documents.map((document) => candidatePairAssessmentSchema.parse(document));
+  }
 }
 
 export class CanonicalMembershipRepository
@@ -1338,6 +1353,14 @@ export class CanonicalMembershipRepository
     candidateExperienceId: CandidateExperienceId,
   ): Promise<CanonicalMembership | null> {
     return this.findOne({ candidateExperienceId, disposition: "supporting", active: true });
+  }
+
+  public async findActiveRelationship(
+    knownPathId: KnownPathId,
+    candidateExperienceId: CandidateExperienceId,
+    disposition: CanonicalMembership["disposition"],
+  ): Promise<CanonicalMembership | null> {
+    return this.findOne({ knownPathId, candidateExperienceId, disposition, active: true });
   }
 
   public async deactivate(
@@ -1946,6 +1969,70 @@ export class AgentContributionRepository
     return result?.schemaVersion === 2 ? result : null;
   }
 
+  public async applyQualityDecision(
+    id: AgentContributionId,
+    qualityAssessmentId: ContributionQualityAssessmentId,
+    decision: ContributionQualityAssessment["decision"],
+  ): Promise<AgentContributionV2 | null> {
+    const values =
+      decision === "rejected"
+        ? {
+            status: "rejected" as const,
+            moderation: { status: "rejected" as const, reason: "quality_gate_rejected" },
+            processing: { stage: "quality_blocked" as const, qualityAssessmentId },
+          }
+        : {
+            processing: { stage: "quality_assessed" as const, qualityAssessmentId },
+          };
+    const result = await this.updateOne(
+      { _id: id, schemaVersion: 2 } as Filter<AgentContribution>,
+      values as MatchKeysAndValues<AgentContribution>,
+    );
+    return result?.schemaVersion === 2 ? result : null;
+  }
+
+  public async listApprovedAwaitingCanonicalization(limit: number): Promise<AgentContributionV2[]> {
+    const documents = await this.collection
+      .find({
+        schemaVersion: 2,
+        status: "accepted",
+        "moderation.status": "approved",
+        "processing.candidateExperienceId": { $exists: true },
+        "processing.stage": {
+          $in: [
+            "profiled",
+            "awaiting_moderation",
+            "canonicalization_queued",
+            "canonicalizing",
+            "failed",
+          ],
+        },
+      } as Filter<AgentContribution>)
+      .sort({ "audit.updatedAt": 1, _id: 1 })
+      .limit(limit)
+      .toArray();
+    return documents.flatMap((document) => {
+      const parsed = agentContributionSchema.parse(document);
+      return parsed.schemaVersion === 2 ? [parsed] : [];
+    });
+  }
+
+  public async countRecentByUser(userId: UserId, since: Date): Promise<number> {
+    return this.collection.countDocuments({
+      schemaVersion: 2,
+      "contributor.userId": userId,
+      "audit.createdAt": { $gte: since },
+    } as Filter<AgentContribution>);
+  }
+
+  public async countRecentByApiKey(apiKeyId: ApiKeyId, since: Date): Promise<number> {
+    return this.collection.countDocuments({
+      schemaVersion: 2,
+      "contributor.apiKeyId": apiKeyId,
+      "audit.createdAt": { $gte: since },
+    } as Filter<AgentContribution>);
+  }
+
   public async listV2Pending(limit: number): Promise<AgentContributionV2[]> {
     const documents = await this.collection
       .find({
@@ -2104,6 +2191,41 @@ export class AgentContributionRepository
       { _id: id, "moderation.status": expectedStatus },
       { moderation, ...(status === undefined ? {} : { status }) },
     );
+  }
+}
+
+export class ContributionQualityAssessmentRepository extends MongoEntityRepository<
+  ContributionQualityAssessment,
+  ContributionQualityAssessmentId
+> {
+  public constructor(collection: Collection<ContributionQualityAssessment>) {
+    super(collection, contributionQualityAssessmentSchema);
+  }
+
+  public async createIfAbsent(
+    entity: ContributionQualityAssessment,
+  ): Promise<ContributionQualityAssessment | null> {
+    const parsed = contributionQualityAssessmentSchema.parse(entity);
+    try {
+      await this.collection.insertOne(parsed);
+      return parsed;
+    } catch (error) {
+      if (error instanceof MongoServerError && error.code === 11_000) return null;
+      throw error;
+    }
+  }
+
+  public async findByIdempotencyKey(key: VersionedKey) {
+    return this.findOne({ "idempotencyKey.value": key.value });
+  }
+
+  public async findLatestByContribution(contributionId: AgentContributionId) {
+    const value = await this.collection
+      .find({ contributionId })
+      .sort({ evaluatedAt: -1, _id: -1 })
+      .limit(1)
+      .next();
+    return value === null ? null : contributionQualityAssessmentSchema.parse(value);
   }
 }
 
@@ -2531,6 +2653,7 @@ export class WorkerHeartbeatRepository extends MongoEntityRepository<
 
 export interface KnownPathRepositories {
   readonly agentContributions: AgentContributionRepository;
+  readonly contributionQualityAssessments: ContributionQualityAssessmentRepository;
   readonly agentOutcomes: AgentOutcomeRepository;
   readonly outcomeAssessments: OutcomeAssessmentRepository;
   readonly safetyEvents: SafetyEventRepository;
@@ -2566,6 +2689,9 @@ export interface KnownPathRepositories {
 export function createRepositories(collections: KnownPathCollections): KnownPathRepositories {
   return {
     agentContributions: new AgentContributionRepository(collections.agentContributions),
+    contributionQualityAssessments: new ContributionQualityAssessmentRepository(
+      collections.contributionQualityAssessments,
+    ),
     agentOutcomes: new AgentOutcomeRepository(collections.agentOutcomes),
     outcomeAssessments: new OutcomeAssessmentRepository(collections.outcomeAssessments),
     safetyEvents: new SafetyEventRepository(collections.safetyEvents),

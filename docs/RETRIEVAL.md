@@ -118,6 +118,7 @@ compatibility remains `unknown`, not confirmed. One unverified safety report que
 not penalize rank.
 
 Unobserved outcomes contribute zero. Small samples use conservative Wilson/effective-sample handling
+and outcomes from a KnownPath's originating contributor are excluded from independent confidence.
 described in [Outcomes](OUTCOMES.md).
 
 ## Explanations

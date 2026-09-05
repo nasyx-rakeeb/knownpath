@@ -150,8 +150,14 @@ POST /api/v1/known-paths/:id/share-public
 ```
 
 Submission requires `knowledge:contribute`, explicit consent, a UUID `clientSubmissionId`, and a
-structured generalized lesson. The maximum body is 48 KiB. Team submissions also require a
-workspace-bound key and matching `workspaceId`.
+structured generalized lesson. Contract version 2 requires an explicit
+novel/corroboration/variant/extension/correction/conflict relationship, final duplicate-search
+metadata, applicability, and observable verification type. The maximum body is 48 KiB. Team
+submissions also require a workspace-bound key and matching `workspaceId`.
+
+The backend writes an immutable deterministic quality assessment before candidate creation. Approval
+schedules normal idempotent canonicalization and creates or updates review knowledge; publication
+remains a separate manual action.
 
 The detail endpoint returns only the sanitized record to its owner. Account settings are
 session-only and support `ask` or `disabled`. Public sharing creates a separately sanitized public
@@ -189,7 +195,9 @@ one KnownPath/execution result with bounded environment metadata:
 ```
 
 Review targets need the same explicit admin review authorization as reads. See
-[Outcomes](OUTCOMES.md) for states, deduplication, aggregation, and safety handling.
+[Outcomes](OUTCOMES.md) for states, deduplication, aggregation, and safety handling. Outcomes from
+an originating contributor remain auditable but are marked `originator_non_independent` and excluded
+from independent confidence.
 
 ## Account and API-key routes
 

@@ -1,19 +1,20 @@
 # Knowledge ingestion
 
-KnownPath turns high-signal public sources and consented agent experiences into normalized evidence
-for later knowledge processing. Ingestion preserves provenance; it does not decide that a statement
-is true or publish a KnownPath.
+KnownPath grows primarily from consented, generalized lessons learned and verified by coding agents.
+It also retains operator-triggered public-source ingestion for targeted corroboration, curated gaps,
+ecosystem refreshes, contradiction investigation, and safety research. Neither input path decides
+that a statement is true or publishes a KnownPath.
 
 ## Pipeline
 
 ```text
-source registry
+consented agent experience or operator-selected source
       ↓
 discovery and incremental synchronization
       ↓
 immutable normalized source items
       ↓
-AI-assisted candidate extraction
+deterministic contribution projection or optional AI extraction
       ↓
 deterministic evidence assessment
       ↓

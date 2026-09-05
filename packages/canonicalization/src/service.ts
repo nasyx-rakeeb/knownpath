@@ -222,6 +222,98 @@ export class CanonicalRecordService {
     return { knownPath: rebuilt, operationId };
   }
 
+  public async attachConflictingCandidate(input: {
+    readonly candidateId: CandidateExperienceId;
+    readonly targetKnownPathId: KnownPathId;
+    readonly reason: string;
+    readonly operationId?: CanonicalizationOperationId;
+  }): Promise<{
+    readonly knownPath: KnownPath;
+    readonly operationId: CanonicalizationOperationId;
+  }> {
+    const target = await this.database.repositories.knownPaths.findById(input.targetKnownPathId);
+    const candidate = await this.database.repositories.candidateExperiences.findById(
+      input.candidateId,
+    );
+    if (target === null || candidate === null)
+      throw new Error("Conflict target or candidate missing");
+    if (!sameVisibility(target.visibility, candidate.visibility))
+      throw new Error("Conflict target visibility must match the candidate");
+    if (candidate.contribution !== undefined) {
+      const contribution = await this.database.repositories.agentContributions.findById(
+        candidate.contribution.contributionId,
+      );
+      if (
+        contribution === null ||
+        contribution.schemaVersion !== 2 ||
+        contribution.status !== "accepted" ||
+        contribution.moderation.status !== "approved"
+      )
+        throw new Error("Contribution conflict requires explicit moderation approval");
+    }
+    const assessment =
+      candidate.latestAssessmentId === undefined
+        ? null
+        : await this.database.repositories.candidateAssessments.findById(
+            candidate.latestAssessmentId,
+          );
+    if (assessment === null || assessment.status !== "completed")
+      throw new Error("A conflicting candidate requires a completed latest assessment");
+    const profile =
+      await this.database.repositories.candidateSimilarityProfiles.findLatestByCandidate(
+        candidate._id,
+      );
+    if (profile === null) throw new Error("A conflicting candidate requires a similarity profile");
+    const operationId = input.operationId ?? createCanonicalizationOperationId();
+    const now = new Date();
+    const proposed: CanonicalMembership = {
+      _id: createCanonicalMembershipId(),
+      schemaVersion: CURRENT_SCHEMA_VERSION,
+      knownPathId: target._id,
+      candidateExperienceId: candidate._id,
+      disposition: "conflicting",
+      active: true,
+      reasonCode: "agent_contribution_conflict",
+      operationId,
+      assignedAt: now,
+      audit: { createdAt: now, updatedAt: now },
+    };
+    const membership =
+      (await this.database.repositories.canonicalMemberships.findActiveRelationship(
+        target._id,
+        candidate._id,
+        "conflicting",
+      )) ??
+      (await this.database.repositories.canonicalMemberships.createIfAbsent(proposed)) ??
+      (await this.database.repositories.canonicalMemberships.findActiveRelationship(
+        target._id,
+        candidate._id,
+        "conflicting",
+      ));
+    if (membership === null) throw new Error("Conflicting membership could not be resolved");
+    await this.database.repositories.candidateExperiences.updateStatus(candidate._id, "accepted");
+    await this.appendEvent(
+      operationId,
+      0,
+      "operation_requested",
+      input.reason,
+      [target._id],
+      [candidate._id],
+      [],
+    );
+    const rebuilt = await this.rebuild(target._id, operationId, input.reason, 1);
+    await this.appendEvent(
+      operationId,
+      2,
+      "operation_completed",
+      input.reason,
+      [target._id],
+      [candidate._id],
+      [membership._id],
+    );
+    return { knownPath: rebuilt, operationId };
+  }
+
   public async splitCandidate(input: {
     readonly candidateId: CandidateExperienceId;
     readonly reason: string;

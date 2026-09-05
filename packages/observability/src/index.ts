@@ -58,6 +58,12 @@ const providerEvents = meter.createCounter("knownpath.provider.events", {
 const contributions = meter.createCounter("knownpath.contributions", {
   description: "Contribution transitions by non-sensitive state and visibility",
 });
+const contributionQuality = meter.createCounter("knownpath.contribution.quality", {
+  description: "Deterministic contribution quality decisions and relationship routes",
+});
+const contributionModeration = meter.createCounter("knownpath.contribution.moderation", {
+  description: "Contribution moderation transitions",
+});
 const outcomes = meter.createCounter("knownpath.outcomes", {
   description: "Submitted outcome classifications",
 });
@@ -247,6 +253,20 @@ export function recordContribution(
     "knownpath.contribution.status": status,
     "knownpath.visibility": visibility,
   });
+}
+
+export function recordContributionQuality(
+  decision: "eligible" | "rejected" | "review",
+  relationship: "novel" | "corroboration" | "variant" | "extension" | "correction" | "conflict",
+): void {
+  contributionQuality.add(1, {
+    "knownpath.contribution.quality_decision": decision,
+    "knownpath.contribution.relationship": relationship,
+  });
+}
+
+export function recordContributionModeration(action: "approved" | "rejected"): void {
+  contributionModeration.add(1, { "knownpath.contribution.moderation_action": action });
 }
 
 export function recordOutcome(

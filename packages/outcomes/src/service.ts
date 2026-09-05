@@ -142,12 +142,12 @@ export class OutcomeService {
           entry.influence.status === "eligible" &&
           entry.receivedAt >= windowStart,
       );
-    const influence =
-      request.outcome === "not_used"
-        ? { status: "not_evidence" as const, reasonCode: "not_used_has_zero_weight" }
-        : duplicateWindow
-          ? { status: "duplicate_window" as const, reasonCode: "account_version_window_cap" }
-          : { status: "eligible" as const, reasonCode: "independent_account_window" };
+    const originatorUserIds = await this.originatorUserIds(request.knownPathId);
+    const influence = classifyOutcomeInfluence({
+      outcome: request.outcome,
+      duplicateWindow,
+      isOriginator: originatorUserIds.has(principal.userId),
+    });
     const outcome = agentOutcomeV2Schema.parse({
       _id: createAgentOutcomeId(),
       schemaVersion: 2,
@@ -181,7 +181,11 @@ export class OutcomeService {
         request.clientExecutionId,
       ]),
       influence,
-      anomalySignals: duplicateWindow ? ["repeated_target_window"] : [],
+      anomalySignals: duplicateWindow
+        ? ["repeated_target_window"]
+        : influence.status === "originator_non_independent"
+          ? ["originator_outcome"]
+          : [],
       visibility:
         aggregationScope.scope === "team"
           ? { scope: "team", workspaceId: aggregationScope.workspaceId }
@@ -204,6 +208,24 @@ export class OutcomeService {
     const assessment = await this.recompute(request.knownPathId, aggregationScope, now);
     if (inserted !== null) recordOutcome(stored.outcome);
     return this.receipt(stored, assessment, inserted === null, queued);
+  }
+
+  private async originatorUserIds(knownPathId: KnownPathId): Promise<Set<UserId>> {
+    const memberships =
+      await this.database.repositories.canonicalMemberships.listActiveByKnownPath(knownPathId);
+    const candidates = await this.database.repositories.candidateExperiences.findManyByIds(
+      memberships.map((membership) => membership.candidateExperienceId),
+    );
+    const contributionIds = candidates.flatMap((candidate) =>
+      candidate.contribution === undefined ? [] : [candidate.contribution.contributionId],
+    );
+    const users = new Set<UserId>();
+    for (const contributionId of contributionIds) {
+      const contribution =
+        await this.database.repositories.agentContributions.findById(contributionId);
+      if (contribution?.schemaVersion === 2) users.add(contribution.contributor.userId);
+    }
+    return users;
   }
 
   public async recompute(
@@ -470,6 +492,23 @@ export class OutcomeService {
       },
     });
   }
+}
+
+export function classifyOutcomeInfluence(input: {
+  readonly outcome: OutcomeSubmissionRequest["outcome"];
+  readonly duplicateWindow: boolean;
+  readonly isOriginator: boolean;
+}): AgentOutcomeV2["influence"] {
+  if (input.outcome === "not_used")
+    return { status: "not_evidence", reasonCode: "not_used_has_zero_weight" };
+  if (input.isOriginator)
+    return {
+      status: "originator_non_independent",
+      reasonCode: "originating_account_is_not_independent_evidence",
+    };
+  if (input.duplicateWindow)
+    return { status: "duplicate_window", reasonCode: "account_version_window_cap" };
+  return { status: "eligible", reasonCode: "independent_account_window" };
 }
 
 function outcomeTargetAccess(scope: OutcomeTargetScope, userId: UserId): RetrievalAccess {

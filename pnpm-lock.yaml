@@ -622,6 +622,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.12
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -821,12 +824,18 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.12
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
 
   packages/pipelines:
     dependencies:
+      '@knownpath/contributions':
+        specifier: workspace:*
+        version: link:../contributions
       '@knownpath/database':
         specifier: workspace:*
         version: link:../database

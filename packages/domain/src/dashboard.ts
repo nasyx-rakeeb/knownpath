@@ -194,7 +194,7 @@ export const outcomeHistoryItemSchema = z.strictObject({
     toolchain: z.array(shortStringSchema).max(16),
   }),
   note: z.string().trim().min(1).max(800).optional(),
-  influence: z.enum(["eligible", "duplicate_window", "not_evidence"]),
+  influence: z.enum(["eligible", "duplicate_window", "not_evidence", "originator_non_independent"]),
   safetyReviewQueued: z.boolean(),
 });
 

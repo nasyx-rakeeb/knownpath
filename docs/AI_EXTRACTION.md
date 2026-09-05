@@ -1,5 +1,9 @@
 # Gemini candidate extraction
 
+Gemini extraction is optional operator tooling for targeted public-source research. The normal agent
+contribution path is already structured by the coding agent and uses sanitization, deterministic
+quality assessment, moderation, and canonicalization with zero Gemini calls.
+
 KnownPath uses AI to turn normalized public source material into structured candidate experiences.
 The model interprets technical text; it does not own objective metadata, verify authority, assign
 trust, merge records, or publish knowledge.

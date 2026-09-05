@@ -50,8 +50,9 @@ configuration is preserved, unmanaged conflicts stop safely, and uninstall remov
 KnownPath-owned entries and skill files.
 
 The Agent Skill teaches agents to consult KnownPath for non-trivial reusable technical problems,
-inspect evidence before applying a solution, contribute only with explicit consent after observed
-success, and report outcomes only after a real attempt.
+inspect evidence before applying a solution, reflect once after observed success, reject trivial or
+repository-local lessons, perform a final duplicate search, and contribute only with explicit
+consent. The normal contribution path does not require Gemini.
 
 ## Documentation
 

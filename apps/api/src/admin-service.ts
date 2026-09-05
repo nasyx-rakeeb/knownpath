@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { CanonicalRecordService } from "@knownpath/canonicalization";
+import { contributionCanonicalizationJobKey } from "@knownpath/contributions";
 import type { KnownPathDatabase } from "@knownpath/database";
 import {
   ADMIN_CONTRACT_VERSION,
@@ -13,6 +14,7 @@ import {
   type UserId,
 } from "@knownpath/domain";
 import type { JobProducer, QueueRegistry } from "@knownpath/jobs";
+import { recordContributionModeration } from "@knownpath/observability";
 import { z } from "zod";
 
 import { loadAdminDetail } from "./admin-details.js";
@@ -295,6 +297,33 @@ export class AdminService {
       return { id: updated._id, status: updated.moderation.status };
     }
     if (input.resource === "contribution") {
+      const contributionId = agentContributionV2Schema.shape._id.parse(input.id);
+      const current = await this.database.repositories.agentContributions.findById(contributionId);
+      if (current === null || current.schemaVersion !== 2) throw this.conflict();
+      if (input.action === "approve") {
+        if (this.producer === undefined)
+          throw new AdminOperationError(
+            "queue_unavailable",
+            "Contribution approval requires the durable canonicalization queue",
+            503,
+          );
+        if (current.processing.candidateExperienceId === undefined)
+          throw new AdminOperationError(
+            "contribution_not_ready",
+            "Contribution processing must create and assess a candidate before approval",
+            409,
+          );
+        const quality =
+          await this.database.repositories.contributionQualityAssessments.findLatestByContribution(
+            current._id,
+          );
+        if (quality === null || quality.decision === "rejected")
+          throw new AdminOperationError(
+            "contribution_quality_blocked",
+            "Contribution approval requires a non-rejected deterministic quality assessment",
+            409,
+          );
+      }
       const contributionStatus =
         input.action === "approve"
           ? "accepted"
@@ -303,13 +332,39 @@ export class AdminService {
             : input.action === "reject"
               ? "rejected"
               : "quarantined";
-      const updated = await this.database.repositories.agentContributions.updateModerationIfCurrent(
-        agentContributionV2Schema.shape._id.parse(input.id),
-        z.enum(["unreviewed", "approved", "flagged", "rejected"]).parse(input.expectedStatus),
-        moderation,
-        contributionStatus,
-      );
+      const expected = z
+        .enum(["unreviewed", "approved", "flagged", "rejected"])
+        .parse(input.expectedStatus);
+      const alreadyApproved =
+        input.action === "approve" &&
+        current.status === "accepted" &&
+        current.moderation.status === "approved" &&
+        expected === "approved";
+      const updated = alreadyApproved
+        ? current
+        : await this.database.repositories.agentContributions.updateModerationIfCurrent(
+            contributionId,
+            expected,
+            moderation,
+            contributionStatus,
+          );
       if (updated === null) throw this.conflict();
+      if (input.action === "approve") {
+        if (updated.schemaVersion !== 2)
+          throw new AdminOperationError(
+            "contribution_not_ready",
+            "Legacy contributions cannot enter the agent-experience canonicalization flow",
+            409,
+          );
+        const scheduled = await this.scheduleContributionCanonicalization(updated, adminId);
+        recordContributionModeration("approved");
+        return {
+          id: updated._id,
+          status: updated.moderation.status,
+          canonicalization: scheduled,
+        };
+      }
+      if (input.action === "reject") recordContributionModeration("rejected");
       return { id: updated._id, status: updated.moderation.status };
     }
     const pathId = knownPathIdSchema.parse(input.id);
@@ -366,6 +421,51 @@ export class AdminService {
       status: updated.status,
       projectionRunId: projection.run._id,
       projectionStepId: projection.data.pipelineStepId,
+    };
+  }
+
+  private async scheduleContributionCanonicalization(
+    contribution: z.infer<typeof agentContributionV2Schema>,
+    adminId: UserId,
+  ) {
+    const candidateId = contribution.processing.candidateExperienceId;
+    if (candidateId === undefined)
+      throw new AdminOperationError(
+        "contribution_not_ready",
+        "Contribution processing must create and assess a candidate before approval",
+        409,
+      );
+    const membership =
+      await this.database.repositories.canonicalMemberships.findActiveSupportingByCandidate(
+        candidateId,
+      );
+    if (membership !== null) {
+      await this.database.repositories.agentContributions.updateProcessing(contribution._id, {
+        ...contribution.processing,
+        stage: "canonicalized",
+        canonicalKnownPathId: membership.knownPathId,
+        completedAt: new Date(),
+      });
+      return { state: "already_canonicalized" as const, knownPathId: membership.knownPathId };
+    }
+    const queued = await this.producer!.enqueue({
+      jobName: "candidate.canonicalize",
+      kind: "contribution",
+      target: { kind: "candidate", id: candidateId },
+      trigger: "operator",
+      options: { contributionId: contribution._id },
+      initiator: { kind: "user", userId: adminId },
+      idempotencyParts: contributionCanonicalizationJobKey(contribution),
+      processingVersions: { contributionContract: String(contribution.contractVersion) },
+    });
+    await this.database.repositories.agentContributions.updateProcessing(contribution._id, {
+      ...contribution.processing,
+      stage: "canonicalization_queued",
+      canonicalizationStepId: queued.data.pipelineStepId,
+    });
+    return {
+      state: queued.deduplicated ? ("already_queued" as const) : ("queued" as const),
+      stepId: queued.data.pipelineStepId,
     };
   }
 

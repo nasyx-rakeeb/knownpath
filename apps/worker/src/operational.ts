@@ -37,7 +37,7 @@ import {
   CanonicalRecordService,
   SimilarityProfileService,
 } from "@knownpath/canonicalization";
-import { ContributionService } from "@knownpath/contributions";
+import { ContributionService, contributionCanonicalizationRoute } from "@knownpath/contributions";
 import { GitHubIngestionService, type GitHubIngestionLogger } from "@knownpath/github-ingestion";
 import { OutcomeService } from "@knownpath/outcomes";
 import { GeminiEmbeddingProvider, SearchProjectionService } from "@knownpath/search";
@@ -375,6 +375,35 @@ async function createOperationalServices(
       if (existing !== null) {
         await canonicals.rebuild(existing.knownPathId, undefined, "operational_pipeline_rebuild");
         return [existing.knownPathId];
+      }
+      const candidate = await database.repositories.candidateExperiences.findById(id);
+      if (candidate === null) throw new Error(`Candidate not found: ${id}`);
+      if (candidate.contribution !== undefined) {
+        const contribution = await database.repositories.agentContributions.findById(
+          candidate.contribution.contributionId,
+        );
+        if (contribution === null || contribution.schemaVersion !== 2)
+          throw new Error("Contribution provenance could not be resolved");
+        const route = contributionCanonicalizationRoute(contribution);
+        if (route.mode !== "discover_novel") {
+          if (contribution.knownPathId === undefined)
+            throw new Error("Related contribution is missing its target KnownPath");
+          if (route.mode === "conflict_existing") {
+            const result = await canonicals.attachConflictingCandidate({
+              candidateId: id,
+              targetKnownPathId: contribution.knownPathId,
+              reason: `approved_agent_${contribution.relationship}`,
+            });
+            return [result.knownPath._id];
+          }
+          const result = await canonicals.mergeCandidates({
+            candidateIds: [id],
+            targetKnownPathId: contribution.knownPathId,
+            alternativeSolution: route.alternativeSolution,
+            reason: `approved_agent_${contribution.relationship}`,
+          });
+          return [result.knownPath._id];
+        }
       }
       const summary = await discovery.discoverForCandidate(id, candidateEmbeddings !== undefined);
       const automatic = summary.pairs.find((pair) => pair.decision === "auto_merge");

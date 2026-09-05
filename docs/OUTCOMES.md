@@ -60,11 +60,17 @@ or another user's environment.
 - One account cannot submit multiple outcomes for the same KnownPath and execution.
 - Only one account/KnownPath/version-bucket report per 30-day window influences confidence.
 - Additional reports remain auditable but receive `duplicate_window` influence.
+- Reports from any account that originated an active supporting/conflicting contribution remain
+  auditable but receive `originator_non_independent` influence and do not enter confidence.
 - Durable limits allow 10 reports per key per rolling hour and 20 per account per UTC day.
 - The HTTP route also applies a 10-request/minute distributed policy.
 
 These controls reduce accidental duplicates and simple account-level manipulation without collecting
 invasive device fingerprints.
+
+The successful task that produced a contribution is weak self-reported origin evidence. Only a
+different account's later attempted use can become independent outcome evidence; an originator
+cannot submit a second `solved` report to amplify their own KnownPath.
 
 ## Immutable aggregation
 

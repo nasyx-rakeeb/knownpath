@@ -16,6 +16,9 @@ An agent should offer a contribution only when:
 - the solution can be stated without private source material;
 - the result was verified through an observable check;
 - the user explicitly consents to this submission and visibility.
+- the problem, cause, and solution remain useful to an unrelated repository after local identifiers
+  and private context are removed;
+- a final generalized KnownPath search has checked for an adequate existing record.
 
 Do not contribute a hypothesis, an unverified edit, a search result that was not used, or a
 transcript of the debugging session.
@@ -50,6 +53,7 @@ workspace-bound key for the exact `workspaceId`.
 
 A submission includes:
 
+- contribution contract version 2;
 - a UUID `clientSubmissionId`;
 - contribution kind: `new_lesson`, `correction`, `additional_evidence`, or `freshness_update`;
 - intended visibility and optional workspace;
@@ -59,10 +63,15 @@ A submission includes:
 - normalized errors;
 - solution summary and ordered steps;
 - caveats;
+- applicability, environment, optional evidence-supported root cause, and verification type;
 - concise observable success checks;
+- final duplicate-search metadata;
+- relationship: `novel`, `corroboration`, `variant`, `extension`, `correction`, or `conflict`;
 - any consulted KnownPath IDs and whether they materially influenced the fix.
 
-Corrections, evidence additions, and freshness updates must identify the target KnownPath.
+Every non-novel relationship must identify the accessible target KnownPath. Corroboration and
+extensions support that record, variants create an alternative solution, and corrections/conflicts
+enter as conflicting evidence for moderation rather than silently rewriting published guidance.
 Submissions are limited to 48 KiB.
 
 ## Sanitization
@@ -75,6 +84,7 @@ text with Secretlint's recommended rules. It also detects and redacts common:
 - home-directory usernames and paths;
 - credentials embedded in URLs;
 - sensitive URL query values;
+- internal hostnames/private IPs and repository URLs;
 - prompt-injection-like language;
 - excessive source-like content.
 
@@ -99,6 +109,8 @@ A safe submission follows this path:
 ```text
 sanitized contribution
         ↓
+versioned deterministic quality assessment
+        ↓
 immutable source snapshot
         ↓
 candidate experience
@@ -107,24 +119,29 @@ immutable deterministic assessment
         ↓
 similarity profile and duplicate discovery
         ↓
-moderation / canonical review
+pending moderation
+        ↓ approval
+durable canonicalization job
+        ↓
+review-state KnownPath or relationship update
 ```
 
-The contribution record tracks processing through stored, source-created, candidate-created,
-assessed, profiled, complete, or failed states. Deferred processing is dispatched through the job
-system and can be reconciled safely because the product state remains in MongoDB.
+The contribution record exposes quality-assessed/blocked, source/candidate/assessment/profile,
+awaiting-moderation, canonicalization-queued/processing/completed, and retryable failed states.
+MongoDB stores durable intent; BullMQ delivers idempotent work. Maintenance reconciliation resumes
+approved contributions after queue outages or exhausted worker attempts.
 
 Self-reported candidates are capped at low initial trust. They are not published or highly ranked
 solely because the contributor says the fix worked.
 
-### Current canonicalization limitation
+Approval schedules canonicalization using a stable idempotency key. Repeated approval reuses the
+same durable step, already-canonicalized candidates resolve without duplication, and reconciliation
+can enqueue a recovery step after a recorded failure. The resulting KnownPath remains in review;
+publication is still a separate manual moderation action.
 
-Contribution moderation and canonicalization are deliberately separate, but the current
-implementation does not automatically resume canonicalization after an administrator approves a
-contribution. The first canonicalization attempt is blocked while the contribution is pending;
-approval updates moderation state without enqueueing another canonicalization job. Until the
-agent-experience-first processing flow is revised, an operator must explicitly reprocess the
-approved candidate. This is a confirmed operational gap, not an automatic publication path.
+The deterministic quality assessment does not prove truth. It rejects obvious noise, sends risky or
+incomplete material to review, and records immutable reason codes for moderators. No Gemini call is
+required for this flow.
 
 ## Provider privacy
 

@@ -115,6 +115,12 @@ Available transitions depend on the resource and include:
 Each action records actor, target, request ID, action, sanitized reason, timestamp, and success or
 failure.
 
+Contribution details show the sanitized public preview, relationship/target, applicability,
+verification, immutable quality reasons, initial trust score, similarity decisions, and processing
+state. Approval and rejection are available from the detail view under the same fresh-session,
+reason, exact-confirmation, and audit requirements. Approval schedules normal idempotent
+canonicalization; publication remains a separate KnownPath moderation action.
+
 ## Canonical merge and split
 
 The console requires a read-only preview before execution. The preview identifies candidates,

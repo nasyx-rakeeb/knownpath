@@ -1228,3 +1228,25 @@ model already supplies its downstream bearer boundary.
 [Better Auth device authorization](https://www.better-auth.com/docs/plugins/device-authorization),
 [OWASP Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html),
 [Node keyring bindings](https://github.com/Brooooooklyn/keyring-node)
+
+## 2026-09-05 — Make verified agent experience the primary growth path
+
+**Decision:** Grow the hosted knowledge network primarily from consented, generalized lessons that
+coding agents discover and observably verify in real work. Require a post-success cross-project
+reuse check, final KnownPath duplicate search, structured preview, and explicit consent. Apply an
+immutable deterministic quality assessment before candidate creation, keep originator evidence weak,
+and exclude originator outcomes from independent confidence. Approval resumes idempotent BullMQ
+canonicalization; publication remains a separate manual moderation action.
+
+Retain GitHub/docs ingestion, Gemini extraction, and embeddings as disabled-by-default operator
+tools for targeted corroboration, gaps, refreshes, contradictions, and safety work. Ordinary agent
+contribution processing must not depend on Gemini.
+
+**Why:** Broad extraction produces volume before real-world usefulness is established. Agent tasks
+provide direct observed context, but also create privacy, noise, duplication, and self-corroboration
+risks. The structured quality/consent/moderation path captures reusable facts without storing
+repository artifacts or treating a contributor's claim as independent proof.
+
+**Rejected:** Silent/background public contribution, LLM-only generalizability decisions, originator
+outcome amplification, automatic publication, a seventh MCP duplicate-check tool, and removing the
+optional public-source pipeline.

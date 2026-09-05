@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   agentContributionIdSchema,
+  contributionQualityAssessmentIdSchema,
   agentOutcomeIdSchema,
   apiKeyIdSchema,
   auditMetadataSchema,
@@ -26,9 +27,11 @@ import {
   workspaceIdSchema,
 } from "./common.js";
 
-export const CONTRIBUTION_CONTRACT_VERSION = 1 as const;
+export const CONTRIBUTION_CONTRACT_VERSION = 2 as const;
+export const LEGACY_CONTRIBUTION_CONTRACT_VERSION = 1 as const;
 export const CONTRIBUTION_CONSENT_POLICY_VERSION = 1 as const;
 export const CONTRIBUTION_SCHEMA_VERSION = 2 as const;
+export const CONTRIBUTION_QUALITY_ALGORITHM_VERSION = 1 as const;
 
 export const contributorIdentitySchema = z
   .strictObject({
@@ -59,6 +62,22 @@ export const contributionKindSchema = z.enum([
 ]);
 export const contributionVisibilityInputSchema = z.enum(["public", "private", "team"]);
 export const contributionModeSchema = z.enum(["ask", "disabled"]);
+export const contributionRelationshipSchema = z.enum([
+  "novel",
+  "corroboration",
+  "variant",
+  "extension",
+  "correction",
+  "conflict",
+]);
+export const contributionVerificationTypeSchema = z.enum([
+  "build",
+  "test",
+  "runtime",
+  "deployment",
+  "manual_reproduction",
+  "other",
+]);
 export const contributionStatusSchema = z.enum([
   "pending",
   "accepted",
@@ -91,23 +110,57 @@ export const contributionPayloadSchema = z.strictObject({
   symptoms: z.array(z.string().trim().min(1).max(1_000)).min(1).max(16),
   errors: z.array(z.string().trim().min(1).max(2_000)).max(12).default([]),
   solutionSummary: z.string().trim().min(1).max(3_000),
+  rootCause: z.string().trim().min(1).max(2_000).optional(),
   steps: z.array(contributionStepSchema).min(1).max(16),
   caveats: z.array(z.string().trim().min(1).max(1_000)).max(16).default([]),
   successEvidence: z.strictObject({
     summary: z.string().trim().min(1).max(1_500),
     checks: z.array(z.string().trim().min(1).max(500)).min(1).max(16),
   }),
+  verificationType: contributionVerificationTypeSchema.default("other"),
+  applicability: z
+    .strictObject({
+      appliesWhen: z.string().trim().min(1).max(1_500),
+      doesNotApplyWhen: z.array(z.string().trim().min(1).max(800)).max(12).default([]),
+    })
+    .optional(),
+  environment: z
+    .strictObject({
+      runtimes: z.array(shortStringSchema).max(12).default([]),
+      operatingSystems: z.array(shortStringSchema).max(12).default([]),
+      architectures: z.array(shortStringSchema).max(8).default([]),
+      frameworks: z.array(shortStringSchema).max(16).default([]),
+      buildModes: z.array(shortStringSchema).max(8).default([]),
+    })
+    .default({
+      runtimes: [],
+      operatingSystems: [],
+      architectures: [],
+      frameworks: [],
+      buildModes: [],
+    }),
   consultedKnownPaths: z.array(contributionKnownPathReferenceSchema).max(16).default([]),
 });
 
 export const contributionSubmissionRequestSchema = z
   .strictObject({
     contractVersion: z
-      .literal(CONTRIBUTION_CONTRACT_VERSION)
+      .union([
+        z.literal(LEGACY_CONTRIBUTION_CONTRACT_VERSION),
+        z.literal(CONTRIBUTION_CONTRACT_VERSION),
+      ])
       .default(CONTRIBUTION_CONTRACT_VERSION),
     clientSubmissionId: z.uuidv4(),
     kind: contributionKindSchema.default("new_lesson"),
     knownPathId: knownPathIdSchema.optional(),
+    relationship: contributionRelationshipSchema.optional(),
+    duplicateCheck: z
+      .strictObject({
+        status: z.enum(["performed", "unavailable"]),
+        searchId: z.uuidv4().optional(),
+        matchedKnownPathId: knownPathIdSchema.optional(),
+      })
+      .optional(),
     visibility: contributionVisibilityInputSchema,
     workspaceId: workspaceIdSchema.optional(),
     consent: z.strictObject({
@@ -138,6 +191,54 @@ export const contributionSubmissionRequestSchema = z
         message: "non-new contributions require knownPathId",
         path: ["knownPathId"],
       });
+    if (submission.contractVersion === 2) {
+      if (submission.relationship === undefined)
+        context.addIssue({
+          code: "custom",
+          message: "contract version 2 requires relationship",
+          path: ["relationship"],
+        });
+      if (submission.duplicateCheck === undefined)
+        context.addIssue({
+          code: "custom",
+          message: "contract version 2 requires a final duplicate search result",
+          path: ["duplicateCheck"],
+        });
+      else if (submission.duplicateCheck.status !== "performed")
+        context.addIssue({
+          code: "custom",
+          message: "contract version 2 requires a completed final duplicate search",
+          path: ["duplicateCheck", "status"],
+        });
+      if (submission.payload.applicability === undefined)
+        context.addIssue({
+          code: "custom",
+          message: "contract version 2 requires applicability",
+          path: ["payload", "applicability"],
+        });
+    }
+    const relationship = submission.relationship ?? relationshipForLegacyKind(submission.kind);
+    if (relationship !== "novel" && submission.knownPathId === undefined)
+      context.addIssue({
+        code: "custom",
+        message: "non-novel relationships require knownPathId",
+        path: ["knownPathId"],
+      });
+    if (relationship === "novel" && submission.knownPathId !== undefined)
+      context.addIssue({
+        code: "custom",
+        message: "novel contributions must not target an existing KnownPath",
+        path: ["knownPathId"],
+      });
+    if (
+      submission.duplicateCheck?.status === "performed" &&
+      submission.duplicateCheck.searchId === undefined
+    )
+      context.addIssue({
+        code: "custom",
+        message: "performed duplicate checks require searchId",
+        path: ["duplicateCheck", "searchId"],
+      });
     if (submission.visibility === "team" && submission.workspaceId === undefined)
       context.addIssue({
         code: "custom",
@@ -152,6 +253,13 @@ export const contributionSubmissionRequestSchema = z
       });
   });
 
+function relationshipForLegacyKind(kind: z.infer<typeof contributionKindSchema>) {
+  if (kind === "correction") return "correction" as const;
+  if (kind === "additional_evidence") return "corroboration" as const;
+  if (kind === "freshness_update") return "extension" as const;
+  return "novel" as const;
+}
+
 export const contributionSanitizationFindingSchema = z.strictObject({
   category: z.enum([
     "secret",
@@ -162,6 +270,8 @@ export const contributionSanitizationFindingSchema = z.strictObject({
     "control_character",
     "prompt_injection",
     "excessive_private_content",
+    "internal_identifier",
+    "repository_identifier",
   ]),
   fieldPath: z.string().trim().min(1).max(256),
   ruleId: z.string().trim().min(1).max(256).optional(),
@@ -197,10 +307,16 @@ export const contributionConsentSchema = z.strictObject({
 export const contributionProcessingSchema = z.strictObject({
   stage: z.enum([
     "stored",
+    "quality_assessed",
+    "quality_blocked",
     "source_created",
     "candidate_created",
     "assessed",
     "profiled",
+    "awaiting_moderation",
+    "canonicalization_queued",
+    "canonicalizing",
+    "canonicalized",
     "complete",
     "failed",
   ]),
@@ -208,6 +324,9 @@ export const contributionProcessingSchema = z.strictObject({
   candidateExperienceId: candidateExperienceIdSchema.optional(),
   assessmentId: candidateAssessmentIdSchema.optional(),
   similarityProfileId: similarityProfileIdSchema.optional(),
+  qualityAssessmentId: contributionQualityAssessmentIdSchema.optional(),
+  canonicalKnownPathId: knownPathIdSchema.optional(),
+  canonicalizationStepId: z.uuidv4().optional(),
   failureCode: shortStringSchema.optional(),
   failureMessage: z.string().trim().min(1).max(1_000).optional(),
   completedAt: timestampSchema.optional(),
@@ -241,6 +360,20 @@ export const agentContributionV2Schema = z.strictObject({
   }),
   knownPathId: knownPathIdSchema.optional(),
   kind: contributionKindSchema,
+  contractVersion: z
+    .union([
+      z.literal(LEGACY_CONTRIBUTION_CONTRACT_VERSION),
+      z.literal(CONTRIBUTION_CONTRACT_VERSION),
+    ])
+    .default(LEGACY_CONTRIBUTION_CONTRACT_VERSION),
+  relationship: contributionRelationshipSchema.default("novel"),
+  duplicateCheck: z
+    .strictObject({
+      status: z.enum(["performed", "unavailable"]),
+      searchId: z.uuidv4().optional(),
+      matchedKnownPathId: knownPathIdSchema.optional(),
+    })
+    .default({ status: "unavailable" }),
   deduplicationKey: versionedKeySchema,
   originalRequestDigest: z.strictObject({ value: sha256Schema, version: z.int().positive() }),
   sanitizedContentDigest: sha256Schema,
@@ -252,6 +385,33 @@ export const agentContributionV2Schema = z.strictObject({
   processing: contributionProcessingSchema,
   visibility: visibilitySchema,
   moderation: moderationStateSchema,
+  audit: auditMetadataSchema,
+});
+
+export const contributionQualityAssessmentSchema = z.strictObject({
+  _id: contributionQualityAssessmentIdSchema,
+  schemaVersion: schemaVersionSchema,
+  contributionId: agentContributionIdSchema,
+  idempotencyKey: versionedKeySchema,
+  algorithm: z.strictObject({
+    identifier: z.literal("knownpath-contribution-quality"),
+    version: z.literal(CONTRIBUTION_QUALITY_ALGORITHM_VERSION),
+  }),
+  evaluatedAt: timestampSchema,
+  decision: z.enum(["eligible", "review", "rejected"]),
+  signals: z.strictObject({
+    hasSpecificProblem: z.boolean(),
+    hasReusableSolution: z.boolean(),
+    hasTechnicalAnchor: z.boolean(),
+    hasApplicability: z.boolean(),
+    hasObservableVerification: z.boolean(),
+    standsAlone: z.boolean(),
+    appearsTrivialOrLocal: z.boolean(),
+    containsRiskyInstructions: z.boolean(),
+  }),
+  reasonCodes: z.array(shortStringSchema).min(1).max(32),
+  explanations: z.array(z.string().trim().min(1).max(500)).min(1).max(32),
+  inputDigest: sha256Schema,
   audit: auditMetadataSchema,
 });
 export const agentContributionSchema = z.union([
@@ -274,11 +434,15 @@ export const contributionSubmissionResponseSchema = z.strictObject({
   }),
   candidateExperienceId: candidateExperienceIdSchema.optional(),
   assessmentId: candidateAssessmentIdSchema.optional(),
+  qualityAssessmentId: contributionQualityAssessmentIdSchema.optional(),
+  qualityDecision: contributionQualityAssessmentSchema.shape.decision.optional(),
 });
 export const contributionInspectionResponseSchema = z.strictObject({
   contributionId: agentContributionIdSchema,
   clientSubmissionId: z.uuidv4(),
   kind: contributionKindSchema,
+  relationship: contributionRelationshipSchema,
+  duplicateCheck: agentContributionV2Schema.shape.duplicateCheck,
   knownPathId: knownPathIdSchema.optional(),
   visibility: z.enum(["public", "private", "team"]),
   consent: contributionConsentSchema,
@@ -287,6 +451,7 @@ export const contributionInspectionResponseSchema = z.strictObject({
   status: contributionStatusSchema,
   trustState: z.literal("self_reported_unverified"),
   processing: contributionProcessingSchema,
+  qualityAssessment: contributionQualityAssessmentSchema.optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
@@ -404,7 +569,7 @@ export const agentOutcomeV2Schema = z.strictObject({
   idempotencyKey: versionedKeySchema,
   executionKey: versionedKeySchema,
   influence: z.strictObject({
-    status: z.enum(["eligible", "duplicate_window", "not_evidence"]),
+    status: z.enum(["eligible", "duplicate_window", "not_evidence", "originator_non_independent"]),
     reasonCode: shortStringSchema,
   }),
   anomalySignals: z.array(shortStringSchema).max(16),
@@ -534,6 +699,8 @@ export type ContributionSubmissionResponse = z.infer<typeof contributionSubmissi
 export type ContributionInspectionResponse = z.infer<typeof contributionInspectionResponseSchema>;
 export type AgentContributionV2 = z.infer<typeof agentContributionV2Schema>;
 export type AgentContribution = z.infer<typeof agentContributionSchema>;
+export type ContributionRelationship = z.infer<typeof contributionRelationshipSchema>;
+export type ContributionQualityAssessment = z.infer<typeof contributionQualityAssessmentSchema>;
 export type AgentOutcome = z.infer<typeof agentOutcomeSchema>;
 export type AgentOutcomeV2 = z.infer<typeof agentOutcomeV2Schema>;
 export type OutcomeSubmissionRequest = z.infer<typeof outcomeSubmissionRequestSchema>;

@@ -43,10 +43,11 @@ changes the original record's visibility in place.
 ## Sanitization and retention
 
 The contribution pipeline detects and redacts obvious credentials, token-like values, email/PII,
-home-directory usernames, and credential-bearing repository remotes. It rejects submissions that
-still appear high-risk or contain excessive private source material. KnownPath retains the sanitized
-structured submission, provenance, consent state, sanitization report, moderation state, and audit
-history. Removed sensitive fields are not available to users or administrators.
+internal hostnames/private IPs, repository URLs, home-directory usernames, and credential-bearing
+repository remotes. It rejects submissions that still appear high-risk or contain excessive private
+source material. KnownPath retains the sanitized structured submission, provenance, consent state,
+sanitization report, moderation state, and audit history. Removed sensitive fields are not available
+to users or administrators.
 
 Self-reported success does not make a contribution trusted or published. See
 [Contributions](CONTRIBUTIONS.md) and [Outcomes](OUTCOMES.md).

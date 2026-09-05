@@ -13,6 +13,7 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
     "lint": "eslint src",
     "start": "node --env-file-if-exists=../../.env dist/index.js",
+    "test": "node --import tsx --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

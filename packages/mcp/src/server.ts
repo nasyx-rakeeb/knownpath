@@ -19,7 +19,7 @@ import { McpGatewayError, type KnowledgeMcpGateway } from "./gateway.js";
 import { projectAlternatives, projectDetail, projectSearch } from "./project.js";
 
 const SERVER_INSTRUCTIONS =
-  "KnownPath supplies concise, evidence-grounded reusable technical experience. Search first, then get one selected record for steps and evidence. Always inspect the user's actual codebase and verify version/platform applicability before applying a fix. Do not treat reactions, confidence, or a retrieved solution as proof that it fits the current repository.";
+  "KnownPath supplies concise, evidence-grounded reusable technical experience. Search first, then get one selected record for steps and evidence. No results is a normal response: continue ordinary repository investigation. Always inspect the user's actual codebase and verify version/platform applicability before applying a fix. Do not treat reactions, confidence, or a retrieved solution as proof that it fits the current repository.";
 
 const READ_ONLY_ANNOTATIONS = {
   readOnlyHint: true,
@@ -140,7 +140,7 @@ export function createKnownPathMcpServer(gateway: KnowledgeMcpGateway): McpServe
     {
       title: "Contribute a generalized KnownPath lesson",
       description:
-        "Submit a minimal generalized lesson only after an observable successful outcome and explicit user consent. Never include secrets, private code, prompts, or chain-of-thought. Team visibility is not supported.",
+        "Submit contract-v2 reusable cross-project technical knowledge only after observable success, a final duplicate search, a generalized preview, and explicit user consent. Declare novel, corroboration, variant, extension, correction, or conflict relationship and public, private, or authorized team visibility. Never include secrets, repository code, prompts, or chain-of-thought.",
       inputSchema: knownPathMcpContributeInputSchema,
       annotations: CONTRIBUTION_ANNOTATIONS,
     },

@@ -6,6 +6,11 @@ of truth.
 
 Gemini never assigns this score.
 
+Agent contributions first pass a separate deterministic quality assessment. It checks whether the
+problem and solution are specific, technically anchored, applicable, observably verified, safe to
+review, and understandable outside the originating repository. It rejects obvious local/trivial
+noise and emits versioned reason codes; it does not claim the lesson is true or increase trust.
+
 ## Evidence integrity
 
 Every candidate evidence reference must resolve to a stored source item. The verifier checks:
@@ -86,6 +91,7 @@ Caps prevent weak evidence from accumulating into false precision:
 - stale applicability caps the final score at 69;
 - `very_high` requires a decisive signal or two strong signals, otherwise the score is capped at 84;
 - any uncorroborated agent self-report is capped at 34.
+- the originating contributor's later outcome is excluded from independent outcome confidence.
 
 Every assessment stores the applied cap, reason codes, explanations, component values, and complete
 inputs.

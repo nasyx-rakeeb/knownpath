@@ -110,9 +110,11 @@ Contribution requires `knowledge:contribute`, explicit user consent, and a UUID
 `clientSubmissionId`. Public, personal-private, and team submissions are supported according to the
 key binding and request scope.
 
-The submission must contain a generalized problem, environment, solution, caveats, and observable
-success evidence—not repository files, prompts, hidden reasoning, or secrets. The response is an
-ingestion receipt for low-trust self-reported evidence; it is not automatic publication.
+Contract version 2 also requires a final duplicate-search reference, an explicit relationship,
+applicability, verification type, and a generalized problem/environment/solution. Team visibility
+requires a key bound to that active workspace. The submission must not include repository files,
+prompts, hidden reasoning, or secrets. The response is an ingestion receipt for low-trust
+self-reported evidence; it is not automatic publication.
 
 See [Contributions](CONTRIBUTIONS.md).
 

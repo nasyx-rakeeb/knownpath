@@ -14,6 +14,7 @@ import {
   type OperationalJobData,
   type OperationalJobHandler,
 } from "@knownpath/jobs";
+import { contributionCanonicalizationJobKey } from "@knownpath/contributions";
 
 export interface PipelineServices {
   readonly syncGitHub: (
@@ -95,12 +96,35 @@ export function createPipelineHandlers(
       await chain(data, "candidate.canonicalize", { kind: "candidate", id: candidateId });
     },
     "candidate.canonicalize": async (data) => {
-      const knownPathIds = await services.canonicalize(
-        candidateExperienceIdSchema.parse(data.target.id),
-      );
-      for (const id of knownPathIds)
-        await chain(data, "knownpath.project", { kind: "knownpath", id });
-      return { knownPathIds };
+      const candidateId = candidateExperienceIdSchema.parse(data.target.id);
+      const contribution = await contributionForCandidate(database, candidateId);
+      if (contribution !== null)
+        await database.repositories.agentContributions.updateProcessing(contribution._id, {
+          ...contribution.processing,
+          stage: "canonicalizing",
+        });
+      try {
+        const knownPathIds = await services.canonicalize(candidateId);
+        if (contribution !== null && knownPathIds[0] !== undefined)
+          await database.repositories.agentContributions.updateProcessing(contribution._id, {
+            ...contribution.processing,
+            stage: "canonicalized",
+            canonicalKnownPathId: knownPathIds[0],
+            completedAt: new Date(),
+          });
+        for (const id of knownPathIds)
+          await chain(data, "knownpath.project", { kind: "knownpath", id });
+        return { knownPathIds };
+      } catch (error) {
+        if (contribution !== null)
+          await database.repositories.agentContributions.updateProcessing(contribution._id, {
+            ...contribution.processing,
+            stage: "failed",
+            failureCode: "canonicalization_failed",
+            failureMessage: "Approved contribution canonicalization failed and is retryable",
+          });
+        throw error;
+      }
     },
     "knownpath.project": async (data) =>
       services.project(knownPathIdSchema.parse(data.target.id), false),
@@ -112,8 +136,6 @@ export function createPipelineHandlers(
     },
     "contribution.process": async (data) => {
       const candidateId = await services.processContribution(data.target.id);
-      if (candidateId !== undefined)
-        await chain(data, "candidate.score", { kind: "candidate", id: candidateId });
       return { candidateId };
     },
     "outcomes.aggregate": async (data) => {
@@ -136,14 +158,58 @@ export function createPipelineHandlers(
 async function reconcilePending(
   database: KnownPathDatabase,
   producer: JobProducer,
-): Promise<{ redispatched: number }> {
+): Promise<{ redispatched: number; contributionCanonicalizations: number }> {
   const pending = await database.repositories.pipelineSteps.listPendingDispatch(100);
   let redispatched = 0;
   for (const step of pending) {
     await producer.redispatch(step);
     redispatched += 1;
   }
-  return { redispatched };
+  let contributionCanonicalizations = 0;
+  const approved =
+    await database.repositories.agentContributions.listApprovedAwaitingCanonicalization(100);
+  for (const contribution of approved) {
+    const candidateId = contribution.processing.candidateExperienceId;
+    if (candidateId === undefined) continue;
+    const membership =
+      await database.repositories.canonicalMemberships.findActiveSupportingByCandidate(candidateId);
+    if (membership !== null) {
+      await database.repositories.agentContributions.updateProcessing(contribution._id, {
+        ...contribution.processing,
+        stage: "canonicalized",
+        canonicalKnownPathId: membership.knownPathId,
+        completedAt: new Date(),
+      });
+      continue;
+    }
+    const queued = await producer.enqueue({
+      jobName: "candidate.canonicalize",
+      kind: "contribution",
+      target: { kind: "candidate", id: candidateId },
+      trigger: "reconciliation",
+      options: { contributionId: contribution._id },
+      idempotencyParts: contributionCanonicalizationJobKey(contribution),
+    });
+    await database.repositories.agentContributions.updateProcessing(contribution._id, {
+      ...contribution.processing,
+      stage: "canonicalization_queued",
+      canonicalizationStepId: queued.data.pipelineStepId,
+    });
+    contributionCanonicalizations += 1;
+  }
+  return { redispatched, contributionCanonicalizations };
+}
+
+async function contributionForCandidate(
+  database: KnownPathDatabase,
+  candidateId: CandidateExperienceId,
+) {
+  const candidate = await database.repositories.candidateExperiences.findById(candidateId);
+  if (candidate?.contribution === undefined) return null;
+  const contribution = await database.repositories.agentContributions.findById(
+    candidate.contribution.contributionId,
+  );
+  return contribution?.schemaVersion === 2 ? contribution : null;
 }
 
 async function hold(durationMs: number, signal: AbortSignal): Promise<{ heldMs: number }> {

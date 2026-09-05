@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   auditMetadataSchema,
   agentContributionIdSchema,
+  contributionQualityAssessmentIdSchema,
   candidateAssessmentIdSchema,
   candidateExperienceIdSchema,
   extractionAttemptIdSchema,
@@ -139,6 +140,10 @@ export const contributionProvenanceSchema = z.strictObject({
   projectorVersion: z.int().positive(),
   sanitizedContentDigest: sha256Schema,
   projectedAt: timestampSchema,
+  relationship: z
+    .enum(["novel", "corroboration", "variant", "extension", "correction", "conflict"])
+    .default("novel"),
+  qualityAssessmentId: contributionQualityAssessmentIdSchema.optional(),
 });
 
 export const attemptedApproachSchema = z.strictObject({

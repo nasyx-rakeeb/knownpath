@@ -841,6 +841,12 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         name: "ix_canonical_memberships_relationship",
       },
       {
+        key: { knownPathId: 1, candidateExperienceId: 1, disposition: 1 },
+        name: "uq_canonical_memberships_active_relationship",
+        unique: true,
+        partialFilterExpression: { active: true },
+      },
+      {
         key: { candidateExperienceId: 1 },
         name: "uq_canonical_memberships_active_supporting_candidate",
         unique: true,
@@ -1327,6 +1333,32 @@ export const collectionDefinitions: readonly CollectionDefinition[] = [
         name: "ix_agent_contributions_known_path_created_at",
         partialFilterExpression: { knownPathId: { $exists: true } },
       },
+    ],
+  },
+  {
+    name: collectionNames.contributionQualityAssessments,
+    validator: envelopeValidator(
+      ["contributionId", "idempotencyKey", "algorithm", "evaluatedAt", "decision", "signals"],
+      {
+        contributionId: { bsonType: "string" },
+        idempotencyKey: { bsonType: "object" },
+        algorithm: { bsonType: "object" },
+        evaluatedAt: { bsonType: "date" },
+        decision: { enum: ["eligible", "review", "rejected"] },
+        signals: { bsonType: "object" },
+      },
+    ),
+    indexes: [
+      {
+        key: { "idempotencyKey.value": 1 },
+        name: "uq_contribution_quality_idempotency",
+        unique: true,
+      },
+      {
+        key: { contributionId: 1, evaluatedAt: -1 },
+        name: "ix_contribution_quality_contribution_evaluated",
+      },
+      { key: { decision: 1, evaluatedAt: -1 }, name: "ix_contribution_quality_decision" },
     ],
   },
   {

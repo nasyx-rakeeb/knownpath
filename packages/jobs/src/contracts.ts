@@ -38,6 +38,7 @@ const sourceOptionsSchema = z.strictObject({
   version: z.string().trim().min(1).max(128).optional(),
 });
 const extractionOptionsSchema = z.strictObject({ force: z.boolean().optional() });
+const canonicalizationOptionsSchema = z.strictObject({ contributionId: z.uuidv4().optional() });
 const holdOptionsSchema = z.strictObject({ durationMs: z.int().min(100).max(60_000).optional() });
 const failOptionsSchema = z.strictObject({ permanent: z.boolean().optional() });
 
@@ -47,7 +48,7 @@ const jobOptionsSchemas: Readonly<Record<PipelineJobName, z.ZodType>> = {
   "source.official.sync": sourceOptionsSchema,
   "source.extract": extractionOptionsSchema,
   "candidate.score": emptyOptionsSchema,
-  "candidate.canonicalize": emptyOptionsSchema,
+  "candidate.canonicalize": canonicalizationOptionsSchema,
   "knownpath.project": emptyOptionsSchema,
   "knownpath.reembed": emptyOptionsSchema,
   "knowledge.freshness.rescore": emptyOptionsSchema,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { PrivateContributionReveal } from "../../../../../components/private-contribution-reveal";
+import { ContributionModerationActions } from "../../../../../components/contribution-moderation-actions";
 import { apiGet, KnownPathApiError } from "../../../../../lib/api";
 import { adminDetailResponseSchema } from "../../../../../lib/contracts";
 
@@ -31,6 +32,13 @@ export default async function AdminDetailPage({
         </header>
         {detail.privateContentAvailable ? (
           <PrivateContributionReveal contributionId={detail.id} />
+        ) : null}
+        {detail.resource === "contributions" &&
+        ["unreviewed", "flagged", "rejected"].includes(detail.status.split("/").at(-1) ?? "") ? (
+          <ContributionModerationActions
+            contributionId={detail.id}
+            moderationStatus={detail.status.split("/").at(-1) ?? "unreviewed"}
+          />
         ) : null}
         <div className="admin-detail-grid">
           {detail.sections.map((section) => (

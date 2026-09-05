@@ -1,19 +1,20 @@
 # Architecture
 
 KnownPath is a hosted shared knowledge network for coding agents, with a complete self-hosting path.
-It turns public technical sources and consented agent experience into provenance-backed canonical
-records that agents can search through HTTP or MCP. MongoDB is the durable system of record.
+It turns consented, reusable solutions learned during real development work into provenance-backed
+canonical records that agents can search through HTTP or MCP. Targeted public sources remain an
+optional operator evidence path. MongoDB is the durable system of record.
 
 ## System overview
 
 ```text
-GitHub / official docs / consented agent contributions
+verified agent experience / targeted public evidence
                          │
                          ▼
-            normalization and immutable sources
+ consent + sanitization + deterministic quality gate
                          │
                          ▼
-     Gemini extraction ── public-data provider boundary
+    immutable source/candidate representation
                          │
                          ▼
        deterministic evidence verification and scoring
@@ -32,8 +33,9 @@ GitHub / official docs / consented agent contributions
               contribution and outcome loop
 ```
 
-Gemini interprets untrusted public text into a validated candidate schema. It does not determine
-objective source metadata, production trust scores, publication, or automatic semantic-only merges.
+The ordinary contribution path does not call Gemini. Gemini may interpret explicitly selected,
+untrusted public sources through a validated candidate schema; it does not determine objective
+metadata, trust scores, publication, or automatic semantic-only merges.
 
 ## Applications
 
@@ -100,24 +102,30 @@ authorization, ranking, contributions, outcomes, and tenant checks to the API.
 
 ## Durable data flow
 
-1. A versioned source registry identifies GitHub repositories, documentation sites, and release
-   feeds.
-2. Collectors normalize each observed object into an immutable `source_item`; mutable
-   `source_item_states` retain latest pointers, hashes, ETags, and refresh lifecycle.
-3. Public source snapshots are assembled into bounded evidence contexts and classified by Gemini
-   through strict structured output. Invalid output is quarantined.
-4. Verification resolves references to immutable snapshots and writes an immutable assessment using
+1. After observable success, the Agent Skill applies the cross-project reuse rule, performs a final
+   duplicate search, previews the generalized lesson, and requires explicit consent.
+2. The backend sanitizes the contribution and writes an immutable, deterministic quality assessment.
+   Obvious trivial or repository-local noise stops before candidate creation.
+3. Plausible contributions become immutable source items and candidates with weak self-report trust.
+   Approval schedules durable, idempotent canonicalization; publication remains manual.
+4. For targeted research, a versioned source registry identifies GitHub repositories, documentation
+   sites, and release feeds. Collectors normalize each observed object into an immutable
+   `source_item`; mutable `source_item_states` retain latest pointers, hashes, ETags, and refresh
+   lifecycle.
+5. Selected public source snapshots may be assembled into bounded evidence contexts and classified
+   by Gemini through strict structured output. Invalid output is quarantined.
+6. Verification resolves references to immutable snapshots and writes an immutable assessment using
    deterministic source metadata. The candidate stores only a latest pointer.
-5. Canonicalization creates versioned technical profiles and compares plausible blocked pairs.
+7. Canonicalization creates versioned technical profiles and compares plausible blocked pairs.
    Deterministic gates authorize safe merges; semantic similarity only strengthens or flags a pair.
-6. Membership changes append events and produce immutable KnownPath revisions plus a stable current
+8. Membership changes append events and produce immutable KnownPath revisions plus a stable current
    projection. Candidates and provenance remain intact.
-7. Search projections support exact error/metadata matching and local weighted text retrieval. Atlas
+9. Search projections support exact error/metadata matching and local weighted text retrieval. Atlas
    deployments add lexical and vector channels. Application reranking combines relevance, version
    fit, trust, freshness, outcomes, conflicts, moderation, and lifecycle.
-8. Contributions and outcomes write durable MongoDB records before asynchronous dispatch. Their
-   processing updates candidates, assessments, canonical projections, and ranking through the same
-   boundaries as seeded public knowledge.
+10. Contributions and outcomes write durable MongoDB records before asynchronous dispatch. Their
+    processing updates candidates, assessments, canonical projections, and ranking through the same
+    boundaries as seeded public knowledge.
 
 ## Authentication and API boundary
 
@@ -138,7 +146,7 @@ See [API](API.md), [MCP](MCP.md), and [Workspaces](WORKSPACES.md).
 ## MongoDB and Valkey
 
 MongoDB stores product entities, immutable histories, audit records, pipeline intent, and derived
-search projections. Initialization creates/reconciles 34 collections, critical validators, and named
+search projections. Initialization creates/reconciles 35 collections, critical validators, and named
 indexes idempotently. See [Data model](DATA_MODEL.md).
 
 Valkey is auxiliary and ephemeral. BullMQ uses it for delivery, schedules, retries, leases, and

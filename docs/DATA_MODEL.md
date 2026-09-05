@@ -21,7 +21,7 @@ collections.
 
 ## Collection map
 
-Database initialization manages 34 collections.
+Database initialization manages 35 collections.
 
 ### Identity and authorization
 
@@ -116,23 +116,25 @@ success/failure claim.
 
 ### Contributions and outcomes
 
-| Collection                       | Purpose                                                    |
-| -------------------------------- | ---------------------------------------------------------- |
-| `agent_contributions`            | Sanitized consented public/private/team lesson submissions |
-| `agent_outcomes`                 | Immutable private observed-result reports                  |
-| `known_path_outcome_assessments` | Immutable reliability/trend aggregations                   |
-| `known_path_safety_events`       | Safety review transitions separate from ranking            |
-| `knowledge_share_requests`       | Sanitized private/team-to-public share workflow            |
+| Collection                         | Purpose                                                    |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `agent_contributions`              | Sanitized consented public/private/team lesson submissions |
+| `contribution_quality_assessments` | Immutable deterministic reuse/noise decisions and reasons  |
+| `agent_outcomes`                   | Immutable private observed-result reports                  |
+| `known_path_outcome_assessments`   | Immutable reliability/trend aggregations                   |
+| `known_path_safety_events`         | Safety review transitions separate from ranking            |
+| `knowledge_share_requests`         | Sanitized private/team-to-public share workflow            |
 
 Contributions retain only the sanitized structured lesson, digest of the original request,
 sanitization findings, consent, contributor/key provenance, visibility, moderation, and processing
-pointers. Accepted submissions create an immutable contribution source item and low-trust candidate;
-they do not publish a KnownPath directly.
+pointers. Every safe submission receives an immutable versioned quality assessment before candidate
+creation. Approved submissions schedule idempotent canonicalization and produce or update a review-
+state KnownPath; they do not publish a KnownPath directly.
 
 Outcomes capture the exact KnownPath revision, private reporter/key provenance, idempotency and
 execution IDs, normalized environment/version bucket, observed state, sanitized optional note,
-influence eligibility, and anomaly reasons. Repeat-account influence is capped while reports remain
-immutable for audit.
+influence eligibility, and anomaly reasons. Repeat-account influence is capped, and an originating
+contributor's reports remain recorded but cannot count as independent evidence.
 
 Outcome assessments record every input outcome ID, algorithm/policy versions and digest, weighted
 counts, effective sample size, Wilson intervals, confidence, timestamps, version distribution,

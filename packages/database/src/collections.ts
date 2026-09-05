@@ -1,5 +1,6 @@
 import type {
   AgentContribution,
+  ContributionQualityAssessment,
   AgentOutcome,
   OutcomeAssessment,
   SafetyEvent,
@@ -45,6 +46,7 @@ export interface AuthSessionRecord {
 
 export const collectionNames = {
   agentContributions: "agent_contributions",
+  contributionQualityAssessments: "contribution_quality_assessments",
   agentOutcomes: "agent_outcomes",
   outcomeAssessments: "known_path_outcome_assessments",
   safetyEvents: "known_path_safety_events",
@@ -82,6 +84,7 @@ export const collectionNames = {
 
 export interface KnownPathCollections {
   readonly agentContributions: Collection<AgentContribution>;
+  readonly contributionQualityAssessments: Collection<ContributionQualityAssessment>;
   readonly agentOutcomes: Collection<AgentOutcome>;
   readonly outcomeAssessments: Collection<OutcomeAssessment>;
   readonly safetyEvents: Collection<SafetyEvent>;
@@ -117,6 +120,9 @@ export interface KnownPathCollections {
 export function getCollections(database: Db): KnownPathCollections {
   return {
     agentContributions: database.collection<AgentContribution>(collectionNames.agentContributions),
+    contributionQualityAssessments: database.collection<ContributionQualityAssessment>(
+      collectionNames.contributionQualityAssessments,
+    ),
     agentOutcomes: database.collection<AgentOutcome>(collectionNames.agentOutcomes),
     outcomeAssessments: database.collection<OutcomeAssessment>(collectionNames.outcomeAssessments),
     safetyEvents: database.collection<SafetyEvent>(collectionNames.safetyEvents),

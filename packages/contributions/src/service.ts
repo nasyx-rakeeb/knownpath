@@ -6,7 +6,7 @@ import {
   SimilarityProfileService,
 } from "@knownpath/canonicalization";
 import type { KnownPathDatabase } from "@knownpath/database";
-import { recordContribution } from "@knownpath/observability";
+import { recordContribution, recordContributionQuality } from "@knownpath/observability";
 import {
   CONTRIBUTION_CONTRACT_VERSION,
   agentContributionV2Schema,
@@ -25,6 +25,7 @@ import {
   normalizePackageName,
   normalizePlatform,
   normalizeVersion,
+  knowledgeSearchEventIdSchema,
   sourceItemSchema,
   sourceRegistrySchema,
   type AgentContributionV2,
@@ -43,9 +44,12 @@ import { CandidateAssessmentService, defaultScoringPolicy } from "@knownpath/ver
 import { ContributionError } from "./errors.js";
 import { assertContributionProviderVisibility, type ContributionGeneralizer } from "./provider.js";
 import { sanitizeContributionPayload } from "./sanitizer.js";
+import { assessContributionQuality } from "./quality.js";
 
 const CONTRIBUTION_DIGEST_VERSION = 1;
 const CONTRIBUTION_PROJECTOR_VERSION = 1;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
 
 export interface ContributionServiceOptions {
   readonly apiOrigin: string;
@@ -87,6 +91,7 @@ export class ContributionService {
   ): Promise<ContributionSubmissionResult> {
     const request = contributionSubmissionRequestSchema.parse(unparsedRequest);
     this.assertSubmissionAllowed(request, actor);
+    await this.assertTargetAndDuplicateCheck(request, actor);
     const originalRequestDigest = digestOriginalRequest(request, this.options.digestSecret);
     const existing =
       await this.database.repositories.agentContributions.findV2ByOwnerAndClientSubmissionId(
@@ -107,6 +112,8 @@ export class ContributionService {
       return { contribution: processed, response: toSubmissionResponse(processed, true) };
     }
 
+    await this.assertRate(actor, new Date());
+
     const sanitized = await sanitizeContributionPayload(request.payload);
     const now = new Date();
     const visibility = contributionVisibility(
@@ -126,6 +133,9 @@ export class ContributionService {
       },
       ...(request.knownPathId === undefined ? {} : { knownPathId: request.knownPathId }),
       kind: request.kind,
+      contractVersion: request.contractVersion,
+      relationship: request.relationship ?? relationshipForLegacyKind(request.kind),
+      duplicateCheck: request.duplicateCheck ?? { status: "unavailable" },
       deduplicationKey: createVersionedKey([
         "agent-contribution-v2",
         actor.user._id,
@@ -218,7 +228,20 @@ export class ContributionService {
     signal: AbortSignal = new AbortController().signal,
   ): Promise<AgentContributionV2> {
     let contribution = await this.findV2(contributionId);
-    if (contribution.status === "quarantined" || contribution.processing.stage === "complete")
+    if (
+      contribution.status === "quarantined" ||
+      contribution.status === "rejected" ||
+      (contribution.status === "accepted" &&
+        contribution.moderation.status === "approved" &&
+        contribution.processing.candidateExperienceId !== undefined) ||
+      [
+        "awaiting_moderation",
+        "canonicalization_queued",
+        "canonicalizing",
+        "canonicalized",
+        "complete",
+      ].includes(contribution.processing.stage)
+    )
       return contribution;
     try {
       throwIfAborted(signal);
@@ -231,9 +254,36 @@ export class ContributionService {
         const generalized = await this.options.generalizer.generalize(payload, signal);
         payload = (await sanitizeContributionPayload(generalized)).payload;
       }
+      const proposedQuality = assessContributionQuality({ ...contribution, payload });
+      const existingQuality =
+        await this.database.repositories.contributionQualityAssessments.findByIdempotencyKey(
+          proposedQuality.idempotencyKey,
+        );
+      const quality =
+        existingQuality ??
+        (await this.database.repositories.contributionQualityAssessments.createIfAbsent(
+          proposedQuality,
+        )) ??
+        (await this.database.repositories.contributionQualityAssessments.findByIdempotencyKey(
+          proposedQuality.idempotencyKey,
+        ));
+      if (quality === null)
+        throw new Error("Contribution quality assessment could not be resolved");
+      const qualityUpdated =
+        await this.database.repositories.agentContributions.applyQualityDecision(
+          contribution._id,
+          quality._id,
+          quality.decision,
+        );
+      if (qualityUpdated === null)
+        throw new Error("Contribution quality result could not be stored");
+      contribution = qualityUpdated;
+      recordContributionQuality(quality.decision, contribution.relationship);
+      if (quality.decision === "rejected") return contribution;
       const registry = await this.ensureRegistry(contribution);
       const source = await this.ensureSource(contribution, registry._id, payload);
       contribution = await this.updateProcessing(contribution, {
+        ...contribution.processing,
         stage: "source_created",
         sourceItemId: source._id,
       });
@@ -267,8 +317,7 @@ export class ContributionService {
       ).discoverForCandidate(candidate._id, false);
       return this.updateProcessing(contribution, {
         ...contribution.processing,
-        stage: "complete",
-        completedAt: new Date(),
+        stage: "awaiting_moderation",
       });
     } catch (error) {
       await this.updateProcessing(contribution, {
@@ -303,10 +352,16 @@ export class ContributionService {
         "contribution_owner_forbidden",
         "The contribution is not available to this principal",
       );
+    const qualityAssessment =
+      await this.database.repositories.contributionQualityAssessments.findLatestByContribution(
+        contribution._id,
+      );
     return contributionInspectionResponseSchema.parse({
       contributionId: contribution._id,
       clientSubmissionId: contribution.clientSubmissionId,
       kind: contribution.kind,
+      relationship: contribution.relationship,
+      duplicateCheck: contribution.duplicateCheck,
       ...(contribution.knownPathId === undefined ? {} : { knownPathId: contribution.knownPathId }),
       visibility: contribution.visibility.scope,
       consent: contribution.consent,
@@ -315,6 +370,7 @@ export class ContributionService {
       status: contribution.status,
       trustState: contribution.trustState,
       processing: contribution.processing,
+      ...(qualityAssessment === null ? {} : { qualityAssessment }),
       createdAt: contribution.audit.createdAt,
       updatedAt: contribution.audit.updatedAt,
     });
@@ -347,6 +403,80 @@ export class ContributionService {
         "contribution_consent_required",
         "Explicit contribution consent is required",
       );
+  }
+
+  private async assertTargetAndDuplicateCheck(
+    request: ContributionSubmissionRequest,
+    actor: ContributionActor,
+  ): Promise<void> {
+    if (request.knownPathId !== undefined) {
+      const target = await this.database.repositories.knownPaths.findById(request.knownPathId);
+      if (
+        target === null ||
+        !sameContributionVisibility(target.visibility, request, actor) ||
+        (request.visibility === "public" && !["published", "deprecated"].includes(target.status))
+      )
+        throw new ContributionError(
+          "contribution_target_forbidden",
+          "The related KnownPath is not available in the requested contribution scope",
+        );
+    }
+    const check = request.duplicateCheck;
+    if (check?.status !== "performed" || check.searchId === undefined) return;
+    const event = await this.database.repositories.knowledgeSearchEvents.findById(
+      knowledgeSearchEventIdSchema.parse(check.searchId),
+    );
+    if (event === null || event.principal.userId !== actor.user._id)
+      throw new ContributionError(
+        "contribution_duplicate_check_invalid",
+        "The final duplicate search could not be verified for this account",
+      );
+    const now = Date.now();
+    if (event.createdAt.getTime() > now + 60_000 || event.createdAt.getTime() < now - 2 * HOUR_MS)
+      throw new ContributionError(
+        "contribution_duplicate_check_invalid",
+        "The final duplicate search must have completed within the last two hours",
+      );
+    if (
+      check.matchedKnownPathId !== undefined &&
+      !event.results.some((result) => result.knownPathId === check.matchedKnownPathId)
+    )
+      throw new ContributionError(
+        "contribution_duplicate_check_invalid",
+        "The declared matching KnownPath was not returned by the referenced search",
+      );
+    const relationship = request.relationship ?? relationshipForLegacyKind(request.kind);
+    if (
+      (relationship === "novel" && check.matchedKnownPathId !== undefined) ||
+      (relationship !== "novel" && check.matchedKnownPathId !== request.knownPathId)
+    )
+      throw new ContributionError(
+        "contribution_duplicate_check_invalid",
+        "The duplicate-search result does not match the declared contribution relationship",
+      );
+  }
+
+  private async assertRate(actor: ContributionActor, now: Date): Promise<void> {
+    const daily = await this.database.repositories.agentContributions.countRecentByUser(
+      actor.user._id,
+      new Date(now.getTime() - DAY_MS),
+    );
+    if (daily >= 20)
+      throw new ContributionError(
+        "contribution_abuse_limit",
+        "This account has reached the daily contribution limit",
+      );
+    if (actor.apiKeyId !== undefined) {
+      const hourly = await this.database.repositories.agentContributions.countRecentByApiKey(
+        actor.apiKeyId,
+        new Date(now.getTime() - HOUR_MS),
+      );
+      if (hourly >= 10)
+        throw new ContributionError(
+          "contribution_abuse_limit",
+          "This machine credential has reached the hourly contribution limit",
+        );
+    }
   }
 
   private async ensureRegistry(contribution: AgentContributionV2) {
@@ -459,6 +589,9 @@ export class ContributionService {
     source: Awaited<ReturnType<ContributionService["ensureSource"]>>,
     payload: ContributionPayload,
   ) {
+    const qualityAssessmentId = contribution.processing.qualityAssessmentId;
+    if (qualityAssessmentId === undefined)
+      throw new Error("Contribution candidate projection requires a quality assessment");
     const deduplicationKey = createVersionedKey([
       "agent-contribution-candidate",
       contribution._id,
@@ -515,12 +648,12 @@ export class ContributionService {
         platforms: [...new Set(payload.platforms.map(normalizePlatform))],
         versionStrings: [...new Set(payload.versions.map(normalizeVersion))],
         environment: {
-          runtimes: [],
-          operatingSystems: [],
-          architectures: [],
-          frameworks: [],
+          runtimes: payload.environment.runtimes,
+          operatingSystems: payload.environment.operatingSystems,
+          architectures: payload.environment.architectures,
+          frameworks: payload.environment.frameworks,
           toolchain: payload.toolchain,
-          extensions: {},
+          extensions: { buildModes: payload.environment.buildModes.join(",") },
         },
       },
       evidence: [
@@ -537,7 +670,12 @@ export class ContributionService {
       moderation: { status: "unreviewed" },
       audit: { createdAt: now, updatedAt: now, createdByUserId: contribution.contributor.userId },
       attemptedApproaches: [],
-      caveats: payload.caveats,
+      caveats: [
+        ...payload.caveats,
+        ...(payload.applicability?.doesNotApplyWhen.map(
+          (condition) => `Does not apply when: ${condition}`,
+        ) ?? []),
+      ],
       conflicts: [],
       candidateVerificationLabels: [],
       contribution: {
@@ -547,7 +685,12 @@ export class ContributionService {
         projectorVersion: CONTRIBUTION_PROJECTOR_VERSION,
         sanitizedContentDigest: contribution.sanitizedContentDigest,
         projectedAt: now,
+        relationship: contribution.relationship,
+        qualityAssessmentId,
       },
+      ...(payload.rootCause === undefined
+        ? {}
+        : { rootCause: { summary: payload.rootCause, evidenceSourceItemIds: [source._id] } }),
     });
     const inserted =
       await this.database.repositories.candidateExperiences.createIfAbsent(candidate);
@@ -625,11 +768,36 @@ function renderSourceText(payload: ContributionPayload): string {
     ...(payload.errors.length === 0
       ? []
       : ["# Errors", ...payload.errors.map((value) => `- ${value}`)]),
+    ...(payload.rootCause === undefined ? [] : ["# Root cause", payload.rootCause]),
+    "# Applicability",
+    payload.applicability?.appliesWhen ?? "Not specified",
+    ...(payload.applicability?.doesNotApplyWhen.length
+      ? [
+          "Does not apply when:",
+          ...payload.applicability.doesNotApplyWhen.map((value) => `- ${value}`),
+        ]
+      : []),
+    "# Environment",
+    `Ecosystem: ${payload.ecosystem}`,
+    ...(payload.packages.length === 0
+      ? []
+      : [
+          `Packages: ${payload.packages
+            .map(
+              (item) =>
+                `${item.ecosystem}:${item.name}${item.version === undefined ? "" : `@${item.version}`}`,
+            )
+            .join(", ")}`,
+        ]),
+    ...(payload.platforms.length === 0 ? [] : [`Platforms: ${payload.platforms.join(", ")}`]),
+    ...(payload.versions.length === 0 ? [] : [`Versions: ${payload.versions.join(", ")}`]),
+    ...(payload.toolchain.length === 0 ? [] : [`Toolchain: ${payload.toolchain.join(", ")}`]),
     "# Solution",
     payload.solutionSummary,
     "# Steps",
     ...payload.steps.map((step, index) => `${index + 1}. ${step.instruction}`),
     "# Observed success evidence (self-reported)",
+    `Verification type: ${payload.verificationType}`,
     payload.successEvidence.summary,
     ...payload.successEvidence.checks.map((value) => `- ${value}`),
     ...(payload.caveats.length === 0
@@ -689,5 +857,26 @@ function toSubmissionResponse(
     ...(contribution.processing.assessmentId === undefined
       ? {}
       : { assessmentId: contribution.processing.assessmentId }),
+    ...(contribution.processing.qualityAssessmentId === undefined
+      ? {}
+      : { qualityAssessmentId: contribution.processing.qualityAssessmentId }),
   });
+}
+
+function relationshipForLegacyKind(kind: ContributionSubmissionRequest["kind"]) {
+  if (kind === "correction") return "correction" as const;
+  if (kind === "additional_evidence") return "corroboration" as const;
+  if (kind === "freshness_update") return "extension" as const;
+  return "novel" as const;
+}
+
+function sameContributionVisibility(
+  visibility: Visibility,
+  request: ContributionSubmissionRequest,
+  actor: ContributionActor,
+): boolean {
+  if (request.visibility === "public") return visibility.scope === "public";
+  if (request.visibility === "private")
+    return visibility.scope === "private" && visibility.ownerUserId === actor.user._id;
+  return visibility.scope === "team" && visibility.workspaceId === request.workspaceId;
 }

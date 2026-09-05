@@ -315,6 +315,25 @@ export async function loadAdminDetail(
     if (value === null) return null;
     const isV2 = value.schemaVersion === 2;
     const isPrivate = value.visibility.scope !== "public";
+    const quality = isV2
+      ? await database.repositories.contributionQualityAssessments.findLatestByContribution(
+          value._id,
+        )
+      : null;
+    const candidate =
+      isV2 && value.processing.candidateExperienceId !== undefined
+        ? await database.repositories.candidateExperiences.findById(
+            value.processing.candidateExperienceId,
+          )
+        : null;
+    const assessment =
+      candidate?.latestAssessmentId === undefined
+        ? null
+        : await database.repositories.candidateAssessments.findById(candidate.latestAssessmentId);
+    const pairs =
+      candidate === null
+        ? []
+        : await database.repositories.candidatePairAssessments.listByCandidate(candidate._id, 8);
     return {
       contractVersion: 1,
       resource,
@@ -334,6 +353,15 @@ export async function loadAdminDetail(
             trust: isV2 ? value.trustState : "legacy",
             sanitization: isV2 ? value.sanitization.status : "legacy",
             processing: isV2 ? value.processing.stage : "legacy",
+            relationship: isV2 ? value.relationship : "legacy",
+            duplicateSearch: isV2 ? value.duplicateCheck.status : "unknown",
+            qualityDecision: quality?.decision ?? "not assessed",
+            qualityReasons: quality?.reasonCodes.join(", ") ?? "not assessed",
+            initialTrustScore: assessment?.finalScore.score ?? "not assessed",
+            similarCandidates: pairs.length,
+            canonicalKnownPathId: isV2
+              ? (value.processing.canonicalKnownPathId ?? "not canonicalized")
+              : "unknown",
             findings: isV2
               ? [...new Set(value.sanitization.findings.map((item) => item.category))].join(", ")
               : "unknown",
@@ -347,7 +375,27 @@ export async function loadAdminDetail(
                 fields: fields({
                   problem: value.payload.problem,
                   solution: value.payload.solutionSummary,
+                  rootCause: value.payload.rootCause ?? "unknown",
                   ecosystem: value.payload.ecosystem,
+                  packages: value.payload.packages.map((item) => item.name).join(", "),
+                  versions: value.payload.versions.join(", "),
+                  platforms: value.payload.platforms.join(", "),
+                  applicability: value.payload.applicability?.appliesWhen ?? "not stated",
+                  verificationType: value.payload.verificationType,
+                  verification: value.payload.successEvidence.summary,
+                  caveats: value.payload.caveats.join(" | "),
+                }),
+              },
+              {
+                title: "Similarity and routing",
+                fields: fields({
+                  relationship: value.relationship,
+                  targetKnownPathId: value.knownPathId ?? "none",
+                  duplicateSearchId: value.duplicateCheck.searchId ?? "unavailable",
+                  closestDecisions:
+                    pairs
+                      .map((pair) => `${pair.decision}:${pair.candidateIds.join("/")}`)
+                      .join(" | ") || "none",
                 }),
               },
             ]),

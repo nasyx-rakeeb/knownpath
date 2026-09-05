@@ -51,6 +51,8 @@ export const canonicalizationOperationIdSchema = brandedIdSchema<"Canonicalizati
 export const knownPathSearchDocumentIdSchema = brandedIdSchema<"KnownPathSearchDocumentId">();
 export const knowledgeSearchEventIdSchema = brandedIdSchema<"KnowledgeSearchEventId">();
 export const agentContributionIdSchema = brandedIdSchema<"AgentContributionId">();
+export const contributionQualityAssessmentIdSchema =
+  brandedIdSchema<"ContributionQualityAssessmentId">();
 export const agentOutcomeIdSchema = brandedIdSchema<"AgentOutcomeId">();
 export const outcomeAssessmentIdSchema = brandedIdSchema<"OutcomeAssessmentId">();
 export const safetyEventIdSchema = brandedIdSchema<"SafetyEventId">();
@@ -83,6 +85,7 @@ export type CanonicalizationOperationId = z.infer<typeof canonicalizationOperati
 export type KnownPathSearchDocumentId = z.infer<typeof knownPathSearchDocumentIdSchema>;
 export type KnowledgeSearchEventId = z.infer<typeof knowledgeSearchEventIdSchema>;
 export type AgentContributionId = z.infer<typeof agentContributionIdSchema>;
+export type ContributionQualityAssessmentId = z.infer<typeof contributionQualityAssessmentIdSchema>;
 export type AgentOutcomeId = z.infer<typeof agentOutcomeIdSchema>;
 export type OutcomeAssessmentId = z.infer<typeof outcomeAssessmentIdSchema>;
 export type SafetyEventId = z.infer<typeof safetyEventIdSchema>;
@@ -176,6 +179,10 @@ export function createKnowledgeSearchEventId(): KnowledgeSearchEventId {
 
 export function createAgentContributionId(): AgentContributionId {
   return agentContributionIdSchema.parse(randomUUID());
+}
+
+export function createContributionQualityAssessmentId(): ContributionQualityAssessmentId {
+  return contributionQualityAssessmentIdSchema.parse(randomUUID());
 }
 
 export function createAgentOutcomeId(): AgentOutcomeId {

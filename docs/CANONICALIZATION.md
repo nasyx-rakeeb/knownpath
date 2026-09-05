@@ -6,6 +6,15 @@ assessment, decision, and historical revision.
 
 Merges are conservative, auditable, and reversible.
 
+Agent candidates carry an explicit relationship. `novel` enters deterministic discovery;
+`corroboration` and `extension` support an authorized existing KnownPath; `variant` adds an
+alternative solution; and `correction`/`conflict` attach conflicting evidence for moderation. No
+relationship silently rewrites or publishes guidance.
+
+Contribution approval creates an idempotent BullMQ canonicalization step. MongoDB records queued,
+processing, completed, and retryable failed states, and maintenance reconciliation recovers approved
+items after queue or worker interruption without duplicate memberships.
+
 ## Pipeline
 
 ```text

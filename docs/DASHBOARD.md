@@ -96,6 +96,9 @@ Settings support:
 There is no silent sharing mode. Public, private, and workspace scope is selected per submission and
 enforced server-side. See [Contributions](CONTRIBUTIONS.md).
 
+Contribution processing exposes quality-blocked, awaiting-moderation, canonicalization-queued,
+retryable failed, and canonicalized states rather than silently stalling after approval.
+
 ## Outcomes
 
 Outcome history is private to the current user. It shows the reported classification, target,

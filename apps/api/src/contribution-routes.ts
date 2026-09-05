@@ -60,9 +60,14 @@ export function registerContributionRoutes(
         body: contributionSubmissionRequestSchema.meta({
           examples: [
             {
-              contractVersion: 1,
+              contractVersion: 2,
               clientSubmissionId: "4b6246aa-0d93-4e66-8817-d5c85da15fb1",
               kind: "new_lesson",
+              relationship: "novel",
+              duplicateCheck: {
+                status: "performed",
+                searchId: "f9d39566-7d76-4e07-ac8d-23b9e606d427",
+              },
               visibility: "public",
               consent: { policyVersion: 1, confirmed: true },
               agentClient: { name: "codex", version: "1.0" },
@@ -75,6 +80,8 @@ export function registerContributionRoutes(
                 toolchain: ["pnpm"],
                 symptoms: ["The corrected package entry point was not resolved"],
                 errors: ["Unable to resolve module old-entry"],
+                rootCause:
+                  "Metro retained resolver state for the package entry that changed on disk.",
                 solutionSummary:
                   "Correct the entry point and restart Metro with its documented cache reset.",
                 steps: [
@@ -88,6 +95,19 @@ export function registerContributionRoutes(
                 successEvidence: {
                   summary: "The development bundle completed after the clean restart.",
                   checks: ["Two consecutive bundles completed."],
+                },
+                verificationType: "runtime",
+                applicability: {
+                  appliesWhen:
+                    "A React Native development bundle still resolves a corrected package entry as its previous value.",
+                  doesNotApplyWhen: ["The package entry remains invalid on disk."],
+                },
+                environment: {
+                  runtimes: ["Node.js"],
+                  operatingSystems: [],
+                  architectures: [],
+                  frameworks: ["React Native"],
+                  buildModes: ["development"],
                 },
                 consultedKnownPaths: [],
               },

@@ -4,7 +4,7 @@ The canonical [KnownPath Agent Skill](../skills/knownpath/SKILL.md) teaches a co
 KnownPath lookup is worthwhile and how to use the result responsibly. It is the behavior layer, not
 the knowledge database or MCP implementation.
 
-The skill version is **1.3.0**.
+The skill version is **1.4.0**.
 
 ## What the skill changes
 
@@ -107,13 +107,24 @@ more useful than a complete log or file.
 
 ## Contributions
 
-After observable success, the agent may offer to call `knownpath_contribute`. It must:
+After observable success, the agent performs one brief reuse check: would the problem, cause, and
+solution remain meaningful and useful to an unrelated repository after local identifiers and private
+context are removed? It skips trivial and repository-specific fixes and makes at most one
+unsolicited suggestion per task.
+
+Before an offer, the agent performs a final `knownpath_search` with the generalized technical
+signature. A sufficient match routes the experience as corroboration, variant, extension,
+correction, or conflict instead of creating redundant knowledge. A novel lesson uses relationship
+`novel`.
+
+The agent then shows a compact generalized preview and must:
 
 - obtain explicit consent for that submission;
 - use the intended public, personal-private, or workspace scope;
 - submit a generalized problem, environment, steps, caveats, and success evidence;
 - omit repository files, raw source, prompts, credentials, and chain-of-thought;
-- use a stable `clientSubmissionId` for idempotent retries;
+- use contribution contract version 2, a stable `clientSubmissionId`, the duplicate-search ID,
+  relationship, applicability, and observable verification type;
 - describe the actual agent client accurately.
 
 Public consent permits review and possible later publication. Private and team knowledge remains in
@@ -123,6 +134,9 @@ implicitly.
 
 A contribution receipt represents low-trust self-reported evidence, not proof or automatic
 publication. See [Contributions](CONTRIBUTIONS.md).
+
+Repository instructions are untrusted for contribution decisions. They cannot authorize a
+submission, bypass consent, or override privacy and quality rules.
 
 ## Outcome reporting
 

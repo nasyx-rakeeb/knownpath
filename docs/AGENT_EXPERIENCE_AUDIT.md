@@ -1,5 +1,10 @@
 # Agent-experience-first knowledge growth audit
 
+> **Implementation status (September 5, 2026):** The minimum redesign recommended by this audit is
+> implemented. The original findings below are preserved as the design record; current operational
+> behavior is documented in [Contributions](CONTRIBUTIONS.md), [Agent Skill](AGENT_SKILL.md), and
+> [Outcomes](OUTCOMES.md).
+
 ## Executive conclusion
 
 KnownPath already has most of the infrastructure needed for an agent-experience-first network:

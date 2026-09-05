@@ -48,7 +48,8 @@ The current instruments cover:
 - MongoDB, queue, production limiter, and telemetry dependency checks;
 - queue depth by fixed queue and state;
 - ingestion item transitions and provider rate-limit/quota/failure classes;
-- contribution state/visibility and bounded outcome classifications; and
+- contribution state/visibility, deterministic quality decision, relationship route, moderation
+  action, and bounded outcome classifications; and
 - security denials by surface and reason class.
 
 HTTP spans contain MCP tool spans and explicit database/search spans. Pino request logs include the
@@ -66,6 +67,10 @@ Telemetry must not contain:
 Allowed attributes are fixed low-cardinality values such as method, route template, status class,
 tool name, search backend, queue/state, provider event class, visibility, and outcome class. New
 instruments require the same bounded vocabulary and a privacy review.
+
+Agent-local reflection, suggestions, and declined consent are intentionally not inferred by the
+backend because no request occurs. KnownPath does not add another MCP telemetry tool merely to count
+them.
 
 Automatic framework/database instrumentation and Node resource detection are disabled. Exported
 resource attributes are limited to configured service name, version, and deployment environment,
