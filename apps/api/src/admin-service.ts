@@ -313,6 +313,12 @@ export class AdminService {
       return { id: updated._id, status: updated.moderation.status };
     }
     const pathId = knownPathIdSchema.parse(input.id);
+    if (this.producer === undefined)
+      throw new AdminOperationError(
+        "queue_unavailable",
+        "Knowledge moderation requires the projection queue",
+        503,
+      );
     const targetStatus =
       input.action === "deprecate"
         ? "deprecated"
@@ -341,7 +347,26 @@ export class AdminService {
       },
     );
     if (updated === null) throw this.conflict();
-    return { id: updated._id, status: updated.status };
+    const projection = await this.producer.enqueue({
+      jobName: "knownpath.project",
+      kind: "reprocess",
+      target: { kind: "knownpath", id: updated._id },
+      trigger: "operator",
+      initiator: { kind: "user", userId: adminId },
+      idempotencyParts: [
+        "admin-moderation-projection-v1",
+        updated._id,
+        updated.status,
+        updated.moderation.status,
+        updated.audit.updatedAt.toISOString(),
+      ],
+    });
+    return {
+      id: updated._id,
+      status: updated.status,
+      projectionRunId: projection.run._id,
+      projectionStepId: projection.data.pipelineStepId,
+    };
   }
 
   public async userAction(input: z.infer<typeof adminUserActionRequestSchema>) {

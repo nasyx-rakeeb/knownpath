@@ -18,7 +18,7 @@ import {
 
 import { assertEmbeddingVisibility, type EmbeddingProvider } from "./provider.js";
 
-const PROJECTION_VERSION = 1;
+const PROJECTION_VERSION = 2;
 const TEXT_SCHEMA_VERSION = 1;
 const RANKING_SCHEMA_VERSION = 2;
 const INPUT_FORMAT_VERSION = 1;
@@ -61,6 +61,7 @@ export class SearchProjectionService {
     const base = buildProjectionBase(knownPath, revision, assessment);
     const input = buildRetrievalDocumentInput(base);
     const inputHash = sha256(input);
+    const stateHash = projectionStateHash(base);
     const mode =
       knownPath.visibility.scope !== "public" && this.options.providerCapability === "public_only"
         ? "blocked"
@@ -78,7 +79,9 @@ export class SearchProjectionService {
         active !== null &&
         active.knownPathRevisionId === revision._id &&
         active.embedding.inputHash === inputHash &&
+        active.projectionVersion === PROJECTION_VERSION &&
         active.rankingSchemaVersion === RANKING_SCHEMA_VERSION &&
+        projectionStateHash(active) === stateHash &&
         outcomeProjectionMatches(active.outcome, assessment)
       )
         return { document: active, reused: true, providerCalled: false };
@@ -88,12 +91,14 @@ export class SearchProjectionService {
       knownPath._id,
       revision._id,
       base.contentHash,
+      stateHash,
       assessment?._id ?? "outcomes-unobserved",
       this.options.providerIdentifier,
       this.options.providerModel,
       this.options.providerModelVersion,
       String(this.options.dimensions),
       mode,
+      String(PROJECTION_VERSION),
       String(INPUT_FORMAT_VERSION),
     ]);
     const existing =
@@ -433,6 +438,37 @@ function toProjectionOutcome(
 
 function buildRetrievalDocumentInput(base: { searchableText: string }): string {
   return base.searchableText.slice(0, 60_000);
+}
+
+function projectionStateHash(
+  value: Pick<
+    KnownPathSearchDocument,
+    | "contentHash"
+    | "visibilityScope"
+    | "ownerUserId"
+    | "workspaceId"
+    | "knownPathStatus"
+    | "moderationStatus"
+    | "conflictCount"
+    | "trust"
+    | "freshness"
+    | "outcome"
+  >,
+): string {
+  return sha256(
+    JSON.stringify({
+      contentHash: value.contentHash,
+      visibilityScope: value.visibilityScope,
+      ownerUserId: value.ownerUserId ?? null,
+      workspaceId: value.workspaceId ?? null,
+      knownPathStatus: value.knownPathStatus,
+      moderationStatus: value.moderationStatus,
+      conflictCount: value.conflictCount,
+      trust: value.trust,
+      freshness: value.freshness,
+      outcome: value.outcome,
+    }),
+  );
 }
 
 function freshnessStatus(knownPath: KnownPath): "current" | "aging" | "stale" | "unknown" {
