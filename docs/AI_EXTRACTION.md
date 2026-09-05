@@ -7,7 +7,7 @@ trust, merge records, or publish knowledge.
 ## Provider boundary
 
 `@knownpath/ai` defines the extraction provider contract. The current implementation uses Google's
-official `@google/genai` SDK and the Gemini Interactions API.
+official `@google/genai` SDK and the Gemini `generateContent` API.
 
 Configuration is environment-based:
 
@@ -18,13 +18,12 @@ GEMINI_API_KEY=
 GEMINI_MODEL=gemini-3.5-flash-lite
 ```
 
-The application default model is `gemini-3.5-flash-lite`, selected for structured, high-volume
-document extraction. The free scheduled-worker workflow defaults to `gemini-2.5-flash-lite` unless
-the repository variable `KNOWNPATH_GEMINI_MODEL` overrides it. Model identity is configurable and
-recorded with every attempt.
+The application and scheduled-worker default model is `gemini-3.5-flash-lite`, selected for
+structured, high-volume document extraction. The repository variable `KNOWNPATH_GEMINI_MODEL` can
+override the scheduled-worker model. Model identity is configurable and recorded with every attempt.
 
-Requests set `store: false`, provide no tools, require JSON-schema output, use minimal thinking, and
-request no thought summaries. KnownPath never asks for or stores hidden chain-of-thought.
+Requests use the stateless `generateContent` API, provide no tools, require JSON-schema output, and
+do not request thought output. KnownPath never asks for or stores hidden chain-of-thought.
 
 ## Public-only provider policy
 
@@ -159,7 +158,7 @@ candidate membership. [Retrieval](RETRIEVAL.md) projects only appropriate canoni
 ## Official references
 
 - [Google Gen AI JavaScript SDK](https://googleapis.github.io/js-genai/)
-- [Gemini Interactions API](https://ai.google.dev/gemini-api/docs/interactions)
+- [Gemini text generation](https://ai.google.dev/gemini-api/docs/text-generation)
 - [Gemini 3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
 - [Structured outputs](https://ai.google.dev/gemini-api/docs/structured-output)
 - [Rate limits](https://ai.google.dev/gemini-api/docs/rate-limits)

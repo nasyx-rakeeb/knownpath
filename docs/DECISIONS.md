@@ -379,6 +379,8 @@ and broaden the allowed source surface.
 
 ## 2026-08-22 — Use Gemini Interactions with stable 3.5 Flash-Lite by default
 
+**Status:** Superseded by the 2026-09-05 `generateContent` decision below.
+
 **Decision:** Implement the extraction provider with Google's official `@google/genai` 2.18 SDK and
 Interactions API. Default to configurable stable `gemini-3.5-flash-lite`, `store: false`, no tools,
 minimal thinking, no thinking summaries, and strict JSON-schema output. Pin the SDK below its
@@ -398,6 +400,25 @@ API adds a separate file/job lifecycle and is deferred until measured volume jus
 [Gemini 3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite),
 [structured output](https://ai.google.dev/gemini-api/docs/structured-output),
 [Batch API](https://ai.google.dev/gemini-api/docs/batch-api)
+
+## 2026-09-05 — Use Gemini generateContent for structured extraction
+
+**Decision:** Keep the official `@google/genai` SDK and configurable stable `gemini-3.5-flash-lite`
+default, but issue stateless `models.generateContent` requests with a JSON response schema and no
+requested thought output. Validate model availability before scheduled workers touch queue state.
+
+**Why:** Production verification showed that model-list availability and Interactions request
+availability can differ for a Gemini API project. `generateContent` is stable, supports structured
+output for the selected model, and completed real extraction requests with the configured hosted
+project. The extraction ledger continues to record model and generation-configuration identity.
+
+**Rejected:** Silently cycling through models or API surfaces would make processing non-reproducible
+and could consume unexpected quota. A checked model plus a visible configuration error is safer.
+
+**References:** [Google Gen AI SDK](https://googleapis.github.io/js-genai/),
+[text generation](https://ai.google.dev/gemini-api/docs/text-generation),
+[structured output](https://ai.google.dev/gemini-api/docs/structured-output),
+[Gemini 3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
 
 ## 2026-08-22 — Make unpaid Gemini public-only before provider construction
 
