@@ -16,7 +16,7 @@ import { z } from "zod";
 
 export const KNOWNPATH_MCP_CONTRACT_VERSION = 1 as const;
 export const KNOWNPATH_MCP_SERVER_NAME = "knownpath";
-export const KNOWNPATH_MCP_SERVER_VERSION = "0.5.0";
+export const KNOWNPATH_MCP_SERVER_VERSION = "0.6.0";
 
 const boundedString = (maximum: number) => z.string().trim().min(1).max(maximum);
 const optionalReviewSchema = z.boolean().default(false);

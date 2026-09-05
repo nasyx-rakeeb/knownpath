@@ -10,6 +10,21 @@ intents.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-05
+
+### Added
+
+- Make verified agent experience the primary knowledge-growth path with a versioned contribution
+  contract, deterministic generalizability assessment, and explicit duplicate relationships.
+- Teach installed Agent Skills to reflect after successful non-trivial work, search before
+  contributing, show a privacy-minimized preview, and require explicit consent.
+- Add focused contribution state-machine recovery, moderator context, originator-outcome separation,
+  privacy defenses, and low-cardinality product metrics.
+
+### Fixed
+
+- Resume canonicalization durably and idempotently after a moderator approves a contribution.
+
 ## [0.5.0] - 2026-09-04
 
 ### Added
@@ -49,7 +64,8 @@ intents.
 - Environment-reference-only KnownPath API URL and key configuration.
 - Packaged canonical KnownPath Agent Skill and stdio MCP bridge.
 
-[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.0...v0.4.1

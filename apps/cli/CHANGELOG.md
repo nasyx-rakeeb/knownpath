@@ -1,5 +1,14 @@
 # knownpath
 
+## 0.6.0
+
+### Minor Changes
+
+- d7cf7b9: Teach installed agents the agent-experience-first contribution flow: reflect after
+  verified success, reject trivial or project-local lessons, check for existing KnownPaths, preview
+  generalized content, and require explicit consent before submitting contribution contract
+  version 2.
+
 ## 0.5.0
 
 ### Minor Changes
