@@ -81,6 +81,13 @@ export class ScheduleManager {
       },
     }));
     const schedules = [...sourceSchedules, ...maintenanceSchedules];
+    const desiredSourceIds = new Set(sourceSchedules.map(({ id }) => id));
+    const existing = await this.queue.getJobSchedulers(0, 1_000, true);
+    for (const { key } of existing) {
+      if (key.startsWith("source-") && !desiredSourceIds.has(key)) {
+        await this.queue.removeJobScheduler(key);
+      }
+    }
     for (const schedule of schedules) {
       await this.queue.upsertJobScheduler(
         schedule.id,

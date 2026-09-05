@@ -48,17 +48,19 @@ Current adapter types are:
 Adding a source that fits an existing adapter should usually be a reviewed registry change rather
 than new collector code.
 
-## Current public seed
+## Operator-controlled public sources
 
-The initial registry covers:
+The source registry includes adapters for:
 
 - Expo and React Native issues/discussions from selected GitHub repositories;
 - Expo documentation and changelog;
 - React Native documentation and release feed.
 
-Normal official-document sync is curated for upgrades, migrations, compatibility, troubleshooting,
-deprecations, breaking changes, and release guidance. Complete `llms.txt` catalogs remain
-discoverable for targeted or bounded full-catalog work.
+The hosted service does not schedule broad public-source synchronization or extraction. These
+adapters remain available for explicit, bounded corroboration, ecosystem refreshes, gap filling, and
+operator-reviewed seeding. Official-document selection is curated for upgrades, migrations,
+compatibility, troubleshooting, deprecations, breaking changes, and release guidance. Complete
+`llms.txt` catalogs remain discoverable for targeted or bounded full-catalog work.
 
 See [GitHub ingestion](GITHUB_INGESTION.md) and
 [Official-source ingestion](OFFICIAL_SOURCE_INGESTION.md).
@@ -127,8 +129,10 @@ Stable provider IDs and versioned content hashes make synchronization idempotent
 - failed items do not block unrelated source records;
 - downstream idempotency keys incorporate source hashes and processing versions.
 
-Scheduled pipelines dispatch changed source items into extraction, scoring, canonicalization, and
-projection without relying on Valkey as business storage. See [Operations](OPERATIONS.md).
+When an operator explicitly enables source schedules, changed source items dispatch into extraction,
+scoring, canonicalization, and projection without relying on Valkey as business storage. Source
+schedules are disabled by default and are disabled on the hosted service. See
+[Operations](OPERATIONS.md).
 
 ## Privacy boundary
 

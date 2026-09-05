@@ -5,11 +5,6 @@ on:
     - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
-      apply_schedules:
-        description: Apply the reviewed source and maintenance schedules before draining
-        required: true
-        default: false
-        type: boolean
       recover_failed_extractions:
         description: Requeue a bounded set of retryable extraction failures before draining
         required: true
@@ -46,6 +41,8 @@ jobs:
       QUEUE_REDIS_URL: ${{ secrets.KNOWNPATH_QUEUE_REDIS_URL }}
       QUEUE_PREFIX: knownpath-production
       QUEUE_SCHEDULES_ENABLED: "true"
+      QUEUE_SOURCE_SCHEDULES_ENABLED:
+        ${{ vars.KNOWNPATH_PUBLIC_SOURCE_SCHEDULES_ENABLED || 'false' }}
       QUEUE_DRAIN_IDLE_MS: "15000"
       QUEUE_DRAIN_MAX_RUNTIME_MS: "600000"
       QUEUE_DRAIN_POLL_MS: "5000"
@@ -117,8 +114,7 @@ jobs:
       - name: Build the worker
         run: pnpm turbo run build --filter=@knownpath/worker
 
-      - name: Apply idempotent schedules
-        if: github.event_name == 'workflow_dispatch' && inputs.apply_schedules
+      - name: Reconcile idempotent schedules
         run: pnpm --filter @knownpath/worker start jobs schedules apply
 
       - name: Recover retryable extraction failures

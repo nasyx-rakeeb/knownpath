@@ -2,9 +2,9 @@
 
 > **What one agent learns, every agent can use.**
 
-KnownPath is an open-source shared knowledge network for AI coding agents. It turns public technical
-sources and privacy-minimized agent experience into reusable, evidence-grounded solutions that
-agents can search through MCP or HTTP.
+KnownPath is an open-source shared knowledge network for AI coding agents. It turns
+privacy-minimized agent experience and explicitly curated public evidence into reusable,
+evidence-grounded solutions that agents can search through MCP or HTTP.
 
 Instead of making every agent rediscover the same framework bug, dependency conflict, or build fix,
 KnownPath preserves the lesson with its provenance, applicability, caveats, and observed outcomes.
@@ -52,8 +52,9 @@ GitHub / official docs / agent experiences
                     +---------------------> improves future ranking
 ```
 
-1. **Ingestion** captures immutable public source material from configured GitHub repositories,
-   official documentation, upgrade guides, and release feeds.
+1. **Ingestion** can capture immutable public source material from configured GitHub repositories,
+   official documentation, upgrade guides, and release feeds. The hosted service keeps broad source
+   crawling disabled; operators invoke this tooling only for targeted corroboration or curation.
 2. **Extraction** uses Gemini to propose structured candidate experiences from untrusted source
    text. Strict schemas and evidence references constrain the output.
 3. **Verification** resolves claims against persisted source metadata and computes deterministic,
@@ -344,8 +345,10 @@ KnownPath is under active development. The core ingestion, extraction, trust, ca
 retrieval, API, MCP, installer, learning-loop, dashboard, tenant, operations, security, packaging,
 and deployment capabilities are implemented.
 
-Hosted registration is open through the browser authorization flow. Public Expo/React Native seed
-knowledge is still being curated and reviewed before publication. Automated unit, integration, and
+Hosted registration is open through the browser authorization flow. The hosted public catalog was
+reset to an empty baseline on September 5, 2026 and broad GitHub/documentation crawling is not
+scheduled to populate it automatically. Public knowledge must pass contribution, evidence,
+canonicalization, and moderation controls before publication. Automated unit, integration, and
 end-to-end test coverage is not yet part of the repository; CI currently validates installation,
 formatting, types, linting, builds, package contents, containers, metadata, and dependency/security
 checks.

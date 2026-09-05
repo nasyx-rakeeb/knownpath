@@ -117,6 +117,15 @@ system and can be reconciled safely because the product state remains in MongoDB
 Self-reported candidates are capped at low initial trust. They are not published or highly ranked
 solely because the contributor says the fix worked.
 
+### Current canonicalization limitation
+
+Contribution moderation and canonicalization are deliberately separate, but the current
+implementation does not automatically resume canonicalization after an administrator approves a
+contribution. The first canonicalization attempt is blocked while the contribution is pending;
+approval updates moderation state without enqueueing another canonicalization job. Until the
+agent-experience-first processing flow is revised, an operator must explicitly reprocess the
+approved candidate. This is a confirmed operational gap, not an automatic publication path.
+
 ## Provider privacy
 
 Provider capability is explicit:

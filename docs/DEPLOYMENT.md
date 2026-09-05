@@ -78,7 +78,8 @@ only. Never store administrator credentials in an image or CI definition.
 - Run `node dist/index.js jobs start` in the worker image for continuous consumption, or
   `node dist/index.js jobs drain` for bounded scheduled compute.
 - Do not expose MongoDB or Valkey directly to the public internet.
-- Keep scheduled source refresh disabled until sources, quotas, and expected workload are reviewed.
+- Keep `QUEUE_SOURCE_SCHEDULES_ENABLED=false` unless an operator has reviewed the sources, quotas,
+  and expected workload. This does not disable contribution/outcome queue processing.
 
 Verify the deployment:
 

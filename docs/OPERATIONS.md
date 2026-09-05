@@ -69,11 +69,22 @@ for the next invocation.
 
 ## Schedules
 
-Schedules are disabled until explicitly enabled:
+All BullMQ job schedulers are disabled until explicitly enabled:
 
 ```dotenv
 QUEUE_SCHEDULES_ENABLED=true
 ```
+
+Public-source schedules have a separate opt-in gate:
+
+```dotenv
+QUEUE_SOURCE_SCHEDULES_ENABLED=false
+```
+
+With that value false, applying schedules reconciles only maintenance work and removes existing
+`source-*` schedulers. Queue draining remains active for API-submitted agent contributions,
+outcomes, and maintenance. Set it true only for a reviewed operator-controlled source refresh; the
+hosted service keeps it false.
 
 Then apply and inspect them idempotently:
 
@@ -83,9 +94,9 @@ pnpm jobs schedules status
 pnpm jobs schedules remove
 ```
 
-Each enabled source registry entry receives an independent refresh schedule. Maintenance
-reconciliation runs every five minutes, stale inspection every fifteen minutes, and freshness
-rescoring daily.
+When source schedules are explicitly enabled, each enabled source registry entry receives an
+independent refresh schedule. Maintenance reconciliation runs every five minutes, stale inspection
+every fifteen minutes, and freshness rescoring daily regardless of the source-schedule gate.
 
 ## Enqueue and inspect
 

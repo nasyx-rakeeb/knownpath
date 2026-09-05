@@ -142,7 +142,7 @@ export async function runOperationalCommand(argv: readonly string[]): Promise<vo
         if (!queueConfig.schedulesEnabled && operation === "apply")
           throw new Error("QUEUE_SCHEDULES_ENABLED=true is required to apply schedules");
         const sourceManifest =
-          operation === "apply"
+          operation === "apply" && queueConfig.sourceSchedulesEnabled
             ? await loadSourceManifest(loadSourceIngestionConfig().sourceRegistryPath)
             : undefined;
         const sourcePolicies =
