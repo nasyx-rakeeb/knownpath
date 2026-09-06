@@ -4,7 +4,7 @@ The canonical [KnownPath Agent Skill](../skills/knownpath/SKILL.md) teaches a co
 KnownPath lookup is worthwhile and how to use the result responsibly. It is the behavior layer, not
 the knowledge database or MCP implementation.
 
-The skill version is **1.4.0**.
+The skill version is **1.5.0**.
 
 ## What the skill changes
 
@@ -107,17 +107,20 @@ more useful than a complete log or file.
 
 ## Contributions
 
-After observable success, the agent performs one brief reuse check: would the problem, cause, and
-solution remain meaningful and useful to an unrelated repository after local identifiers and private
-context are removed? It skips trivial and repository-specific fixes and makes at most one
-unsolicited suggestion per task.
+Before its final response after an observably successful, non-trivial technical repair, the agent
+must complete one brief reuse gate: would the problem, cause, and solution remain meaningful and
+useful to an unrelated repository after local identifiers and private context are removed? This gate
+still applies when the initial KnownPath search returned nothing. It remains silent for trivial,
+unverified, unsafe-to-generalize, and repository-specific fixes and makes at most one unsolicited
+suggestion per task.
 
-Before an offer, the agent performs a final `knownpath_search` with the generalized technical
-signature. A sufficient match routes the experience as corroboration, variant, extension,
-correction, or conflict instead of creating redundant knowledge. A novel lesson uses relationship
-`novel`.
+For an eligible lesson, the agent must perform a final `knownpath_search` with the generalized
+technical signature after successful verification; a pre-fix search does not count as this duplicate
+check. A sufficient match routes the experience as corroboration, variant, extension, correction, or
+conflict instead of creating redundant knowledge. A novel lesson uses relationship `novel`.
 
-The agent then shows a compact generalized preview and must:
+Before ending its response, the agent shows a compact generalized preview, asks for consent, and
+must:
 
 - obtain explicit consent for that submission;
 - use the intended public, personal-private, or workspace scope;

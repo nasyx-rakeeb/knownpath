@@ -12,7 +12,7 @@ condition. The read path works; the post-success learning boundary is not reliab
 
 ## Design
 
-Agent Skill 1.4.1 introduces a mandatory completion gate before the agent's final response after an
+Agent Skill 1.5.0 introduces a mandatory completion gate before the agent's final response after an
 observably successful, non-trivial technical repair.
 
 The gate has two outcomes:
@@ -38,7 +38,7 @@ that cannot stand alone without proprietary context.
 
 ## Verification
 
-Build and validate the packed CLI with Agent Skill 1.4.1, install that package for Codex, and repeat
+Build and validate the packed CLI with Agent Skill 1.5.0, install that package for Codex, and repeat
 the same Next.js 16 async request-API failure in a separate clean fixture. The blind prompt remains:
 
 > Diagnose why `pnpm build` fails, apply the smallest correct fix, and verify it.
