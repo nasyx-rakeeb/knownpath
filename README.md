@@ -84,11 +84,12 @@ npx knownpath install
 npx knownpath doctor
 ```
 
-The installer opens the KnownPath dashboard for signup or sign-in, asks you to approve the CLI,
+The installer detects supported clients and shows the planned configuration changes first. After you
+confirm them, it opens the KnownPath dashboard for signup or sign-in, asks you to approve the CLI,
 creates a dedicated scoped machine credential, and stores it in the native OS credential store. It
-then detects supported clients, configures the thin stdio-to-HTTP MCP bridge, and installs the
-canonical Agent Skill. Re-run the command safely at any time; use `npx knownpath install --dry-run`
-to preview local changes without starting authentication.
+then configures the thin stdio-to-HTTP MCP bridge and installs the canonical Agent Skill. Re-run the
+command safely at any time; use `npx knownpath install --dry-run` to preview local changes without
+starting authentication.
 
 Agent configuration contains no KnownPath credential. The stdio bridge resolves the hosted origin
 and machine credential at runtime, while the installer keeps merge-safe backups and ownership state
@@ -356,9 +357,6 @@ scheduled to populate it automatically. Public knowledge must pass contribution,
 canonicalization, and moderation controls before publication. Focused automated coverage protects
 the contribution quality, consent, sanitization, approval/retry, relationship-routing, and
 independent-outcome rules; broader repository-wide test coverage remains future work.
-
-Historical implementation and manual verification records live in [progress.md](progress.md), not in
-this public overview.
 
 ## Contributing and open source
 

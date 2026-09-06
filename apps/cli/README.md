@@ -39,6 +39,7 @@ knownpath logout
 knownpath whoami
 knownpath update
 knownpath uninstall
+knownpath mcp
 ```
 
 Supported adapters are OpenAI Codex CLI, Claude Code, Cursor, Gemini CLI, and OpenCode. Use
