@@ -1,5 +1,12 @@
 # knownpath
 
+## 0.6.1
+
+### Patch Changes
+
+- 70bd4d0: Align the packaged CLI documentation with the actual installer sequence and include the
+  supported `knownpath mcp` command in the command reference.
+
 ## 0.6.0
 
 ### Minor Changes

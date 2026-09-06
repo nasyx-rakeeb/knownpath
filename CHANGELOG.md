@@ -10,6 +10,15 @@ intents.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-06
+
+### Fixed
+
+- Align the public and packaged CLI installation documentation with the actual client-detection and
+  browser-authorization order.
+- Include the supported `knownpath mcp` command in the npm-facing command reference.
+- Remove the internal development progress log and its public README link.
+
 ## [0.6.0] - 2026-09-05
 
 ### Added
@@ -64,7 +73,8 @@ intents.
 - Environment-reference-only KnownPath API URL and key configuration.
 - Packaged canonical KnownPath Agent Skill and stdio MCP bridge.
 
-[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/nasyx-rakeeb/knownpath/compare/v0.4.1...v0.4.2
