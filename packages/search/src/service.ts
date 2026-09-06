@@ -7,8 +7,12 @@ import {
   type RetrievalResult,
 } from "@knownpath/domain";
 
-import { normalizeRetrievalQuery } from "./normalization.js";
-import { retrievalPolicyDigest, retrievalPolicyV2 } from "./policy.js";
+import {
+  matchesEmbeddedDiagnostic,
+  normalizeRetrievalError,
+  normalizeRetrievalQuery,
+} from "./normalization.js";
+import { retrievalPolicyDigest, retrievalPolicyV3 } from "./policy.js";
 import {
   assertEmbeddingVisibility,
   EmbeddingProviderError,
@@ -215,7 +219,12 @@ function rerank(
   const maxLexical = Math.max(0, ...lexical.map((entry) => entry.score));
   const results = [...candidates.values()].map((candidate) => {
     const document = candidate.document;
-    const exactText = normalized.errors.some((error) => document.normalizedErrors.includes(error));
+    const exactText = document.normalizedErrors.some(
+      (error) =>
+        normalized.errors.includes(normalizeRetrievalError(error)) ||
+        matchesEmbeddedDiagnostic(query.text, error),
+    );
+    if (exactText) candidate.matched.add("exact");
     const codeOverlap = overlap(normalized.errorCodes, document.errorCodes);
     const exactError = exactText ? 20 : codeOverlap > 0 ? 15 : 0;
     const lexicalPoints =
@@ -251,43 +260,43 @@ function rerank(
     if (version.fit === "incompatible") {
       penalties.push({
         code: "version_incompatible",
-        points: retrievalPolicyV2.penalties.incompatibleVersion,
+        points: retrievalPolicyV3.penalties.incompatibleVersion,
         explanation: "Explicit version constraints are incompatible.",
       });
-      cap = retrievalPolicyV2.caps.incompatibleVersion;
+      cap = retrievalPolicyV3.caps.incompatibleVersion;
     }
     if (document.conflictCount > 0)
       penalties.push({
         code: "conflicting_evidence",
-        points: retrievalPolicyV2.penalties.conflict,
+        points: retrievalPolicyV3.penalties.conflict,
         explanation: "The canonical record has active conflicting candidate evidence.",
       });
     if (document.freshness.status === "stale")
       penalties.push({
         code: "stale_applicability",
-        points: retrievalPolicyV2.penalties.stale,
+        points: retrievalPolicyV3.penalties.stale,
         explanation: "The record is past its stale-after timestamp.",
       });
     if (document.moderationStatus === "flagged")
       penalties.push({
         code: "moderation_flagged",
-        points: retrievalPolicyV2.penalties.flagged,
+        points: retrievalPolicyV3.penalties.flagged,
         explanation: "The canonical record is flagged for review.",
       });
     if (document.knownPathStatus === "deprecated")
-      cap = Math.min(cap ?? 100, retrievalPolicyV2.caps.deprecated);
+      cap = Math.min(cap ?? 100, retrievalPolicyV3.caps.deprecated);
     if (document.outcome.status === "observed") {
       if (document.outcome.penalties.includes("corroborated_safety"))
         penalties.push({
           code: "corroborated_safety_outcomes",
-          points: retrievalPolicyV2.penalties.corroboratedSafety,
+          points: retrievalPolicyV3.penalties.corroboratedSafety,
           explanation:
             "Independent safety reports reached the deterministic corroboration threshold.",
         });
       if (document.outcome.penalties.includes("outcome_degradation"))
         penalties.push({
           code: "recent_outcome_degradation",
-          points: retrievalPolicyV2.penalties.outcomeDegradation,
+          points: retrievalPolicyV3.penalties.outcomeDegradation,
           explanation:
             "Conservative recent outcome reliability materially declined against its historical baseline.",
         });
@@ -301,7 +310,7 @@ function rerank(
       if (matchingCount >= 3 && matchingFailed > matchingSolved)
         penalties.push({
           code: "version_specific_outcome_failures",
-          points: retrievalPolicyV2.penalties.versionOutcomeFailure,
+          points: retrievalPolicyV3.penalties.versionOutcomeFailure,
           explanation:
             "The requested version bucket has more eligible failed than solved outcome reports.",
         });
@@ -341,8 +350,8 @@ function rerank(
       matchedBy: [...candidate.matched],
       trustAssessmentIds: document.trust.assessmentIds,
       score: {
-        policyIdentifier: retrievalPolicyV2.identifier,
-        policyVersion: retrievalPolicyV2.version,
+        policyIdentifier: retrievalPolicyV3.identifier,
+        policyVersion: retrievalPolicyV3.version,
         policyDigest: retrievalPolicyDigest,
         components: {
           exactError,

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 
-export const retrievalPolicyV2 = {
+export const retrievalPolicyV3 = {
   identifier: "knownpath-retrieval-ranking" as const,
-  version: 2,
+  version: 3,
+  errorMatching: "structured-or-complete-embedded-diagnostic-v1",
   maximum: {
     exactError: 20,
     lexical: 15,
@@ -26,5 +27,5 @@ export const retrievalPolicyV2 = {
 };
 
 export const retrievalPolicyDigest = createHash("sha256")
-  .update(JSON.stringify(retrievalPolicyV2), "utf8")
+  .update(JSON.stringify(retrievalPolicyV3), "utf8")
   .digest("hex");

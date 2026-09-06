@@ -23,7 +23,7 @@ export function normalizeRetrievalQuery(input: {
   platforms: readonly string[];
   environment: readonly string[];
 }) {
-  const rawErrorMaterial = input.errors.map(normalizeInlineText).join("\n");
+  const rawErrorMaterial = [input.text, ...input.errors].map(normalizeInlineText).join("\n");
   const errors = [...new Set(input.errors.map(normalizeRetrievalError))];
   const explicitCodes = [
     ...(rawErrorMaterial.match(/\b(?:ERR_[A-Z0-9_]+|TS\d{3,5}|[A-Z]{2,}-\d{2,})\b/giu) ?? []),
@@ -41,4 +41,32 @@ export function normalizeRetrievalQuery(input: {
       ...new Set(input.environment.map((entry) => normalizeInlineText(entry).toLowerCase())),
     ],
   };
+}
+
+/** Recognize a complete, distinctive persisted diagnostic inside a natural-language task.
+ * Short prose and partial identifiers must not earn exact-match credit.
+ */
+export function matchesEmbeddedDiagnostic(text: string, storedError: string): boolean {
+  const diagnostic = normalizeRetrievalError(storedError).replace(/[.!;]+$/u, "");
+  if (
+    diagnostic.length < 24 ||
+    !/\b(?:error|exception|does not exist|cannot|failed|not found|unable|undefined)\b/u.test(
+      diagnostic,
+    ) ||
+    !/["'`<>]|\b(?:err_[a-z0-9_]+|ts\d{3,5})\b/u.test(diagnostic)
+  )
+    return false;
+  const normalizedText = normalizeRetrievalError(text);
+  let offset = normalizedText.indexOf(diagnostic);
+  while (offset !== -1) {
+    const before = normalizedText[offset - 1];
+    const after = normalizedText[offset + diagnostic.length];
+    if (
+      (before === undefined || !/[\w$]/u.test(before)) &&
+      (after === undefined || !/[\w$]/u.test(after))
+    )
+      return true;
+    offset = normalizedText.indexOf(diagnostic, offset + 1);
+  }
+  return false;
 }

@@ -34,7 +34,7 @@ import {
 } from "@knownpath/domain";
 
 import type { RetrievalResponse, RetrievalService } from "./service.js";
-import { retrievalPolicyV2 } from "./policy.js";
+import { retrievalPolicyV3 } from "./policy.js";
 
 const DIGEST_VERSION = 2;
 const CURSOR_VERSION = 1;
@@ -641,7 +641,7 @@ function rerankWithScopedOutcome(
       ? [
           {
             code: "corroborated_safety_outcomes",
-            points: retrievalPolicyV2.penalties.corroboratedSafety,
+            points: retrievalPolicyV3.penalties.corroboratedSafety,
             explanation:
               "Independent safety reports reached the deterministic corroboration threshold in this access scope.",
           },
@@ -651,7 +651,7 @@ function rerankWithScopedOutcome(
       ? [
           {
             code: "recent_outcome_degradation",
-            points: retrievalPolicyV2.penalties.outcomeDegradation,
+            points: retrievalPolicyV3.penalties.outcomeDegradation,
             explanation: "Conservative recent outcome reliability declined in this access scope.",
           },
         ]

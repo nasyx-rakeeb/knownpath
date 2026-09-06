@@ -18,6 +18,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc -p tsconfig.build.json --watch",
     "lint": "eslint src",
+    "test": "pnpm build && node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

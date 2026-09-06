@@ -18,7 +18,12 @@ Queries can include:
 - semantic mode, result limit, and minimum score;
 - public, personal, or workspace scope.
 
-Inputs are normalized with the same conservative technical rules used by indexing.
+Inputs are normalized with the same conservative technical rules used by indexing. Text-only tasks
+also contribute error codes. A complete distinctive diagnostic embedded in the task can earn
+exact-error relevance when it matches a persisted error, ignoring case and terminal punctuation.
+Short generic prose and partial technical identifiers do not qualify. Structured version constraints
+remain necessary to establish version compatibility; versions mentioned in prose are not silently
+treated as confirmed applicability.
 
 ## Staged retrieval
 
@@ -89,7 +94,7 @@ Private/team searches therefore disable semantic retrieval and use exact/lexical
 
 ## Ranking policy
 
-`knownpath-retrieval-ranking` version 2 allocates at most:
+`knownpath-retrieval-ranking` version 3 allocates at most:
 
 | Component             | Points |
 | --------------------- | -----: |
